@@ -128,10 +128,24 @@ function Header() {
 
 function Hero() {
   return (
-    <section aria-labelledby="hero-h" className="overflow-hidden pt-16 pb-16 md:pt-24 lg:pb-[120px]">
+    <section aria-labelledby="hero-h" className="relative isolate overflow-hidden pt-16 pb-16 md:pt-24 lg:pb-[120px]">
+      {/* Большой фоновый градиент в цветах логотипа: синий сверху, плавно уходит в белый под макетом */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background: [
+            'radial-gradient(55% 45% at 50% 0%, rgba(24, 104, 219, 0.45) 0%, rgba(24, 104, 219, 0) 70%)',
+            'radial-gradient(38% 38% at 8% 18%, rgba(56, 152, 255, 0.35) 0%, rgba(56, 152, 255, 0) 70%)',
+            'radial-gradient(38% 40% at 92% 22%, rgba(11, 79, 196, 0.32) 0%, rgba(11, 79, 196, 0) 70%)',
+            'radial-gradient(60% 35% at 50% 62%, rgba(142, 197, 255, 0.35) 0%, rgba(142, 197, 255, 0) 70%)',
+            'linear-gradient(180deg, #D6E8FF 0%, #EEF5FF 40%, #FFFFFF 88%)',
+          ].join(', '),
+        }}
+      />
       <Container>
         <Reveal className="mx-auto max-w-3xl text-center">
-          <p className="m-0 mb-5 inline-flex items-center gap-2 rounded-full border border-ln-border-soft bg-ln-soft px-3 py-1 text-sm font-medium text-ln-ink-2">
+          <p className="m-0 mb-5 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1 text-sm font-medium text-ln-ink-2 backdrop-blur">
             <img src="/brand/sanastra-icon-32.png" width={18} height={18} alt="" className="rounded" />
             Sanastra
           </p>
