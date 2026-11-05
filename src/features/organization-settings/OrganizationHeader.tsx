@@ -1,0 +1,52 @@
+import { Button, Card, Descriptions, Tag, Typography } from 'antd';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router';
+import type { OrganizationDetail } from '@/api/types';
+import { CopyText } from '@/shared/CopyText';
+import { formatDateTime, SOURCE_LABEL } from '@/shared/format';
+import { IconButton } from '@/shared/IconButton';
+import { StatusTag } from '@/shared/StatusTag';
+
+export function useBackToRegistry() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '';
+  return () => navigate(`/superadmin/organizations${from}`);
+}
+
+export function OrganizationHeader({ org }: { org: OrganizationDetail }) {
+  const back = useBackToRegistry();
+  return (
+    <Card>
+      <div className="flex items-start gap-3">
+        <IconButton label="Назад к реестру" icon={<ArrowLeft size={16} />} onClick={back} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Typography.Title level={3} style={{ margin: 0 }}>
+              {org.name}
+            </Typography.Title>
+            <StatusTag status={org.status} />
+            <Tag color="blue">Тариф: {org.tariffPlan.name}</Tag>
+          </div>
+          <Typography.Text type="secondary">
+            <span className="mono">{org.clientSlug}</span> · обновлено {formatDateTime(org.updatedAt)} (
+            {SOURCE_LABEL[org.updatedBy]})
+          </Typography.Text>
+        </div>
+        <Button href={`/${org.clientSlug}`} target="_blank" icon={<ExternalLink size={16} />}>
+          Интерфейс организации
+        </Button>
+      </div>
+      <Descriptions
+        className="mt-4"
+        size="small"
+        column={3}
+        items={[
+          { key: 'id', label: 'tenant_id', children: <CopyText value={org.tenantId} label="tenant_id" /> },
+          { key: 'slug', label: 'client_slug', children: <CopyText value={org.clientSlug} label="slug" /> },
+          { key: 'created', label: 'Создана', children: formatDateTime(org.createdAt) },
+        ]}
+      />
+    </Card>
+  );
+}
