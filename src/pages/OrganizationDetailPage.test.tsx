@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { SubscriptionSettingsPayload } from '@/api/types';
 import { queryKeys } from '@/api/queryKeys';
 import { load } from '@/mocks/db';
+import { loadUsers } from '@/mocks/users';
 import { server } from '@/test/setup';
 import { ACADEMY_ID, loginAs, mutateOrg, renderApp } from '@/test/utils';
 
@@ -42,15 +43,13 @@ describe('Карточка организации', () => {
     expect(screen.getByRole('button', { name: 'Назад к реестру' })).toBeInTheDocument();
   });
 
-  it('различает default, override и effective для модулей; лимиты тарифа — только чтение', async () => {
+  it('различает default, override и effective для модулей; блок «Лимиты» скрыт', async () => {
     await openCard();
     const webinars = moduleRow('WEBINARS');
     expect(within(webinars).getByTestId('module-default-WEBINARS')).toHaveTextContent('Отключён'); // тариф «Базовый»
     expect(screen.getByTestId('module-effective-WEBINARS')).toHaveTextContent('Включён');
     expect(screen.getByTestId('module-effective-WEBINARS')).toHaveTextContent('Индивидуально');
-    expect(screen.getByTestId('limit-effective-USERS_COUNT')).toHaveTextContent('150');
-    expect(within(screen.getByTestId('limits-section')).queryByRole('spinbutton')).not.toBeInTheDocument();
-    expect(screen.getByTestId('limits-section')).toHaveTextContent('Только чтение');
+    expect(screen.queryByTestId('limits-section')).not.toBeInTheDocument(); // блок «Лимиты» временно скрыт
     expect(saveButton()).toBeDisabled();
   });
 
@@ -109,6 +108,39 @@ describe('Карточка организации', () => {
     const reports = calls[0]!.moduleOverrides.find((m) => m.code === 'REPORTS')!;
     expect(reports.value).toBe(true);
     expect(dayjs(reports.expiresAt).format('DD.MM.YYYY HH:mm')).toBe(at.format('DD.MM.YYYY HH:mm'));
+  });
+
+  it('редактирование организации: название и адрес кабинета', async () => {
+    const { user } = await openCard();
+    await user.click(screen.getByRole('button', { name: 'Редактировать' }));
+    const form = await screen.findByRole('form', { name: 'Редактирование организации' });
+    const name = within(form).getByLabelText(/Название/);
+    expect(name).toHaveValue('Academy');
+    await user.clear(name);
+    await user.click(name);
+    await user.paste('Academy Pro');
+    const slug = within(form).getByLabelText(/Адрес кабинета/);
+    await user.clear(slug);
+    await user.click(slug);
+    await user.paste('kod-school'); // занят другой организацией
+    expect(await within(form).findByText('Этот адрес уже занят')).toBeInTheDocument();
+    await user.clear(slug);
+    await user.click(slug);
+    await user.paste('academy-pro');
+    expect(within(form).getByText('Адрес кабинета изменится')).toBeInTheDocument();
+    const modal = form.closest('.ant-modal') as HTMLElement;
+    await waitFor(() => expect(within(modal).getByRole('button', { name: /^Сохранить$/ })).toBeEnabled());
+    await user.click(within(modal).getByRole('button', { name: /^Сохранить$/ }));
+
+    expect(await screen.findByText('Данные организации сохранены')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Academy Pro' })).toBeInTheDocument();
+    const org = load().organizations[0]!;
+    expect(org).toMatchObject({ name: 'Academy Pro', clientSlug: 'academy-pro', version: 1 });
+    // Роли пользователей переносятся на новый адрес кабинета
+    expect(loadUsers().find((u) => u.iin === '920705400239')!.roles).toContainEqual({
+      role: 'ORGANIZATION_ADMIN',
+      clientSlug: 'academy-pro',
+    });
   });
 
   it('внизу карточки — история подписки и использование ресурсов', async () => {
@@ -191,7 +223,7 @@ describe('Карточка организации', () => {
     // Смена тарифа фиксирует цену и лимиты нового тарифа и создаёт запись в истории
     await waitFor(() => expect(screen.getAllByTestId('history-row-ACTIVE')[0]).toHaveTextContent('Смена тарифа'));
     expect(screen.getAllByTestId('history-row-ACTIVE')[0]).toHaveTextContent('Бизнес');
-    expect(screen.getByTestId('limit-effective-USERS_COUNT')).toHaveTextContent('1 000');
+    await waitFor(() => expect(screen.getByTestId('org-usage-USERS_COUNT')).toHaveTextContent(/82 из 1\s000/));
   });
 
   it('отключение подписки требует подтверждения, ошибка 400 привязывается к полю', async () => {

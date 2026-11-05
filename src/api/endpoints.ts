@@ -6,6 +6,7 @@ import type {
   OrganizationDetail,
   OrganizationFilters,
   OrganizationListItem,
+  OrganizationProfilePayload,
   Paginated,
   AssignableRole,
   OrganizationUser,
@@ -89,6 +90,11 @@ export const api = {
     slugAvailable: (slug: string) =>
       request<{ available: boolean }>(`/api/superadmin/organizations/slug-availability${toQueryString({ slug })}`),
     get: (tenantId: string) => request<OrganizationDetail>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}`),
+    updateProfile: (tenantId: string, payload: OrganizationProfilePayload) =>
+      request<OrganizationDetail>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
     saveSettings: (tenantId: string, payload: SubscriptionSettingsPayload) =>
       request<OrganizationDetail>(
         `/api/superadmin/organizations/${encodeURIComponent(tenantId)}/subscription-settings`,

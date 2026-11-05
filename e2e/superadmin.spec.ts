@@ -66,7 +66,7 @@ test('3. Индивидуальное включение модуля и руч�
 
 test('4. Продление подписки и история периодов', async ({ page }) => {
   await openAcademy(page);
-  await expect(page.getByTestId('limits-section')).toContainText('Только чтение');
+  await expect(page.getByTestId('limits-section')).toHaveCount(0);
   await page.getByRole('button', { name: /Продлить подписку/ }).click();
   await save(page).click();
   await expect(page.getByText('Изменения сохранены')).toBeVisible();

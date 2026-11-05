@@ -13,7 +13,6 @@ import { useTariffPlan, useTariffPlans } from '@/features/organizations/queries'
 import { broadcastTenantAccessInvalidated } from '@/shared/crossTab';
 import { formatDateTime, SOURCE_LABEL } from '@/shared/format';
 import { HistorySection } from './HistorySection';
-import { LimitsSection } from './LimitsSection';
 import {
   buildSchema,
   criticalChanges,
@@ -26,11 +25,15 @@ import {
   type SettingsFormValues,
   type TariffDefaults,
 } from './model';
+import { LimitsSection } from './LimitsSection';
 import { ModulesSection } from './ModulesSection';
 import { OrganizationHeader } from './OrganizationHeader';
 import { SubscriptionSection } from './SubscriptionSection';
 import { UsageSection } from './UsageSection';
 import { TariffChangeModal } from './TariffChangeModal';
+
+/** Блок «Лимиты» (только чтение, значения тарифа) временно скрыт — включить, вернув true. */
+const SHOW_LIMITS_SECTION = false;
 
 interface Props {
   /** Последние данные с сервера (могут обновляться извне — оплата, другой администратор). */
@@ -189,7 +192,7 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
   return (
     <form onSubmit={submit} noValidate aria-label="Настройки подписки организации">
       <div className="flex flex-col gap-4 pb-4">
-        <OrganizationHeader org={base} />
+        <OrganizationHeader org={org} />
 
         {externalUpdate && (
           <Alert
@@ -269,7 +272,9 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
               errors={errors.moduleExpirations}
               disabled={busy}
             />
-            <LimitsSection limits={base.limits} defaults={defaults} pending={termsFromTariff} />
+            {SHOW_LIMITS_SECTION && (
+              <LimitsSection limits={base.limits} defaults={defaults} pending={termsFromTariff} />
+            )}
           </>
         ) : (
           <Card>

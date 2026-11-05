@@ -158,7 +158,7 @@ export function CreateOrganizationModal({ open, onClose }: { open: boolean; onCl
           htmlFor="org-slug"
           required
           error={errors.clientSlug?.message ?? (slugTaken ? 'Этот адрес уже занят' : undefined)}
-          hint={slugStatus ?? 'Латинские буквы, цифры и дефис. Изменить адрес после создания нельзя.'}
+          hint={slugStatus ?? 'Латинские буквы, цифры и дефис. Адрес можно изменить позже в карточке организации.'}
         >
           <Controller
             control={control}

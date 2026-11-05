@@ -1,7 +1,9 @@
 import { Button, Card, Descriptions, Tag, Typography } from 'antd';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Pencil } from 'lucide-react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import type { OrganizationDetail } from '@/api/types';
+import { EditOrganizationModal } from '@/features/organizations/EditOrganizationModal';
 import { CopyText } from '@/shared/CopyText';
 import { formatDateTime, SOURCE_LABEL } from '@/shared/format';
 import { IconButton } from '@/shared/IconButton';
@@ -16,6 +18,7 @@ export function useBackToRegistry() {
 
 export function OrganizationHeader({ org }: { org: OrganizationDetail }) {
   const back = useBackToRegistry();
+  const [editing, setEditing] = useState(false);
   return (
     <Card>
       <div className="flex items-start gap-3">
@@ -33,10 +36,16 @@ export function OrganizationHeader({ org }: { org: OrganizationDetail }) {
             {SOURCE_LABEL[org.updatedBy]})
           </Typography.Text>
         </div>
-        <Button href={`/${org.clientSlug}/admin`} target="_blank" icon={<ExternalLink size={16} />}>
-          Интерфейс организации
-        </Button>
+        <div className="flex gap-2">
+          <Button icon={<Pencil size={16} />} onClick={() => setEditing(true)}>
+            Редактировать
+          </Button>
+          <Button href={`/${org.clientSlug}/admin`} target="_blank" icon={<ExternalLink size={16} />}>
+            Интерфейс организации
+          </Button>
+        </div>
       </div>
+      {editing && <EditOrganizationModal org={org} onClose={() => setEditing(false)} />}
       <Descriptions
         className="mt-4"
         size="small"

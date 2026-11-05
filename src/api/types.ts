@@ -341,6 +341,12 @@ export interface Webinar {
   status: WebinarStatus;
 }
 
+/** Данные организации, введённые при создании (редактирование) */
+export interface OrganizationProfilePayload {
+  name: string;
+  clientSlug: string;
+}
+
 export interface CreateOrganizationPayload {
   name: string;
   clientSlug: string;

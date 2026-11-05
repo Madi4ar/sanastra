@@ -8,6 +8,7 @@ import type {
   Role,
   RoleAssignment,
   CreateOrganizationPayload,
+  OrganizationProfilePayload,
   ChangeSource,
   CurrentUser,
   PlatformUserPayload,
@@ -668,6 +669,42 @@ export const handlers = [
     if (denied) return denied;
     const org = load().organizations.find((o) => o.tenantId === params.tenantId);
     return org ? HttpResponse.json(toDetail(org)) : err(404, 'NOT_FOUND');
+  }),
+
+  // Название и адрес кабинета; условия подписки меняются отдельно (version не увеличивается)
+  http.patch('/api/superadmin/organizations/:tenantId', async ({ params, request }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const db = load();
+    const org = db.organizations.find((o) => o.tenantId === params.tenantId);
+    if (!org) return err(404, 'NOT_FOUND');
+    const body = (await request.json()) as Partial<OrganizationProfilePayload>;
+    const name = (body.name ?? '').trim();
+    const slug = (body.clientSlug ?? '').trim();
+    const others = db.organizations.filter((o) => o.tenantId !== org.tenantId);
+    const fe: Record<string, string> = {};
+    if (name.length < 2 || name.length > 120) fe.name = 'Название — от 2 до 120 символов';
+    else if (others.some((o) => o.name.toLowerCase() === name.toLowerCase()))
+      fe.name = 'Организация с таким названием уже существует';
+    const slugErr = slug === org.clientSlug ? null : slugError(slug);
+    if (slugErr) fe.clientSlug = slugErr;
+    else if (others.some((o) => o.clientSlug === slug)) fe.clientSlug = 'Этот адрес уже занят';
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', undefined, fe);
+
+    const oldSlug = org.clientSlug;
+    org.name = name;
+    org.clientSlug = slug;
+    org.updatedAt = new Date().toISOString();
+    org.updatedBy = 'SUPERADMIN';
+    save(db);
+    // Роли пользователей привязаны к адресу кабинета
+    if (oldSlug !== slug) {
+      const users = loadUsers();
+      users.forEach((u) => u.roles.forEach((r) => r.clientSlug === oldSlug && (r.clientSlug = slug)));
+      saveUsers(users);
+    }
+    return HttpResponse.json(toDetail(org));
   }),
 
   http.patch('/api/superadmin/organizations/:tenantId/subscription-settings', async ({ params, request }) => {
