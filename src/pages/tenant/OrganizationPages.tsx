@@ -30,7 +30,7 @@ export function OrganizationInfoPage() {
           column={{ xs: 1, md: 2 }}
           items={[
             { key: 'name', label: 'Название', children: access.organizationName },
-            { key: 'url', label: 'Адрес кабинета', children: `${window.location.origin}/${access.clientSlug}` },
+            { key: 'url', label: 'Адрес кабинета', children: `${window.location.origin}/${access.clientSlug}/admin` },
             { key: 'status', label: 'Подписка', children: <Tag color={status.color}>{status.label}</Tag> },
             { key: 'tariff', label: 'Тариф', children: <Highlight value={access.tariff.name}>{access.tariff.name}</Highlight> },
           ]}
@@ -130,14 +130,14 @@ export function SubscriptionPage() {
 }
 
 export function ModulesPage() {
-  const { clientSlug, availableModules } = useTenantContext();
+  const { availableModules } = useTenantContext();
   return (
     <>
       <PageHeader title="Модули" subtitle="Возможности, доступные в текущей конфигурации организации." />
       {availableModules.length ? (
         <CardGrid testId="modules-grid">
           {availableModules.map((m, i) => (
-            <ModuleCard key={m.code} module={m} clientSlug={clientSlug} showStatus index={i} />
+            <ModuleCard key={m.code} module={m} showStatus index={i} />
           ))}
         </CardGrid>
       ) : (

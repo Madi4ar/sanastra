@@ -1,8 +1,9 @@
 import { App, Button, Result, Spin } from 'antd';
 import { Clock3, LogOut, ShieldX } from 'lucide-react';
 import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useLogout } from '@/auth/auth';
+import { useCabinet } from '@/features/tenant/cabinet';
 import { useTenantAccess } from '@/features/tenant/queries';
 
 /**
@@ -11,7 +12,7 @@ import { useTenantAccess } from '@/features/tenant/queries';
  * пользователь возвращается в кабинет без повторного входа.
  */
 export function SubscriptionBlockedPage() {
-  const { clientSlug = '' } = useParams();
+  const { clientSlug, base } = useCabinet();
   const access = useTenantAccess(clientSlug);
   const logout = useLogout();
   const navigate = useNavigate();
@@ -21,8 +22,8 @@ export function SubscriptionBlockedPage() {
   useEffect(() => {
     if (status !== 'ACTIVE') return;
     message.success({ key: 'access-restored', content: 'Доступ восстановлен' });
-    navigate(`/${clientSlug}/dashboard`, { replace: true });
-  }, [status, clientSlug, navigate, message]);
+    navigate(base, { replace: true });
+  }, [status, base, navigate, message]);
 
   if (access.isPending || status === 'ACTIVE') {
     return (

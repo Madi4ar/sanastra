@@ -7,7 +7,13 @@ import type {
   OrganizationFilters,
   OrganizationListItem,
   Paginated,
-  Role,
+  AssignableRole,
+  OrganizationUser,
+  OrganizationLimitsRow,
+  PlatformUser,
+  Region,
+  RegisterPayload,
+  RoleAssignment,
   SubscriptionSettingsPayload,
   TariffPlanDetail,
   SubscriptionSummary,
@@ -33,8 +39,31 @@ export interface ModuleData {
 export const api = {
   auth: {
     me: () => request<CurrentUser>('/api/auth/me'),
-    login: (role: Role) => request<CurrentUser>('/api/auth/login', { method: 'POST', body: JSON.stringify({ role }) }),
+    /** Шаг 1 входа: поиск ИИН в базе */
+    checkIin: (iin: string) => request<{ exists: true }>('/api/auth/check-iin', { method: 'POST', body: JSON.stringify({ iin }) }),
+    /** Шаг 2 входа: ИИН + пароль */
+    login: (iin: string, password: string) =>
+      request<CurrentUser>('/api/auth/login', { method: 'POST', body: JSON.stringify({ iin, password }) }),
+    register: (payload: RegisterPayload) =>
+      request<CurrentUser>('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+    switchRole: (target: Pick<RoleAssignment, 'role' | 'clientSlug'>) =>
+      request<CurrentUser>('/api/auth/switch-role', { method: 'POST', body: JSON.stringify(target) }),
     logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
+  },
+  dictionaries: {
+    regions: () => request<Region[]>('/api/dictionaries/regions'),
+  },
+  organizationUsers: {
+    list: (clientSlug: string) => request<OrganizationUser[]>(`/api/organizations/${encodeURIComponent(clientSlug)}/users`),
+    assignRole: (clientSlug: string, iin: string, role: AssignableRole) =>
+      request<OrganizationUser>(`/api/organizations/${encodeURIComponent(clientSlug)}/users/roles`, {
+        method: 'POST',
+        body: JSON.stringify({ iin, role }),
+      }),
+  },
+  platform: {
+    users: (search: string) => request<PlatformUser[]>(`/api/superadmin/users${toQueryString({ search })}`),
+    limits: (search: string) => request<OrganizationLimitsRow[]>(`/api/superadmin/limits${toQueryString({ search })}`),
   },
   organizations: {
     list: (f: OrganizationFilters) =>

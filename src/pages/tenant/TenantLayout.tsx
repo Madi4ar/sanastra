@@ -38,6 +38,7 @@ import { Link, Navigate, Outlet, useLocation, useMatches, useNavigate } from 're
 import { tokens } from '@/app/theme';
 import { isApiError } from '@/api/client';
 import { useLogout } from '@/auth/auth';
+import { ROLE_LABEL, useRoleSwitchItems } from '@/features/auth/roles';
 import { useTenantContext } from '@/features/tenant/access';
 import { useTenantAccess } from '@/features/tenant/queries';
 import type { CrumbHandle } from '@/layout/AppLayout';
@@ -71,24 +72,19 @@ const navTheme: ThemeConfig = {
   },
 };
 
-const ROLE_LABEL: Record<string, string> = {
-  SUPERADMIN: 'Администратор Sanastra',
-  ORGANIZATION_ADMIN: 'Администратор организации',
-  TENANT_USER: 'Пользователь',
-};
-
 interface NavItem {
   key: string;
   label: string;
   icon: ReactNode;
   to: string;
+  /** Активен только при точном совпадении пути */
+  exact?: boolean;
 }
 
 function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boolean } {
-  const { clientSlug, availableModules, isAdmin, isLoading } = useTenantContext();
-  const base = `/${clientSlug}`;
+  const { base, availableModules, isAdmin, isLoading } = useTenantContext();
   const main: NavItem[] = [
-    { key: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={16} />, to: `${base}/dashboard` },
+    { key: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={16} />, to: base, exact: true },
     ...availableModules.map((m) => ({
       key: `m/${m.code}`,
       label: m.name,
@@ -126,7 +122,7 @@ function NavMenu({ onNavigate }: { onNavigate?: () => void }) {
   }
   const all = [...main, ...organization];
   const selected = all
-    .filter((i) => location.pathname === i.to || location.pathname.startsWith(`${i.to}/`))
+    .filter((i) => location.pathname === i.to || (!i.exact && location.pathname.startsWith(`${i.to}/`)))
     .sort((a, b) => b.to.length - a.to.length)[0]?.key;
   const toItem = (i: NavItem) => ({
     key: i.key,
@@ -180,13 +176,13 @@ function Brand({ name }: { name?: string }) {
 
 /** Содержимое боковой панели: подпись роли, меню, сводка подписки для администратора. */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, access, isAdmin, clientSlug } = useTenantContext();
+  const { user, access, isAdmin, base } = useTenantContext();
   return (
     <>
       <div className="flex-1 overflow-y-auto px-2 pt-4">
         {user && (
           <p className="m-0 mb-2 px-3 text-xs font-semibold tracking-wide text-muted uppercase">
-            {isAdmin ? ROLE_LABEL.ORGANIZATION_ADMIN : 'Личный кабинет'}
+            {user.role === 'LEARNER' ? 'Личный кабинет' : ROLE_LABEL[user.role]}
           </p>
         )}
         <NavMenu onNavigate={onNavigate} />
@@ -194,7 +190,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {isAdmin && access && (
         <div className="border-t border-border p-3">
           <Link
-            to={`/${clientSlug}/organization/subscription`}
+            to={`${base}/organization/subscription`}
             onClick={onNavigate}
             className="focus-ring flex items-center gap-3 rounded-md bg-primary-soft p-3 text-primary no-underline hover:opacity-90"
           >
@@ -282,9 +278,10 @@ function Notifications() {
 }
 
 function ProfileMenu() {
-  const { user, clientSlug } = useTenantContext();
+  const { user, base } = useTenantContext();
   const navigate = useNavigate();
   const logout = useLogout();
+  const roleItems = useRoleSwitchItems() ?? [];
   if (!user) return null;
   return (
     <Dropdown
@@ -292,7 +289,8 @@ function ProfileMenu() {
       placement="bottomRight"
       menu={{
         items: [
-          { key: 'profile', icon: <UserRound size={16} />, label: 'Профиль', onClick: () => navigate(`/${clientSlug}/profile`) },
+          { key: 'profile', icon: <UserRound size={16} />, label: 'Профиль', onClick: () => navigate(`${base}/profile`) },
+          ...(roleItems.length ? [{ type: 'divider' as const }, ...roleItems] : []),
           { type: 'divider' },
           { key: 'logout', icon: <LogOut size={16} />, label: 'Выйти', onClick: () => logout.mutate() },
         ],
@@ -302,7 +300,7 @@ function ProfileMenu() {
         <Avatar size={28} icon={<UserRound size={14} />} style={{ background: tokens.colorPrimary }} />
         <span className="hidden min-w-0 text-left sm:block">
           <span className="block max-w-36 truncate text-sm leading-tight font-medium">{user.fullName}</span>
-          <span className="block text-xs leading-tight text-muted">{ROLE_LABEL[user.role] ?? 'Пользователь'}</span>
+          <span className="block text-xs leading-tight text-muted">{ROLE_LABEL[user.role]}</span>
         </span>
         <ChevronDown size={16} aria-hidden className="text-muted" />
       </Button>
@@ -330,7 +328,7 @@ function Breadcrumbs() {
 
 /** Кабинет организации и личный кабинет. Решение о блокировке принимает сервер (subscriptionStatus). */
 export function TenantLayout() {
-  const { clientSlug, access, isLoading } = useTenantContext();
+  const { clientSlug, base, access, isLoading } = useTenantContext();
   const accessQuery = useTenantAccess(clientSlug);
   const screens = Grid.useBreakpoint();
   const isDesktop = screens.lg ?? true;
@@ -343,7 +341,7 @@ export function TenantLayout() {
     return <ErrorState error={accessQuery.error} onRetry={() => void accessQuery.refetch()} />;
   }
   if (access && access.subscriptionStatus !== 'ACTIVE') {
-    return <Navigate to={`/${clientSlug}/subscription-blocked`} replace />;
+    return <Navigate to={`${base}/subscription-blocked`} replace />;
   }
 
   return (

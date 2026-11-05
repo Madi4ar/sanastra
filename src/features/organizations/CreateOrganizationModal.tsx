@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App, DatePicker, Input, Modal, Select, Switch } from 'antd';
 import dayjs from 'dayjs';
 import { Check, Loader2, X } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { z } from 'zod';
@@ -11,6 +11,7 @@ import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import { useTariffPlans } from '@/features/organizations/queries';
+import { Field } from '@/shared/FormField';
 import { API_DATE, UI_DATE } from '@/shared/format';
 import { slugError, slugify } from '@/shared/slug';
 import { useDebouncedValue } from '@/shared/useDebouncedValue';
@@ -33,31 +34,6 @@ const schema = z
   });
 
 type Values = z.infer<typeof schema>;
-
-function Field({ label, htmlFor, error, hint, required, children }: {
-  label: string;
-  htmlFor: string;
-  error?: string;
-  hint?: ReactNode;
-  required?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium">
-        {label} {required && <span className="text-error">*</span>}
-      </label>
-      {children}
-      {error ? (
-        <p role="alert" id={`${htmlFor}-error`} className="m-0 mt-1 text-xs text-error">
-          {error}
-        </p>
-      ) : (
-        hint && <div className="mt-1 text-xs text-muted">{hint}</div>
-      )}
-    </div>
-  );
-}
 
 export function CreateOrganizationModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();

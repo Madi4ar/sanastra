@@ -19,7 +19,7 @@ interface Props {
 
 export function LimitsSection({ limits, values, defaults, control, errors, onReset, disabled }: Props) {
   return (
-    <Card title="Лимиты" extra={<Legend />} styles={{ body: { padding: 0 } }} data-testid="limits-section">
+<Card title="Лимиты" extra={<Legend />} styles={{ body: { padding: 0 } }} data-testid="limits-section">
       <Table<OrganizationLimit>
         rowKey="code"
         pagination={false}

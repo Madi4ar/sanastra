@@ -1,6 +1,10 @@
 export type ApiErrorCode =
   | 'VALIDATION_ERROR'
   | 'UNAUTHORIZED'
+  | 'USER_NOT_FOUND'
+  | 'INVALID_CREDENTIALS'
+  | 'ACCOUNT_LOCKED'
+  | 'ORGANIZATION_UNAVAILABLE'
   | 'FORBIDDEN'
   | 'MODULE_DISABLED'
   | 'TENANT_BLOCKED'
@@ -20,6 +24,10 @@ interface ApiErrorBody {
 const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   VALIDATION_ERROR: 'Проверьте правильность заполнения полей.',
   UNAUTHORIZED: 'Сессия истекла. Войдите снова.',
+  USER_NOT_FOUND: 'Пользователь с таким ИИН не найден. Пожалуйста, зарегистрируйтесь',
+  INVALID_CREDENTIALS: 'Неверный пароль',
+  ACCOUNT_LOCKED: 'Аккаунт временно заблокирован на 15 минут после 5 неверных попыток ввода пароля.',
+  ORGANIZATION_UNAVAILABLE: 'Вход невозможен: организация заблокирована или срок её подписки истёк.',
   FORBIDDEN: 'Недостаточно прав для выполнения операции.',
   MODULE_DISABLED: 'Модуль недоступен для вашей организации.',
   TENANT_BLOCKED: 'Доступ организации временно приостановлен.',
@@ -49,19 +57,20 @@ export const isApiError = (e: unknown): e is ApiError => e instanceof ApiError;
 
 function codeFromStatus(status: number, body: ApiErrorBody): ApiErrorCode {
   if (status === 400 || status === 422) return 'VALIDATION_ERROR';
-  if (status === 401) return 'UNAUTHORIZED';
+  if (status === 401) return body.code === 'INVALID_CREDENTIALS' ? 'INVALID_CREDENTIALS' : 'UNAUTHORIZED';
+  if (status === 423) return 'ACCOUNT_LOCKED';
   if (status === 403) {
-    const known = ['MODULE_DISABLED', 'TENANT_BLOCKED', 'SUBSCRIPTION_EXPIRED', 'LIMIT_REACHED'] as const;
+    const known = ['MODULE_DISABLED', 'TENANT_BLOCKED', 'SUBSCRIPTION_EXPIRED', 'LIMIT_REACHED', 'ORGANIZATION_UNAVAILABLE'] as const;
     return known.find((c) => c === body.code) ?? 'FORBIDDEN';
   }
-  if (status === 404) return 'NOT_FOUND';
+  if (status === 404) return body.code === 'USER_NOT_FOUND' ? 'USER_NOT_FOUND' : 'NOT_FOUND';
   if (status === 409) return 'CONFLICT'; // в т.ч. CONFIG_VERSION_CHANGED
   return 'SERVER_ERROR';
 }
 
-/** Сообщение из backend показывается только для 400 (оно предназначено пользователю). Сырые исключения 5xx скрываются. */
+/** Сообщение из backend показывается только для 400 и блокировки входа (оно предназначено пользователю). Сырые исключения 5xx скрываются. */
 function messageFor(code: ApiErrorCode, body: ApiErrorBody): string {
-  if (code === 'VALIDATION_ERROR' && body.message) return body.message;
+  if ((code === 'VALIDATION_ERROR' || code === 'ACCOUNT_LOCKED') && body.message) return body.message;
   return DEFAULT_MESSAGES[code];
 }
 

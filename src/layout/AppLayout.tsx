@@ -1,19 +1,14 @@
 import { Avatar, Breadcrumb, Button, Layout, Menu, Tooltip, Typography } from 'antd';
-import { Building2, LogOut, PanelLeftClose, PanelLeftOpen, UserRound } from 'lucide-react';
+import { Building2, Gauge, LogOut, PanelLeftClose, PanelLeftOpen, UserRound, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 import { tokens } from '@/app/theme';
 import { useCurrentUser, useLogout } from '@/auth/auth';
+import { ROLE_LABEL, RoleSwitcher } from '@/features/auth/roles';
 
 export interface CrumbHandle {
   crumb: (params: Record<string, string | undefined>) => ReactNode;
 }
-
-const ROLE_LABEL: Record<string, string> = {
-  SUPERADMIN: 'Суперадминистратор',
-  ORGANIZATION_ADMIN: 'Администратор организации',
-  TENANT_USER: 'Пользователь',
-};
 
 const COLLAPSE_KEY = 'superadmin-sider-collapsed';
 
@@ -52,11 +47,18 @@ export function AppLayout() {
       return { key: m.id, title: last ? node : <Link to={m.pathname}>{node}</Link> };
     });
 
-  const selected = location.pathname.startsWith('/superadmin/organizations') ? ['organizations'] : [];
+  const selected = ['organizations', 'limits', 'users'].filter((k) => location.pathname.startsWith(`/superadmin/${k}`));
 
   return (
     <Layout style={{ minHeight: '100vh', minWidth: 1024 }}>
-      <Layout.Sider collapsible collapsed={collapsed} trigger={null} width={240} collapsedWidth={64}>
+      <Layout.Sider
+        collapsible
+        collapsed={collapsed}
+        trigger={null}
+        width={240}
+        collapsedWidth={64}
+        style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'auto' }}
+      >
         <div className="flex h-14 items-center gap-2 px-5 text-white">
           <img src="/brand/sanastra-icon-64.png" width={32} height={32} alt="" className="shrink-0 rounded-lg" />
           {!collapsed && <span className="truncate font-semibold">Sanastra · Админ</span>}
@@ -72,6 +74,8 @@ export function AppLayout() {
               label: 'Организации',
               onClick: () => navigate('/superadmin/organizations'),
             },
+            { key: 'limits', icon: <Gauge size={16} />, label: 'Лимиты', onClick: () => navigate('/superadmin/limits') },
+            { key: 'users', icon: <Users size={16} />, label: 'Пользователи', onClick: () => navigate('/superadmin/users') },
           ]}
         />
       </Layout.Sider>
@@ -87,11 +91,12 @@ export function AppLayout() {
           </Tooltip>
           {user && (
             <div className="flex items-center gap-3" data-testid="current-user">
+              <RoleSwitcher />
               <Avatar size={32} icon={<UserRound size={16} />} style={{ background: tokens.colorPrimary }} />
               <div className="flex flex-col leading-tight">
                 <Typography.Text strong>{user.fullName}</Typography.Text>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {ROLE_LABEL[user.role] ?? user.role} · {user.email}
+                  {ROLE_LABEL[user.role]} · {user.email}
                 </Typography.Text>
               </div>
               <Tooltip title="Выйти">

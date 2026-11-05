@@ -7,51 +7,60 @@ import { tokens } from '@/app/theme';
 import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
+import type { CurrentUser } from '@/api/types';
 import { useLogout } from '@/auth/auth';
+import { ROLE_LABEL } from '@/features/auth/roles';
+import { formatPhone } from '@/features/auth/validation';
 import { FeatureGuard, useTenantContext } from '@/features/tenant/access';
+import { useCabinet } from '@/features/tenant/cabinet';
 import { CoursesView } from '@/features/tenant/content/CoursesView';
+import { OrganizationUsers } from '@/features/users/OrganizationUsers';
 import { WebinarsView } from '@/features/tenant/content/WebinarsView';
 import { ErrorState } from '@/shared/PageState';
 import { PageHeader } from './PageHeader';
 
-const ROLE_LABEL: Record<string, string> = {
-  SUPERADMIN: 'Администратор Sanastra',
-  ORGANIZATION_ADMIN: 'Администратор организации',
-  TENANT_USER: 'Пользователь',
-};
+/** Карточка профиля: данные регистрации и активная роль. */
+export function ProfileCard({ user, organizationName }: { user: CurrentUser; organizationName?: string }) {
+  const logout = useLogout();
+  return (
+    <Card>
+      <div className="mb-6 flex items-center gap-4">
+        <Avatar size={56} icon={<UserRound size={24} />} style={{ background: tokens.colorPrimary }} />
+        <div className="min-w-0">
+          <div className="text-lg font-semibold">{user.fullName}</div>
+          <div className="text-muted">{ROLE_LABEL[user.role]}</div>
+        </div>
+      </div>
+      <Descriptions
+        column={1}
+        items={[
+          { key: 'iin', label: 'ИИН', children: user.iin },
+          { key: 'region', label: 'Область', children: user.region },
+          { key: 'phone', label: 'Телефон', children: formatPhone(user.phone) },
+          { key: 'email', label: 'Email', children: user.email },
+          ...(organizationName ? [{ key: 'org', label: 'Организация', children: organizationName }] : []),
+        ]}
+      />
+      <Button className="mt-6" icon={<LogOut size={16} />} onClick={() => logout.mutate()}>
+        Выйти
+      </Button>
+    </Card>
+  );
+}
 
 export function ProfilePage() {
   const { user, access } = useTenantContext();
-  const logout = useLogout();
   if (!user) return null;
   return (
     <>
       <PageHeader title="Профиль" />
-      <Card>
-        <div className="mb-6 flex items-center gap-4">
-          <Avatar size={56} icon={<UserRound size={24} />} style={{ background: tokens.colorPrimary }} />
-          <div className="min-w-0">
-            <div className="text-lg font-semibold">{user.fullName}</div>
-            <div className="text-muted">{ROLE_LABEL[user.role] ?? 'Пользователь'}</div>
-          </div>
-        </div>
-        <Descriptions
-          column={1}
-          items={[
-            { key: 'email', label: 'Эл. почта', children: user.email },
-            { key: 'org', label: 'Организация', children: access?.organizationName ?? '—' },
-          ]}
-        />
-        <Button className="mt-6" icon={<LogOut size={16} />} onClick={() => logout.mutate()}>
-          Выйти
-        </Button>
-      </Card>
+      <ProfileCard user={user} organizationName={access?.organizationName} />
     </>
   );
 }
 
 export function FeatureUnavailablePage() {
-  const { clientSlug = '' } = useParams();
+  const { base } = useCabinet();
   const navigate = useNavigate();
   return (
     <Card>
@@ -60,7 +69,7 @@ export function FeatureUnavailablePage() {
         title="Функция недоступна"
         subTitle="Эта возможность не входит в конфигурацию вашей организации или недоступна для вашей роли."
         extra={
-          <Button type="primary" icon={<ArrowLeft size={16} />} onClick={() => navigate(`/${clientSlug}/dashboard`, { replace: true })}>
+          <Button type="primary" icon={<ArrowLeft size={16} />} onClick={() => navigate(base, { replace: true })}>
             На главную
           </Button>
         }
@@ -137,11 +146,22 @@ function ModuleContent({ code }: { code: string }) {
   );
 }
 
+/** Модуль «Пользователи» — раздел пользователей организации с назначением ролей. */
+function UsersModule() {
+  const { clientSlug } = useCabinet();
+  return (
+    <>
+      <PageHeader title="Пользователи" />
+      <OrganizationUsers clientSlug={clientSlug} />
+    </>
+  );
+}
+
 export function ModulePage() {
   const { moduleCode = '' } = useParams();
   return (
     <FeatureGuard code={moduleCode}>
-      <ModuleContent code={moduleCode} />
+      {moduleCode === 'USERS' ? <UsersModule /> : <ModuleContent code={moduleCode} />}
     </FeatureGuard>
   );
 }

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import type { TenantModule } from '@/api/types';
 import { ModuleIcon } from '@/shared/ModuleIcon';
+import { useCabinet } from './cabinet';
 import { TONE_CLASS, type Tone } from './StatCard';
 
 /** Мягкие подложки иконок чередуются по токенам — карточки различимы, но в одной системе. */
@@ -15,16 +16,15 @@ const ICON_TONES: Tone[] = ['primary', 'info', 'success', 'warning'];
  */
 export function ModuleCard({
   module,
-  clientSlug,
   showStatus,
   index = 0,
 }: {
   module: TenantModule;
-  clientSlug: string;
   showStatus?: boolean;
   index?: number;
 }) {
   const navigate = useNavigate();
+  const { base } = useCabinet();
   const tone = ICON_TONES[index % ICON_TONES.length]!;
   return (
     <Card
@@ -36,7 +36,7 @@ export function ModuleCard({
       <button
         type="button"
         aria-label={`Открыть: ${module.name}`}
-        onClick={() => navigate(`/${clientSlug}/m/${module.code}`)}
+        onClick={() => navigate(`${base}/m/${module.code}`)}
         className="focus-ring group flex h-full w-full cursor-pointer flex-col gap-4 rounded-lg border-0 bg-transparent p-5 text-left"
       >
         <span className="flex w-full items-start justify-between gap-2">

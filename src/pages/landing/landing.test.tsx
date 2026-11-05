@@ -42,7 +42,7 @@ describe('Лендинг Sanastra', () => {
   it('вошедший пользователь видит переход в кабинет', async () => {
     loginAs('ORGANIZATION_ADMIN');
     renderApp('/');
-    expect(await screen.findByRole('link', { name: 'Кабинетке өту' })).toHaveAttribute('href', '/academy/dashboard');
+    expect(await screen.findByRole('link', { name: 'Кабинетке өту' })).toHaveAttribute('href', '/academy/admin');
   });
 });
 

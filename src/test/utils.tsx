@@ -4,7 +4,8 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { AppProviders } from '@/app/AppProviders';
 import { createQueryClient } from '@/app/queryClient';
 import { routes } from '@/app/routes';
-import { DEMO_USERS, load, save, setSession } from '@/mocks/db';
+import { load, save, setSession } from '@/mocks/db';
+import { DEMO_USERS } from '@/mocks/users';
 
 export const ACADEMY_ID = '7c9e6679-7425-40de-944b-000000000001';
 

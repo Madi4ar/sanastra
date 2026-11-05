@@ -33,7 +33,7 @@ export function OrganizationHeader({ org }: { org: OrganizationDetail }) {
             {SOURCE_LABEL[org.updatedBy]})
           </Typography.Text>
         </div>
-        <Button href={`/${org.clientSlug}`} target="_blank" icon={<ExternalLink size={16} />}>
+        <Button href={`/${org.clientSlug}/admin`} target="_blank" icon={<ExternalLink size={16} />}>
           Интерфейс организации
         </Button>
       </div>

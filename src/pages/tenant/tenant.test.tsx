@@ -36,8 +36,8 @@ function countRequests(path: string) {
 
 describe('Кабинет: навигация и права', () => {
   it('меню строится после получения access: сначала skeleton, без запрещённых пунктов', async () => {
-    loginAs('TENANT_USER');
-    renderApp('/academy');
+    loginAs('LEARNER');
+    renderApp('/learn');
     expect(await screen.findByTestId('nav-skeleton')).toBeInTheDocument();
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
     await waitFor(() => expect(menuItem('Курсы')).toBeInTheDocument());
@@ -45,8 +45,8 @@ describe('Кабинет: навигация и права', () => {
   });
 
   it('права роли и права организации применяются совместно', async () => {
-    loginAs('TENANT_USER');
-    renderApp('/academy/dashboard');
+    loginAs('LEARNER');
+    renderApp('/learn');
     await waitFor(() => expect(menuItem('Курсы')).toBeInTheDocument());
     expect(menuItem('Вебинары')).toBeInTheDocument(); // модуль включён + есть право
     expect(menuItem('Сообщения')).not.toBeInTheDocument(); // право есть, модуль отключён тарифом
@@ -57,15 +57,15 @@ describe('Кабинет: навигация и права', () => {
 
   it('администратор организации видит раздел «Организация» и лимиты', async () => {
     loginAs('ORGANIZATION_ADMIN');
-    renderApp('/academy/dashboard');
+    renderApp('/academy/admin');
     await waitFor(() => expect(menuItem('Тариф и подписка')).toBeInTheDocument());
     expect(menuItem('Пользователи')).toBeInTheDocument();
     expect(await screen.findByTestId('usage-USERS_COUNT')).toHaveTextContent('82 из 150 пользователей');
   });
 
   it('обычный пользователь не видит технические данные', async () => {
-    loginAs('TENANT_USER');
-    renderApp('/academy/dashboard');
+    loginAs('LEARNER');
+    renderApp('/learn');
     await screen.findByTestId('quick-actions');
     const text = document.body.textContent ?? '';
     ['COURSES', 'USERS_COUNT', ACADEMY_ID, 'Тариф', 'override', 'Индивидуально'].forEach((t) =>
@@ -74,21 +74,21 @@ describe('Кабинет: навигация и права', () => {
   });
 
   it('прямой переход к недоступному модулю → «Функция недоступна»', async () => {
-    loginAs('TENANT_USER');
-    const { router } = renderApp('/academy/m/REPORTS');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/feature-unavailable'));
+    loginAs('LEARNER');
+    const { router } = renderApp('/learn/m/REPORTS');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/learn/feature-unavailable'));
     expect(await screen.findByText('Функция недоступна')).toBeInTheDocument();
   });
 
   it('страницы организации закрыты для обычного пользователя', async () => {
-    loginAs('TENANT_USER');
-    const { router } = renderApp('/academy/organization/usage');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/feature-unavailable'));
+    loginAs('LEARNER');
+    const { router } = renderApp('/learn/organization/usage');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/learn/feature-unavailable'));
   });
 
   it('чужая организация — 403', async () => {
-    loginAs('TENANT_USER');
-    const { router } = renderApp('/kod-school/dashboard');
+    loginAs('LEARNER');
+    const { router } = renderApp('/kod-school/admin');
     await waitFor(() => expect(router.state.location.pathname).toBe('/403'));
   });
 
@@ -97,7 +97,7 @@ describe('Кабинет: навигация и права', () => {
     db.organizations[0]!.subscriptionEndDate = dayjs().add(5, 'day').format('YYYY-MM-DD');
     save(db);
     loginAs('ORGANIZATION_ADMIN');
-    renderApp('/academy/dashboard');
+    renderApp('/academy/admin');
     expect(await screen.findByTestId('expiring-alert')).toHaveTextContent('Осталось 6 дн.');
   });
 });
@@ -106,7 +106,7 @@ describe('Кабинет: real-time обновления', () => {
   beforeEach(() => loginAs('ORGANIZATION_ADMIN'));
 
   it('смена тарифа обновляет карточку подписки без перезагрузки', async () => {
-    renderApp('/academy/organization/subscription');
+    renderApp('/academy/admin/organization/subscription');
     expect(await screen.findByTestId('tariff-name')).toHaveTextContent('Базовый');
     await connected();
     serverUpdate({ tariffPlanId: TARIFFS[2]!.id });
@@ -116,7 +116,7 @@ describe('Кабинет: real-time обновления', () => {
   });
 
   it('отключение модуля убирает его из меню и dashboard', async () => {
-    renderApp('/academy/dashboard');
+    renderApp('/academy/admin');
     await screen.findByTestId('module-card-WEBINARS');
     await connected();
     serverUpdate({ moduleOverrides: { WEBINARS: null } });
@@ -125,16 +125,16 @@ describe('Кабинет: real-time обновления', () => {
   });
 
   it('отключение открытого модуля: уведомление и переход на dashboard', async () => {
-    const { router } = renderApp('/academy/m/WEBINARS');
+    const { router } = renderApp('/academy/admin/m/WEBINARS');
     expect(await screen.findByTestId('webinars-view')).toBeInTheDocument();
     await connected();
     serverUpdate({ moduleOverrides: { WEBINARS: null } });
-    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/dashboard'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/admin'));
     expect(await screen.findByText('Доступ к модулю отключён администратором Sanastra')).toBeInTheDocument();
   });
 
   it('изменение лимита обновляет usage', async () => {
-    renderApp('/academy/organization/usage');
+    renderApp('/academy/admin/organization/usage');
     expect(await screen.findByTestId('usage-limit-USERS_COUNT')).toHaveTextContent('150');
     await connected();
     serverUpdate({ limitOverrides: { USERS_COUNT: 85 } });
@@ -144,7 +144,7 @@ describe('Кабинет: real-time обновления', () => {
   });
 
   it('уменьшение лимита ниже использования — Alert, данные не удаляются', async () => {
-    renderApp('/academy/organization/usage');
+    renderApp('/academy/admin/organization/usage');
     await screen.findByTestId('usage-limit-USERS_COUNT');
     await connected();
     serverUpdate({ limitOverrides: { USERS_COUNT: 60 } });
@@ -152,20 +152,20 @@ describe('Кабинет: real-time обновления', () => {
   });
 
   it('блокировка вызывает немедленный redirect, восстановление возвращает доступ', async () => {
-    const { router } = renderApp('/academy/dashboard');
+    const { router } = renderApp('/academy/admin');
     await screen.findByTestId('dashboard-hero');
     await connected();
     serverUpdate({ subscriptionEnabled: false });
-    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/subscription-blocked'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/admin/subscription-blocked'));
     expect(await screen.findByText('Доступ организации временно приостановлен')).toBeInTheDocument();
 
     await connected();
     serverUpdate({ subscriptionEnabled: true });
-    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/dashboard'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/admin'));
   });
 
   it('повторяющиеся события объединяются: одна инвалидация и один toast', async () => {
-    renderApp('/academy/dashboard');
+    renderApp('/academy/admin');
     await screen.findByTestId('dashboard-hero');
     await connected();
     const access = countRequests('/api/tenant/access');
@@ -191,7 +191,7 @@ describe('Кабинет: real-time обновления', () => {
   });
 
   it('reconnect вызывает полный refetch', async () => {
-    renderApp('/academy/dashboard');
+    renderApp('/academy/admin');
     await screen.findByTestId('dashboard-hero');
     await connected();
     const access = countRequests('/api/tenant/access');
@@ -208,7 +208,7 @@ describe('Кабинет: лимиты действий', () => {
     db.organizations[0]!.usage.COURSES_COUNT = 10; // лимит «Базового» — 10
     save(db);
     loginAs('ORGANIZATION_ADMIN');
-    renderApp('/academy/m/COURSES');
+    renderApp('/academy/admin/m/COURSES');
     expect(await screen.findByText('Достигнут лимит тарифа')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Создать курс/ })).toBeDisabled();
   });
@@ -217,9 +217,9 @@ describe('Кабинет: лимиты действий', () => {
     const db = load();
     db.organizations[0]!.subscriptionEndDate = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
     save(db);
-    loginAs('TENANT_USER');
-    const { router } = renderApp('/academy/dashboard');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/academy/subscription-blocked'));
+    loginAs('LEARNER');
+    const { router } = renderApp('/learn');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/learn/subscription-blocked'));
     expect(await screen.findByText('Срок действия подписки истёк')).toBeInTheDocument();
     expect(document.body.textContent).not.toContain(ACADEMY_ID);
   });
@@ -228,7 +228,7 @@ describe('Кабинет: лимиты действий', () => {
 describe('Кабинет: курсы и вебинары', () => {
   it('каталог курсов: статистика, фильтр черновиков и поиск', async () => {
     loginAs('ORGANIZATION_ADMIN');
-    const { user } = renderApp('/academy/m/COURSES');
+    const { user } = renderApp('/academy/admin/m/COURSES');
     const view = await screen.findByTestId('courses-view');
     expect(view).toHaveTextContent('9 курсов в организации, опубликовано 8'); // = usage.COURSES_COUNT
     expect(within(screen.getByTestId('courses-grid')).getAllByText(/учеников$/)).toHaveLength(9);
@@ -245,7 +245,7 @@ describe('Кабинет: курсы и вебинары', () => {
 
   it('создание курса сохраняет его и пересчитывает лимит на сервере', async () => {
     loginAs('ORGANIZATION_ADMIN');
-    const { user } = renderApp('/academy/m/COURSES');
+    const { user } = renderApp('/academy/admin/m/COURSES');
     await screen.findByTestId('courses-view');
     await user.click(screen.getByRole('button', { name: /Создать курс/ }));
     await user.type(await screen.findByLabelText(/Название/), 'Статистика для старшеклассников');
@@ -258,8 +258,8 @@ describe('Кабинет: курсы и вебинары', () => {
   });
 
   it('вебинары: эфир, предстоящие с записью, записи прошедших', async () => {
-    loginAs('TENANT_USER');
-    const { user } = renderApp('/academy/m/WEBINARS');
+    loginAs('LEARNER');
+    const { user } = renderApp('/learn/m/WEBINARS');
     await screen.findByTestId('webinars-view');
     expect(screen.getByText('Сейчас в эфире')).toBeInTheDocument();
     expect(within(screen.getByTestId('webinars-upcoming')).getAllByRole('button', { name: /^Записаться/ })).toHaveLength(3);
@@ -274,8 +274,8 @@ describe('Кабинет: курсы и вебинары', () => {
 
 describe('Кабинет: права на создание', () => {
   it('обычный пользователь видит курсы, но не может их создавать', async () => {
-    loginAs('TENANT_USER');
-    renderApp('/academy/m/COURSES');
+    loginAs('LEARNER');
+    renderApp('/learn/m/COURSES');
     await screen.findByTestId('courses-grid');
     expect(screen.queryByRole('button', { name: /Создать курс/ })).not.toBeInTheDocument();
     // Сервер независимо отклоняет запрос

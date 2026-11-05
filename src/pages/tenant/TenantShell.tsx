@@ -1,8 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
 import { useEffect, useRef } from 'react';
-import { Outlet, useParams } from 'react-router';
+import { Outlet } from 'react-router';
 import { useTenantRealtime, invalidateTenant } from '@/features/realtime/useTenantRealtime';
+import { useCabinet } from '@/features/tenant/cabinet';
 import { useTenantAccess } from '@/features/tenant/queries';
 import { noticeStore } from '@/shared/notices';
 
@@ -13,7 +14,7 @@ export const CONFIG_UPDATED_TEXT = 'Настройки подписки обно
  * и единая реакция на рост configVersion — неважно, пришло изменение через SSE, polling или focus.
  */
 export function TenantShell() {
-  const { clientSlug = '' } = useParams();
+  const { clientSlug } = useCabinet();
   const qc = useQueryClient();
   const { message } = App.useApp();
   const access = useTenantAccess(clientSlug);

@@ -1,6 +1,7 @@
 export type SubscriptionStatus = 'ACTIVE' | 'BLOCKED' | 'EXPIRED';
 export type ChangeSource = 'SUPERADMIN' | 'SYSTEM_PAYMENT';
-export type Role = 'SUPERADMIN' | 'ORGANIZATION_ADMIN' | 'TENANT_USER';
+/** Роли (ТЗ «Регистрация, авторизация и ролевая модель»): Суперадминистратор, Администратор клиента, Тренер, Слушатель */
+export type Role = 'SUPERADMIN' | 'ORGANIZATION_ADMIN' | 'TRAINER' | 'LEARNER';
 
 export interface TariffPlanRef {
   id: string;
@@ -193,14 +194,73 @@ export interface TenantEvent {
   occurredAt: string;
 }
 
+/** Роль пользователя; для клиентских ролей указана организация */
+export interface RoleAssignment {
+  role: Role;
+  clientSlug?: string;
+  organizationName?: string;
+}
+
 export interface CurrentUser {
   id: string;
   fullName: string;
   email: string;
+  iin: string;
+  phone: string;
+  region: string;
+  /** Активная роль (рабочий контекст) */
   role: Role;
   clientSlug?: string;
-  /** Права роли пользователя (не зависят от тарифа) */
+  /** Права активной роли (не зависят от тарифа) */
   permissions: string[];
+  /** Все активные роли пользователя — для переключения в шапке профиля */
+  roles: RoleAssignment[];
+}
+
+export interface Region {
+  code: string;
+  name: string;
+}
+
+export interface RegisterPayload {
+  iin: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
+  region: string;
+  phone: string;
+  email: string;
+  password: string;
+}
+
+/** Пользователь организации в разделе «Пользователи» */
+export interface OrganizationUser {
+  id: string;
+  fullName: string;
+  iin: string;
+  email: string;
+  roles: Role[];
+}
+
+export type AssignableRole = 'ORGANIZATION_ADMIN' | 'TRAINER';
+
+/** Пользователь платформы (раздел «Пользователи» суперадмина) */
+export interface PlatformUser {
+  id: string;
+  fullName: string;
+  iin: string;
+  email: string;
+  roles: RoleAssignment[];
+}
+
+/** Лимиты организации: использование и итоговые значения (раздел «Лимиты» суперадмина) */
+export interface OrganizationLimitsRow {
+  tenantId: string;
+  name: string;
+  clientSlug: string;
+  tariffName: string;
+  status: SubscriptionStatus;
+  items: (UsageItem & { overridden: boolean })[];
 }
 
 // ---------- Контент модулей кабинета ----------

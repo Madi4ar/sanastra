@@ -8,6 +8,7 @@ import { LandingPage } from '@/pages/landing/LandingPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { OrganizationDetailPage } from '@/pages/OrganizationDetailPage';
 import { OrganizationsPage } from '@/pages/OrganizationsPage';
+import { LimitsPage, UsersPage } from '@/pages/PlatformPages';
 import { ForbiddenPage, NotFoundPage } from '@/pages/StatusPages';
 import { RequireOrganizationAdmin } from '@/features/tenant/access';
 import { DashboardPage } from '@/pages/tenant/DashboardPage';
@@ -15,7 +16,8 @@ import { FeatureUnavailablePage, ModulePage, ProfilePage } from '@/pages/tenant/
 import { ModulesPage, OrganizationInfoPage, SubscriptionPage, UsagePage } from '@/pages/tenant/OrganizationPages';
 import { SubscriptionBlockedPage } from '@/pages/tenant/SubscriptionBlockedPage';
 import { TenantLayout } from '@/pages/tenant/TenantLayout';
-import { TenantShell } from '@/pages/tenant/TenantShell';
+import { AdminCabinet, RoleCabinet } from '@/pages/tenant/Cabinets';
+import { RegisterPage } from '@/pages/RegisterPage';
 
 function OrganizationCrumb({ tenantId }: { tenantId: string }) {
   const { data } = useQuery({
@@ -28,10 +30,43 @@ function OrganizationCrumb({ tenantId }: { tenantId: string }) {
 
 const crumb = (title: string) => ({ crumb: () => title }) satisfies CrumbHandle;
 
+/** Страницы кабинета — одинаковы для интерфейсов всех ролей; доступ определяют права роли и конфигурация организации. */
+function cabinetRoutes(): RouteObject[] {
+  return [
+    { path: 'subscription-blocked', element: <SubscriptionBlockedPage /> },
+    {
+      element: <TenantLayout />,
+      children: [
+        { index: true, element: <DashboardPage /> },
+        {
+          path: 'organization',
+          handle: crumb('Организация'),
+          element: (
+            <RequireOrganizationAdmin>
+              <Outlet />
+            </RequireOrganizationAdmin>
+          ),
+          children: [
+            { index: true, element: <OrganizationInfoPage /> },
+            { path: 'subscription', element: <SubscriptionPage />, handle: crumb('Тариф и подписка') },
+            { path: 'modules', element: <ModulesPage />, handle: crumb('Модули') },
+            { path: 'usage', element: <UsagePage />, handle: crumb('Лимиты и использование') },
+          ],
+        },
+        { path: 'profile', element: <ProfilePage /> },
+        { path: 'feature-unavailable', element: <FeatureUnavailablePage /> },
+        { path: 'm/:moduleCode', element: <ModulePage /> },
+        { path: '*', element: <NotFoundPage /> },
+      ],
+    },
+  ];
+}
+
 export const routes: RouteObject[] = [
   { path: '/', element: <LandingPage /> },
   { path: '/app', element: <HomeRedirect /> },
   { path: '/login', element: <LoginPage /> },
+  { path: '/register', element: <RegisterPage /> },
   { path: '/403', element: <ForbiddenPage /> },
   {
     path: '/superadmin',
@@ -56,45 +91,37 @@ export const routes: RouteObject[] = [
           },
         ],
       },
+      { path: 'limits', element: <LimitsPage />, handle: crumb('Лимиты') },
+      { path: 'users', element: <UsersPage />, handle: crumb('Пользователи') },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
   {
-    path: '/:clientSlug',
+    path: '/:clientSlug/admin',
     element: (
-      <RequireAuth>
-        <TenantShell />
+      <RequireAuth role="ORGANIZATION_ADMIN">
+        <AdminCabinet />
       </RequireAuth>
     ),
-    children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
-      { path: 'subscription-blocked', element: <SubscriptionBlockedPage /> },
-      {
-        element: <TenantLayout />,
-        children: [
-          { path: 'dashboard', element: <DashboardPage /> },
-          {
-            path: 'organization',
-            handle: crumb('Организация'),
-            element: (
-              <RequireOrganizationAdmin>
-                <Outlet />
-              </RequireOrganizationAdmin>
-            ),
-            children: [
-              { index: true, element: <OrganizationInfoPage /> },
-              { path: 'subscription', element: <SubscriptionPage />, handle: crumb('Тариф и подписка') },
-              { path: 'modules', element: <ModulesPage />, handle: crumb('Модули') },
-              { path: 'usage', element: <UsagePage />, handle: crumb('Лимиты и использование') },
-            ],
-          },
-          { path: 'profile', element: <ProfilePage /> },
-          { path: 'feature-unavailable', element: <FeatureUnavailablePage /> },
-          { path: 'm/:moduleCode', element: <ModulePage /> },
-          { path: '*', element: <NotFoundPage /> },
-        ],
-      },
-    ],
+    children: cabinetRoutes(),
+  },
+  {
+    path: '/trainer',
+    element: (
+      <RequireAuth role="TRAINER">
+        <RoleCabinet base="/trainer" />
+      </RequireAuth>
+    ),
+    children: cabinetRoutes(),
+  },
+  {
+    path: '/learn',
+    element: (
+      <RequireAuth role="LEARNER">
+        <RoleCabinet base="/learn" />
+      </RequireAuth>
+    ),
+    children: cabinetRoutes(),
   },
   { path: '*', element: <NotFoundPage /> },
 ];

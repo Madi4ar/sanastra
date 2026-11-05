@@ -1,44 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Spin, Typography } from 'antd';
-import { ArrowRight, Building2, Gauge, Radio, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { Alert, Button, Form, Input, Typography } from 'antd';
+import { ArrowRight, Building2, Gauge, LogIn, Radio, type LucideIcon } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { tokens } from '@/app/theme';
+import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { Role } from '@/api/types';
+import type { CurrentUser } from '@/api/types';
 import { homeFor } from '@/auth/auth';
-
-interface RoleOption {
-  role: Role;
-  label: string;
-  title: string;
-  description: string;
-  icon: LucideIcon;
-}
-
-const ROLES: RoleOption[] = [
-  {
-    role: 'SUPERADMIN',
-    label: 'Войти как суперадминистратор',
-    title: 'Суперадминистратор',
-    description: 'Организации, тарифы, подписки и модули Sanastra',
-    icon: ShieldCheck,
-  },
-  {
-    role: 'ORGANIZATION_ADMIN',
-    label: 'Войти как администратор организации (academy)',
-    title: 'Администратор организации',
-    description: 'Кабинет Academy: подписка, модули и лимиты',
-    icon: Building2,
-  },
-  {
-    role: 'TENANT_USER',
-    label: 'Войти как пользователь организации (academy)',
-    title: 'Пользователь организации',
-    description: 'Личный кабинет Academy с доступными разделами',
-    icon: UserRound,
-  },
-];
+import { MESSAGES } from '@/features/auth/validation';
 
 const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: Building2, title: 'Мультиарендность', text: 'Тарифы, подписки и индивидуальные настройки организаций' },
@@ -46,21 +17,16 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: Gauge, title: 'Контроль лимитов', text: 'Использование ресурсов и предупреждения о приближении к лимиту' },
 ];
 
-/** Демо-вход: в реальной системе заменяется SSO/формой логина. */
-export function LoginPage() {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const login = useMutation({
-    mutationFn: (role: Role) => api.auth.login(role),
-    onSuccess: (user) => {
-      qc.clear();
-      qc.setQueryData(queryKeys.me, user);
-      const redirect = params.get('redirect');
-      navigate(redirect && redirect.startsWith('/') ? redirect : homeFor(user), { replace: true });
-    },
-  });
+/** Демо-учётные записи мок-сервера (пароль у всех одинаковый). */
+const DEMO_ACCOUNTS = [
+  { role: 'Суперадминистратор', iin: '850315300128' },
+  { role: 'Администратор организации (Academy)', iin: '920705400239' },
+  { role: 'Тренер (Academy)', iin: '880425400455' },
+  { role: 'Слушатель (Academy)', iin: '951122300340' },
+];
 
+/** Брендовая панель и колонка формы — общие для входа и регистрации. */
+export function AuthLayout({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
     <div className="flex min-h-screen bg-page">
       {/* Брендовая панель — только на широких экранах */}
@@ -108,9 +74,8 @@ export function LoginPage() {
         <div className="text-sm opacity-60">© {new Date().getFullYear()} Sanastra · Саналы білім, тұрақты даму</div>
       </aside>
 
-      {/* Форма входа */}
       <main className="flex flex-1 items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-[440px]">
+        <div className={`w-full ${wide ? 'max-w-[560px]' : 'max-w-[440px]'} py-6`}>
           <Link
             to="/"
             aria-label="Sanastra — на главную"
@@ -119,58 +84,169 @@ export function LoginPage() {
             <img src="/brand/sanastra-icon-64.png" width={40} height={40} alt="" className="rounded-lg" />
             <span className="text-lg font-semibold">Sanastra</span>
           </Link>
-
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            Добро пожаловать
-          </Typography.Title>
-          <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 24 }}>
-            Выберите учётную запись для входа.
-          </Typography.Paragraph>
-
-          {login.isError && <Alert type="error" title={login.error.message} style={{ marginBottom: 16 }} showIcon />}
-
-          <div className="flex flex-col gap-3">
-            {ROLES.map(({ role, label, title, description, icon: Icon }) => {
-              const loading = login.isPending && login.variables === role;
-              return (
-                <button
-                  key={role}
-                  type="button"
-                  aria-label={label}
-                  disabled={login.isPending}
-                  onClick={() => login.mutate(role)}
-                  className="focus-ring group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-border bg-surface p-4 text-left transition-all hover:-translate-y-px hover:border-primary hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-subtle text-primary transition-colors group-hover:bg-primary group-hover:text-white">
-                    <Icon size={20} aria-hidden />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-text">{title}</span>
-                    <span className="block text-sm text-muted">{description}</span>
-                  </span>
-                  {loading ? (
-                    <Spin size="small" />
-                  ) : (
-                    <ArrowRight
-                      size={18}
-                      aria-hidden
-                      className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <Alert
-            style={{ marginTop: 24 }}
-            type="info"
-            showIcon
-            title="Демонстрационный режим"
-            description="Данные обслуживает мок-сервер (MSW). Откройте панель суперадминистратора и кабинет организации в разных вкладках, чтобы увидеть обновления в реальном времени."
-          />
+          {children}
         </div>
       </main>
     </div>
+  );
+}
+
+const IIN_FORMAT = /^\d{12}$/;
+
+/** Двухэтапный вход по ИИН: шаг 1 — поиск ИИН, шаг 2 — пароль. */
+export function LoginPage() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [iin, setIin] = useState('');
+  const [iinError, setIinError] = useState<string>();
+  const [password, setPassword] = useState('');
+  /** ИИН найден — показываем поле пароля */
+  const [found, setFound] = useState(false);
+
+  const check = useMutation({
+    mutationFn: (value: string) => api.auth.checkIin(value),
+    onSuccess: () => setFound(true),
+  });
+  const login = useMutation({
+    mutationFn: () => api.auth.login(iin, password),
+    onSuccess: (user: CurrentUser) => {
+      qc.clear();
+      qc.setQueryData(queryKeys.me, user);
+      const redirect = params.get('redirect');
+      navigate(redirect && redirect.startsWith('/') ? redirect : homeFor(user), { replace: true });
+    },
+  });
+
+  const onIinChange = (value: string) => {
+    setIin(value.replace(/\D/g, '').slice(0, 12));
+    setIinError(undefined);
+    // Изменение ИИН возвращает на шаг 1
+    setFound(false);
+    setPassword('');
+    check.reset();
+    login.reset();
+  };
+
+  const submitIin = () => {
+    if (!IIN_FORMAT.test(iin)) {
+      setIinError(iin ? 'ИИН должен состоять из 12 цифр' : MESSAGES.iinRequired);
+      return;
+    }
+    check.mutate(iin);
+  };
+
+  const notFound = isApiError(check.error) && check.error.code === 'USER_NOT_FOUND';
+  const checkError = check.isError && !notFound ? check.error : null;
+
+  return (
+    <AuthLayout>
+      <Typography.Title level={2} style={{ margin: 0 }}>
+        Вход
+      </Typography.Title>
+      <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 24 }}>
+        {found ? 'Введите пароль.' : 'Введите ИИН, чтобы продолжить.'}
+      </Typography.Paragraph>
+
+      <Form layout="vertical" requiredMark={false} onFinish={found ? () => login.mutate() : submitIin}>
+        <Form.Item label="ИИН" htmlFor="login-iin" validateStatus={iinError ? 'error' : undefined} help={iinError}>
+          <Input
+            id="login-iin"
+            size="large"
+            inputMode="numeric"
+            autoComplete="username"
+            placeholder="12 цифр"
+            value={iin}
+            onChange={(e) => onIinChange(e.target.value)}
+            autoFocus
+          />
+        </Form.Item>
+
+        {notFound && (
+          <Alert
+            className="mb-6"
+            type="error"
+            showIcon
+            title={check.error?.message}
+            action={
+              <Button size="small" onClick={() => navigate('/register')}>
+                Зарегистрироваться
+              </Button>
+            }
+          />
+        )}
+        {checkError && <Alert className="mb-6" type="error" showIcon title={checkError.message} />}
+
+        {found && (
+          <Form.Item label="Пароль" htmlFor="login-password">
+            <Input.Password
+              id="login-password"
+              size="large"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (login.isError) login.reset();
+              }}
+              autoFocus
+            />
+          </Form.Item>
+        )}
+        {login.isError && <Alert className="mb-6" type="error" showIcon title={login.error.message} />}
+
+        {found ? (
+          <Button
+            type="primary"
+            size="large"
+            htmlType="submit"
+            block
+            icon={<LogIn size={16} />}
+            loading={login.isPending}
+            disabled={!password}
+          >
+            Войти
+          </Button>
+        ) : (
+          <Button
+            type="primary"
+            size="large"
+            htmlType="submit"
+            block
+            icon={<ArrowRight size={16} />}
+            iconPlacement="end"
+            loading={check.isPending}
+          >
+            Далее
+          </Button>
+        )}
+      </Form>
+
+      <p className="mt-6 mb-0 text-center text-sm text-muted">
+        Нет учётной записи?{' '}
+        <Link to="/register" className="font-medium text-primary">
+          Зарегистрироваться
+        </Link>
+      </p>
+
+      <Alert
+        style={{ marginTop: 24 }}
+        type="info"
+        showIcon
+        title="Демонстрационный режим"
+        description={
+          <div className="text-sm">
+            <p className="m-0 mb-2">Данные обслуживает мок-сервер. Пароль всех учётных записей: <b>Sanastra1</b></p>
+            <ul className="m-0 flex list-none flex-col gap-1 p-0">
+              {DEMO_ACCOUNTS.map((a) => (
+                <li key={a.iin} className="flex justify-between gap-3">
+                  <span>{a.role}</span>
+                  <span className="mono">{a.iin}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        }
+      />
+    </AuthLayout>
   );
 }

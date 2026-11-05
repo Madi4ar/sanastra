@@ -37,8 +37,19 @@ export function useLogout() {
   });
 }
 
-export const homeFor = (user: CurrentUser) =>
-  user.role === 'SUPERADMIN' ? '/superadmin/organizations' : `/${user.clientSlug ?? ''}/dashboard`;
+/** Интерфейс активной роли: Слушатель → /learn, Тренер → /trainer, Админ организации → /{client_slug}/admin, Суперадминистратор → /superadmin. */
+export function homeFor(user: Pick<CurrentUser, 'role' | 'clientSlug'>): string {
+  switch (user.role) {
+    case 'SUPERADMIN':
+      return '/superadmin';
+    case 'ORGANIZATION_ADMIN':
+      return `/${user.clientSlug ?? ''}/admin`;
+    case 'TRAINER':
+      return '/trainer';
+    case 'LEARNER':
+      return '/learn';
+  }
+}
 
 function FullPageSpin() {
   return (

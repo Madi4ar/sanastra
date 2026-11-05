@@ -4,6 +4,7 @@
  */
 import dayjs from 'dayjs';
 import { resetContent } from './content';
+import { resetUsers } from './users';
 import type {
   ChangeSource,
   SubscriptionSummary,
@@ -247,6 +248,7 @@ export function resetDb() {
   save(memory);
   setSession(null);
   resetContent();
+  resetUsers();
 }
 
 export const findTariff = (id: string) => TARIFFS.find((t) => t.id === id);
@@ -339,10 +341,6 @@ export function toTariffDetail(t: TariffRecord): TariffPlanDetail {
   };
 }
 
-/** Права на управление содержимым (создание) — отдельно от прав просмотра модулей */
-const MANAGE_PERMISSIONS = ['courses.manage'];
-const ALL_PERMISSIONS = [...MODULES.map((m) => m.permission), ...MANAGE_PERMISSIONS];
-
 /**
  * Сессия хранится в sessionStorage — отдельно для каждой вкладки,
  * чтобы в соседних вкладках можно было работать под разными пользователями.
@@ -369,26 +367,7 @@ export function setSession(user: CurrentUser | null) {
   }
 }
 
-export const DEMO_USERS: Record<'SUPERADMIN' | 'ORGANIZATION_ADMIN' | 'TENANT_USER', CurrentUser> = {
-  SUPERADMIN: { id: 'u-1', fullName: 'Главный администратор', email: 'superadmin@platform.kz', role: 'SUPERADMIN', permissions: ALL_PERMISSIONS },
-  ORGANIZATION_ADMIN: {
-    id: 'u-2',
-    fullName: 'Алия Сапарова',
-    email: 'admin@academy.kz',
-    role: 'ORGANIZATION_ADMIN',
-    clientSlug: 'academy',
-    permissions: [...ALL_PERMISSIONS, 'organization.manage'],
-  },
-  TENANT_USER: {
-    id: 'u-3',
-    fullName: 'Данияр Ахметов',
-    email: 'teacher@academy.kz',
-    role: 'TENANT_USER',
-    clientSlug: 'academy',
-    // Нет прав на отчёты, пользователей и сертификаты — проверка «роль И тариф»
-    permissions: ['courses.view', 'schedule.view', 'chat.view', 'webinars.view'],
-  },
-};
+export { DEMO_USERS } from './users';
 
 // ---------- Представления для кабинета организации (только эффективные значения) ----------
 

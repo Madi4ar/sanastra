@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { IIN, signIn } from './auth';
 
 const ACADEMY_ID = '7c9e6679-7425-40de-944b-000000000001';
 
@@ -8,15 +9,7 @@ declare global {
   }
 }
 
-async function login(page: Page, who: 'super' | 'tenant') {
-  await page.goto('/login');
-  await page
-    .getByRole('button', {
-      name: who === 'super' ? 'Войти как суперадминистратор' : 'Войти как администратор организации (academy)',
-    })
-    .click();
-  await expect(page).not.toHaveURL(/\/login/);
-}
+const login = (page: Page, who: 'super' | 'tenant') => signIn(page, who === 'super' ? IIN.super : IIN.admin);
 
 async function openAcademy(page: Page) {
   await login(page, 'super');
@@ -90,9 +83,10 @@ test('5. Отключение подписки и блокировка tenant-и
   await expect(page.getByTestId('status-tag').first()).toHaveText('Заблокирована');
 
   await page.getByRole('button', { name: 'Выйти' }).click();
-  await login(page, 'tenant');
-  await expect(page).toHaveURL(/\/academy\/subscription-blocked/);
-  await expect(page.getByText('Доступ организации временно приостановлен')).toBeVisible();
+  // Вход пользователей заблокированной организации блокируется на этапе авторизации
+  await signIn(page, IIN.learner, { expectSuccess: false });
+  await expect(page.getByText('Вход невозможен: организация заблокирована или срок её подписки истёк.')).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
   await expect(page.getByText(ACADEMY_ID)).toHaveCount(0);
 });
 
@@ -110,7 +104,7 @@ test('6. Конфликт версий после внешнего измене�
 
 test('7. Запрет доступа без SUPERADMIN', async ({ page }) => {
   await login(page, 'tenant');
-  await expect(page).toHaveURL(/\/academy\/dashboard$/);
+  await expect(page).toHaveURL(/\/academy\/admin$/);
   await page.goto('/superadmin/organizations');
   await expect(page).toHaveURL(/\/403$/);
   await expect(page.getByText('Недостаточно прав для просмотра этой страницы.')).toBeVisible();
@@ -120,7 +114,7 @@ test('Feature flag: отключённый модуль скрыт из меню
   await login(page, 'tenant');
   await expect(page.getByRole('menuitem', { name: 'Вебинары' })).toBeVisible(); // включён индивидуально
   await expect(page.getByRole('menuitem', { name: 'Отчёты' })).toHaveCount(0);
-  await page.goto('/academy/m/REPORTS');
+  await page.goto('/academy/admin/m/REPORTS');
   await expect(page).toHaveURL(/feature-unavailable/);
   await expect(page.getByText('Функция недоступна')).toBeVisible();
 });

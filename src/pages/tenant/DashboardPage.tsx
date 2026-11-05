@@ -27,14 +27,14 @@ export function ExpiringAlert({ daysLeft, endDate }: { daysLeft: number; endDate
   );
 }
 
-function ModulesSection({ modules, clientSlug, title }: { modules: TenantModule[]; clientSlug: string; title: string }) {
+function ModulesSection({ modules, title }: { modules: TenantModule[]; title: string }) {
   return (
     <section aria-labelledby="modules-h">
       <SectionTitle title={<span id="modules-h">{title}</span>} />
       {modules.length ? (
         <CardGrid testId="quick-actions" min={220}>
           {modules.map((m, i) => (
-            <ModuleCard key={m.code} module={m} clientSlug={clientSlug} index={i} />
+            <ModuleCard key={m.code} module={m} index={i} />
           ))}
         </CardGrid>
       ) : (
@@ -48,7 +48,7 @@ function ModulesSection({ modules, clientSlug, title }: { modules: TenantModule[
 
 /** Обзор администратора организации: KPI подписки, быстрые действия и лимиты. */
 function OrganizationDashboard() {
-  const { clientSlug, user, access, availableModules } = useTenantContext();
+  const { clientSlug, base, user, access, availableModules } = useTenantContext();
   const navigate = useNavigate();
   const usage = useTenantUsage(clientSlug);
   if (!access || !user) return null;
@@ -65,7 +65,7 @@ function OrganizationDashboard() {
               type="primary"
               icon={<ArrowRight size={16} />}
               iconPlacement="end"
-              onClick={() => navigate(`/${clientSlug}/organization/subscription`)}
+              onClick={() => navigate(`${base}/organization/subscription`)}
             >
               Подробнее о подписке
             </Button>
@@ -116,12 +116,12 @@ function OrganizationDashboard() {
       )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
-        <ModulesSection modules={availableModules} clientSlug={clientSlug} title="Быстрые действия" />
+        <ModulesSection modules={availableModules} title="Быстрые действия" />
         <section aria-labelledby="usage-h">
           <SectionTitle
             title={<span id="usage-h">Использование лимитов</span>}
             extra={
-              <Link to={`/${clientSlug}/organization/usage`} className="text-sm text-primary hover:underline">
+              <Link to={`${base}/organization/usage`} className="text-sm text-primary hover:underline">
                 Подробнее
               </Link>
             }
@@ -147,7 +147,7 @@ function OrganizationDashboard() {
 
 /** Личный кабинет пользователя: крупная приветственная карточка и доступные разделы. */
 function UserDashboard() {
-  const { clientSlug, user, access, availableModules } = useTenantContext();
+  const { base, user, access, availableModules } = useTenantContext();
   const navigate = useNavigate();
   if (!access || !user) return null;
   const first = availableModules[0];
@@ -179,7 +179,7 @@ function UserDashboard() {
             className="mt-6"
             icon={<ArrowRight size={16} />}
             iconPlacement="end"
-            onClick={() => navigate(`/${clientSlug}/m/${first.code}`)}
+            onClick={() => navigate(`${base}/m/${first.code}`)}
             style={{ background: tokens.colorBgSurface, color: tokens.colorPrimary, borderColor: 'transparent' }}
           >
             Открыть «{first.name}»
@@ -188,7 +188,7 @@ function UserDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <ModulesSection modules={availableModules} clientSlug={clientSlug} title="Мои разделы" />
+        <ModulesSection modules={availableModules} title="Мои разделы" />
         <section aria-labelledby="profile-h">
           <SectionTitle title={<span id="profile-h">Профиль</span>} />
           <Card styles={{ body: { padding: 20 } }}>
@@ -200,7 +200,7 @@ function UserDashboard() {
               </div>
             </div>
             <Link
-              to={`/${clientSlug}/profile`}
+              to={`${base}/profile`}
               className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               Открыть профиль <ArrowRight size={14} aria-hidden />

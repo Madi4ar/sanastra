@@ -1,7 +1,12 @@
 import { delay, http, HttpResponse, sse } from 'msw';
 import dayjs from 'dayjs';
 import type {
+  AssignableRole,
   ChangedArea,
+  OrganizationUser,
+  RegisterPayload,
+  Role,
+  RoleAssignment,
   CreateOrganizationPayload,
   CurrentUser,
   SubscriptionSettingsPayload,
@@ -10,7 +15,6 @@ import type {
 import { RESERVED_SLUGS, SLUG_PATTERN, slugError } from '@/shared/slug';
 import {
   computeStatus,
-  DEMO_USERS,
   effectiveLimitValues,
   effectiveModules,
   findTariff,
@@ -31,6 +35,20 @@ import {
   type OrgRecord,
 } from './db';
 import { publish, subscribe } from './eventBus';
+import {
+  fullNameOf,
+  hashPassword,
+  loadUsers,
+  LOCK_MINUTES,
+  MAX_FAILED_ATTEMPTS,
+  REGIONS,
+  ROLE_PRIORITY,
+  sameAssignment,
+  saveUsers,
+  toCurrentUser,
+  type UserRecord,
+} from './users';
+import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
 import { addCourse, COURSE_CATEGORIES, courseCount, listCourses, listWebinars, toggleWebinarRegistration } from './content';
 
 const latency = () => delay(import.meta.env.MODE === 'test' ? 0 : 250);
@@ -130,9 +148,45 @@ const canManageOrganization = (u: CurrentUser) =>
 
 /** Действия создания, ограниченные лимитом. */
 const CREATE_ACTIONS: Record<string, { label: string; limitCode: string; permission: string }> = {
-  USERS: { label: 'Пригласить пользователя', limitCode: 'USERS_COUNT', permission: 'users.manage' },
   COURSES: { label: 'Создать курс', limitCode: 'COURSES_COUNT', permission: 'courses.manage' },
 };
+
+/** Роли, доступные для входа: роли заблокированных организаций и организаций с истёкшей подпиской исключаются. */
+function activeRoles(user: UserRecord): RoleAssignment[] {
+  const orgs = load().organizations;
+  return user.roles.flatMap((r) => {
+    if (!r.clientSlug) return [r];
+    const org = orgs.find((o) => o.clientSlug === r.clientSlug);
+    return org && computeStatus(org) === 'ACTIVE' ? [{ ...r, organizationName: org.name }] : [];
+  });
+}
+
+function lockedError(lockedUntil: string, now: number) {
+  const minutes = Math.max(1, Math.ceil((Date.parse(lockedUntil) - now) / 60_000));
+  return err(
+    423,
+    'ACCOUNT_LOCKED',
+    `Аккаунт временно заблокирован после ${MAX_FAILED_ATTEMPTS} неверных попыток ввода пароля. Повторите через ${minutes} мин.`,
+  );
+}
+
+/** Раздел «Пользователи»: Суперадминистратор или Администратор клиента этой организации. */
+function requireUsersManager(slug: string): Response | null {
+  const session = getSession();
+  if (!session) return err(401, 'UNAUTHORIZED');
+  if (!load().organizations.some((o) => o.clientSlug === slug)) return err(404, 'NOT_FOUND');
+  if (session.role === 'SUPERADMIN') return null;
+  if (session.role === 'ORGANIZATION_ADMIN' && session.clientSlug === slug) return null;
+  return err(403, 'FORBIDDEN');
+}
+
+const toOrganizationUser = (u: UserRecord, slug: string): OrganizationUser => ({
+  id: u.id,
+  fullName: fullNameOf(u),
+  iin: u.iin,
+  email: u.email,
+  roles: u.roles.filter((r) => r.clientSlug === slug).map((r): Role => r.role),
+});
 
 const sseDisabled = () => {
   try {
@@ -147,19 +201,177 @@ export const handlers = [
   http.get('/api/auth/me', async () => {
     await latency();
     const session = getSession();
-    return session ? HttpResponse.json(session) : err(401, 'UNAUTHORIZED');
+    const record = session && loadUsers().find((u) => u.id === session.id);
+    if (!session || !record) return err(401, 'UNAUTHORIZED');
+    return HttpResponse.json(toCurrentUser(record, session, activeRoles(record)));
   }),
+  http.get('/api/dictionaries/regions', async () => {
+    await latency();
+    return HttpResponse.json(REGIONS);
+  }),
+  // Шаг 1 входа: поиск ИИН в базе
+  http.post('/api/auth/check-iin', async ({ request }) => {
+    await latency();
+    const { iin = '' } = (await request.json()) as { iin?: string };
+    if (!loadUsers().some((u) => u.iin === iin.trim())) return err(404, 'USER_NOT_FOUND');
+    return HttpResponse.json({ exists: true });
+  }),
+  // Шаг 2 входа: пароль, защита от подбора, статус организаций, маршрутизация по ролям
   http.post('/api/auth/login', async ({ request }) => {
     await latency();
-    const { role } = (await request.json()) as { role: keyof typeof DEMO_USERS };
-    const user = DEMO_USERS[role];
-    if (!user) return err(400, 'VALIDATION_ERROR', 'Неизвестная роль');
-    setSession(user);
-    return HttpResponse.json(user);
+    const { iin = '', password = '' } = (await request.json()) as { iin?: string; password?: string };
+    const users = loadUsers();
+    const user = users.find((u) => u.iin === iin.trim());
+    if (!user) return err(404, 'USER_NOT_FOUND');
+
+    const now = Date.now();
+    if (user.lockedUntil && Date.parse(user.lockedUntil) > now) return lockedError(user.lockedUntil, now);
+    if (user.passwordHash !== hashPassword(password)) {
+      user.failedAttempts += 1;
+      if (user.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+        user.failedAttempts = 0;
+        user.lockedUntil = new Date(now + LOCK_MINUTES * 60_000).toISOString();
+        saveUsers(users);
+        return lockedError(user.lockedUntil, now);
+      }
+      saveUsers(users);
+      return err(401, 'INVALID_CREDENTIALS');
+    }
+    user.failedAttempts = 0;
+    user.lockedUntil = undefined;
+    saveUsers(users);
+
+    const roles = activeRoles(user);
+    if (!roles.length) return err(403, 'ORGANIZATION_UNAVAILABLE');
+    // Несколько ролей — кабинет с наивысшими правами
+    const active = [...roles].sort((x, y) => ROLE_PRIORITY.indexOf(x.role) - ROLE_PRIORITY.indexOf(y.role))[0]!;
+    const current = toCurrentUser(user, active, roles);
+    setSession(current);
+    return HttpResponse.json(current);
+  }),
+  http.post('/api/auth/register', async ({ request }) => {
+    await latency();
+    const body = (await request.json()) as Partial<RegisterPayload>;
+    const users = loadUsers();
+    const iin = (body.iin ?? '').trim();
+    const email = (body.email ?? '').trim();
+    const fe: Record<string, string> = {};
+    if (!isValidIin(iin)) fe.iin = MESSAGES.iin;
+    else if (users.some((u) => u.iin === iin)) fe.iin = 'Пользователь с таким ИИН уже зарегистрирован';
+    if (!body.lastName?.trim()) fe.lastName = MESSAGES.lastName;
+    if (!body.firstName?.trim()) fe.firstName = MESSAGES.firstName;
+    if (!REGIONS.some((r) => r.name === body.region)) fe.region = MESSAGES.region;
+    if (!isValidKzPhone(body.phone ?? '')) fe.phone = MESSAGES.phone;
+    if (!EMAIL_PATTERN.test(email)) fe.email = MESSAGES.email;
+    else if (users.some((u) => u.email.toLowerCase() === email.toLowerCase()))
+      fe.email = 'Пользователь с таким email уже зарегистрирован';
+    if (!isValidPassword(body.password ?? '')) fe.password = MESSAGES.password;
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+
+    const user: UserRecord = {
+      id: crypto.randomUUID(),
+      iin,
+      lastName: body.lastName!.trim(),
+      firstName: body.firstName!.trim(),
+      middleName: body.middleName?.trim() || undefined,
+      region: body.region!,
+      phone: phoneDigits(body.phone!),
+      email,
+      passwordHash: hashPassword(body.password!),
+      // Базовая роль «Слушатель» присваивается автоматически
+      roles: [{ role: 'LEARNER' }],
+      failedAttempts: 0,
+    };
+    saveUsers([...users, user]);
+    const current = toCurrentUser(user, { role: 'LEARNER' });
+    setSession(current);
+    return HttpResponse.json(current, { status: 201 });
+  }),
+  http.post('/api/auth/switch-role', async ({ request }) => {
+    await latency();
+    const session = getSession();
+    const record = session && loadUsers().find((u) => u.id === session.id);
+    if (!session || !record) return err(401, 'UNAUTHORIZED');
+    const target = (await request.json()) as Pick<RoleAssignment, 'role' | 'clientSlug'>;
+    const roles = activeRoles(record);
+    const role = roles.find((r) => sameAssignment(r, target));
+    if (!role) return err(403, 'FORBIDDEN');
+    const current = toCurrentUser(record, role, roles);
+    setSession(current);
+    return HttpResponse.json(current);
   }),
   http.post('/api/auth/logout', async () => {
     setSession(null);
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // ---------- Пользователи организации ----------
+  http.get('/api/organizations/:slug/users', async ({ params }) => {
+    await latency();
+    const slug = String(params.slug);
+    const denied = requireUsersManager(slug);
+    if (denied) return denied;
+    return HttpResponse.json(
+      loadUsers()
+        .filter((u) => u.roles.some((r) => r.clientSlug === slug))
+        .map((u) => toOrganizationUser(u, slug)),
+    );
+  }),
+  http.post('/api/organizations/:slug/users/roles', async ({ params, request }) => {
+    await latency();
+    const slug = String(params.slug);
+    const denied = requireUsersManager(slug);
+    if (denied) return denied;
+    const { iin = '', role } = (await request.json()) as { iin?: string; role?: AssignableRole };
+    if (role !== 'ORGANIZATION_ADMIN' && role !== 'TRAINER')
+      return err(400, 'VALIDATION_ERROR', undefined, { role: 'Выберите роль' });
+    const users = loadUsers();
+    const user = users.find((u) => u.iin === iin.trim());
+    if (!user) return err(400, 'VALIDATION_ERROR', undefined, { iin: 'Пользователь с таким ИИН не найден' });
+    if (user.roles.some((r) => sameAssignment(r, { role, clientSlug: slug })))
+      return err(400, 'VALIDATION_ERROR', undefined, { role: 'У пользователя уже есть эта роль в организации' });
+    user.roles.push({ role, clientSlug: slug });
+    saveUsers(users);
+    return HttpResponse.json(toOrganizationUser(user, slug));
+  }),
+
+  // ---------- Суперадмин: пользователи и лимиты платформы ----------
+  http.get('/api/superadmin/users', async ({ request }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const search = (new URL(request.url).searchParams.get('search') ?? '').trim().toLowerCase();
+    const orgs = load().organizations;
+    return HttpResponse.json(
+      loadUsers()
+        .filter((u) => !search || fullNameOf(u).toLowerCase().includes(search) || u.iin.includes(search) || u.email.toLowerCase().includes(search))
+        .map((u) => ({
+          id: u.id,
+          fullName: fullNameOf(u),
+          iin: u.iin,
+          email: u.email,
+          roles: u.roles.map((r) => ({ ...r, organizationName: orgs.find((o) => o.clientSlug === r.clientSlug)?.name })),
+        })),
+    );
+  }),
+  http.get('/api/superadmin/limits', async ({ request }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const search = (new URL(request.url).searchParams.get('search') ?? '').trim().toLowerCase();
+    return HttpResponse.json(
+      [...load().organizations]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .filter((o) => !search || o.name.toLowerCase().includes(search) || o.clientSlug.includes(search))
+        .map((o) => ({
+          tenantId: o.tenantId,
+          name: o.name,
+          clientSlug: o.clientSlug,
+          tariffName: findTariff(o.tariffPlanId)!.name,
+          status: computeStatus(o),
+          items: toUsage(o).items.map((i) => ({ ...i, overridden: (o.limitOverrides[i.code] ?? null) !== null })),
+        })),
+    );
   }),
 
   // ---------- Superadmin ----------

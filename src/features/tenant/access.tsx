@@ -1,10 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { App, Modal, Skeleton } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import { queryKeys } from '@/api/queryKeys';
 import type { CurrentUser, TenantAccess, TenantModule } from '@/api/types';
 import { useCurrentUser } from '@/auth/auth';
+import { useCabinet } from './cabinet';
 import { useTenantAccess, useTenantModules } from './queries';
 
 export const ORGANIZATION_MANAGE = 'organization.manage';
@@ -28,13 +29,15 @@ export const canManageOrganization = (user: Pick<CurrentUser, 'permissions'> | n
 
 /** Всё, что нужно для решения о доступе: пользователь, конфигурация организации, справочник модулей. */
 export function useTenantContext() {
-  const { clientSlug = '' } = useParams();
+  const { clientSlug, base } = useCabinet();
   const user = useCurrentUser();
   const access = useTenantAccess(clientSlug);
   const modules = useTenantModules(clientSlug, access.data?.subscriptionStatus === 'ACTIVE');
   const available = (modules.data ?? []).filter((m) => canUseFeature(user.data, access.data, m));
   return {
     clientSlug,
+    /** Базовый путь кабинета активной роли */
+    base,
     user: user.data ?? null,
     access: access.data,
     /** Модули, доступные одновременно организации и роли */
@@ -53,7 +56,7 @@ export const MODULE_REVOKED_TEXT = 'Доступ к модулю отключё�
 
 /** Модуль отключили, пока он был открыт: закрыть окна, отменить его запросы, уведомить и уйти на dashboard. */
 function RevokedRedirect({ code }: { code: string }) {
-  const { clientSlug = '' } = useParams();
+  const { clientSlug, base } = useCabinet();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { message } = App.useApp();
@@ -63,14 +66,14 @@ function RevokedRedirect({ code }: { code: string }) {
     void qc.cancelQueries({ queryKey: key });
     qc.removeQueries({ queryKey: key }); // повторять запрещённый запрос не нужно
     message.warning({ key: 'module-revoked', content: MODULE_REVOKED_TEXT });
-    navigate(`/${clientSlug}/dashboard`, { replace: true });
-  }, [clientSlug, code, message, navigate, qc]);
+    navigate(base, { replace: true });
+  }, [clientSlug, base, code, message, navigate, qc]);
   return null;
 }
 
 /** Route guard модуля. До загрузки конфигурации показывает skeleton — запрещённый контент не мелькает. */
 export function FeatureGuard({ code, children }: { code: string; children: ReactNode }) {
-  const { clientSlug = '' } = useParams();
+  const { base } = useCabinet();
   const { enabled, isLoading } = useFeature(code);
   const [wasEnabled, setWasEnabled] = useState(false);
   if (enabled && !wasEnabled) setWasEnabled(true);
@@ -78,14 +81,14 @@ export function FeatureGuard({ code, children }: { code: string; children: React
   if (isLoading) return <Skeleton active paragraph={{ rows: 4 }} />;
   if (enabled) return <>{children}</>;
   if (wasEnabled) return <RevokedRedirect code={code} />;
-  return <Navigate to={`/${clientSlug}/feature-unavailable`} replace />;
+  return <Navigate to={`${base}/feature-unavailable`} replace />;
 }
 
 /** Страницы управления организацией — только для администратора организации. */
 export function RequireOrganizationAdmin({ children }: { children: ReactNode }) {
-  const { clientSlug = '' } = useParams();
+  const { base } = useCabinet();
   const { data: user, isPending } = useCurrentUser();
   if (isPending) return <Skeleton active />;
-  if (!canManageOrganization(user)) return <Navigate to={`/${clientSlug}/feature-unavailable`} replace />;
+  if (!canManageOrganization(user)) return <Navigate to={`${base}/feature-unavailable`} replace />;
   return <>{children}</>;
 }
