@@ -1,14 +1,11 @@
 import { Card, Segmented, Table, Tag, Tooltip, Typography } from 'antd';
-import { Lock, Undo2 } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { Controller, type Control } from 'react-hook-form';
 import type { OrganizationModule } from '@/api/types';
-import { IconButton } from '@/shared/IconButton';
 import { ModuleIcon } from '@/shared/ModuleIcon';
 import type { SettingsFormValues, TariffDefaults } from './model';
 
-type Choice = 'inherit' | 'on' | 'off';
-const toChoice = (v: boolean | null): Choice => (v === null ? 'inherit' : v ? 'on' : 'off');
-const fromChoice = (c: Choice): boolean | null => (c === 'inherit' ? null : c === 'on');
+type Choice = 'on' | 'off';
 
 export function OnOffTag({ value, strong }: { value: boolean; strong?: boolean }) {
   return (
@@ -23,11 +20,10 @@ interface Props {
   values: SettingsFormValues;
   defaults: TariffDefaults;
   control: Control<SettingsFormValues>;
-  onReset: (code: string) => void;
   disabled?: boolean;
 }
 
-export function ModulesSection({ modules, values, defaults, control, onReset, disabled }: Props) {
+export function ModulesSection({ modules, values, defaults, control, disabled }: Props) {
   return (
     <Card
       title="Модули"
@@ -79,7 +75,7 @@ export function ModulesSection({ modules, values, defaults, control, onReset, di
           {
             title: 'Индивидуальное значение',
             key: 'override',
-            width: 300,
+            width: 220,
             render: (_, m) => {
               const control_ = (
                 <Controller
@@ -88,11 +84,14 @@ export function ModulesSection({ modules, values, defaults, control, onReset, di
                   render={({ field }) => (
                     <Segmented<Choice>
                       aria-label={`Индивидуальное значение модуля «${m.name}»`}
-                      value={toChoice(field.value ?? null)}
+                      value={(field.value ?? defaults.modules[m.code] ?? false) ? 'on' : 'off'}
                       disabled={!m.canOverride || disabled}
-                      onChange={(c) => field.onChange(fromChoice(c))}
+                      // Совпадает со значением тарифа — override не нужен (null = наследование)
+                      onChange={(c) => {
+                        const next = c === 'on';
+                        field.onChange(next === (defaults.modules[m.code] ?? false) ? null : next);
+                      }}
                       options={[
-                        { label: 'По тарифу', value: 'inherit' },
                         { label: 'Включён', value: 'on' },
                         { label: 'Отключён', value: 'off' },
                       ]}
@@ -125,21 +124,6 @@ export function ModulesSection({ modules, values, defaults, control, onReset, di
                 </span>
               );
             },
-          },
-          {
-            title: '',
-            key: 'actions',
-            width: 64,
-            align: 'center',
-            render: (_, m) => (
-              <IconButton
-                type="text"
-                label={`Вернуть значение тарифа для «${m.name}»`}
-                icon={<Undo2 size={16} />}
-                disabled={disabled || (values.moduleOverrides[m.code] ?? null) === null}
-                onClick={() => onReset(m.code)}
-              />
-            ),
           },
         ]}
       />

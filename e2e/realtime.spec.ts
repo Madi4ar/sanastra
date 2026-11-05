@@ -50,7 +50,7 @@ test('отключение модуля: пункт меню исчезает, �
   await cabinet.goto('/academy/m/WEBINARS');
   await expect(cabinet.getByTestId('webinars-view')).toBeVisible();
 
-  await admin.getByRole('button', { name: 'Вернуть значение тарифа для «Вебинары»' }).click();
+  await admin.getByLabel('Индивидуальное значение модуля «Вебинары»').getByText('Отключён').click();
   await adminSave(admin, true);
 
   await expect(cabinet).toHaveURL(/\/academy\/dashboard$/, REALTIME_SLA);

@@ -85,7 +85,7 @@ describe('Карточка организации', () => {
     const { user } = await openCard();
     await user.click(screen.getByRole('button', { name: 'Вернуть значение тарифа для «Количество пользователей»' }));
     expect(screen.getByTestId('limit-effective-USERS_COUNT')).toHaveTextContent('50');
-    await user.click(screen.getByRole('button', { name: 'Вернуть значение тарифа для «Вебинары»' }));
+    await user.click(within(moduleRow('WEBINARS')).getByRole('radio', { name: 'Отключён' })); // = значению тарифа
     expect(screen.getByTestId('module-effective-WEBINARS')).toHaveTextContent('Отключён');
 
     await user.click(saveButton());

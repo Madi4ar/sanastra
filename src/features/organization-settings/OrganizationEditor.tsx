@@ -247,7 +247,6 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
               defaults={defaults}
               control={control}
               disabled={busy}
-              onReset={(code) => setValue(`moduleOverrides.${code}`, null, { shouldDirty: true, shouldValidate: true })}
             />
             <LimitsSection
               limits={base.limits}
