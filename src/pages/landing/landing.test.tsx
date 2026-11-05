@@ -15,7 +15,7 @@ describe('Лендинг Sanastra', () => {
     expect(screen.getByRole('link', { name: 'Кіру' })).toHaveAttribute('href', '/login');
   });
 
-  it('все секции из ТЗ на месте, Enterprise — «Жеке ұсыныс»', async () => {
+  it('все секции из ТЗ на месте; 4 тарифа, «Стандарт» выделен', async () => {
     renderApp('/');
     await screen.findByRole('heading', { level: 1 });
     [
@@ -31,7 +31,11 @@ describe('Лендинг Sanastra', () => {
       'Сізге сай жоспарды таңдаңыз',
       'Саналы білімге бүгін қадам жасаңыз',
     ].forEach((h) => expect(screen.getByRole('heading', { level: 2, name: h })).toBeInTheDocument());
-    expect(within(screen.getByRole('article', { name: 'Enterprise тарифі' })).getByText('Жеке ұсыныс')).toBeInTheDocument();
+    expect(within(screen.getByRole('article', { name: 'Ұйым тарифі' })).getByText('Келісімшарт бойынша')).toBeInTheDocument();
+    const popular = screen.getByRole('article', { name: 'Стандарт тарифі, жиі таңдалады' });
+    expect(popular).toHaveTextContent('200 000 ₸');
+    expect(within(popular).getByText('Жиі таңдалады')).toBeInTheDocument();
+    ['Базалық', 'Бизнес'].forEach((n) => expect(screen.getByRole('article', { name: `${n} тарифі` })).toBeInTheDocument());
     expect(screen.getByText('© 2026 Sanastra. Барлық құқықтар қорғалған.')).toBeInTheDocument();
   });
 

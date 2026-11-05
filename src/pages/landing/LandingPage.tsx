@@ -24,6 +24,7 @@ import {
   School,
   ShieldCheck,
   SquareCheckBig,
+  Star,
   Upload,
   Users,
   UsersRound,
@@ -572,36 +573,45 @@ function Organizations() {
 
 /* ---------------- Pricing ---------------- */
 
+/** Тарифы: состав совпадает с тарифами в приложении (модули и лимиты). */
 const PLANS = [
   {
-    name: 'Start',
-    price: '39 000 ₸',
+    name: 'Базалық',
+    price: '100 000 ₸',
     period: '/ ай',
     text: 'Шағын оқу орталықтарына',
-    features: ['100 білім алушыға дейін', '10 курс', 'Тапсырмалар мен бағалау', 'Негізгі аналитика', 'Email арқылы қолдау'],
+    features: ['50 білім алушыға дейін', '10 курс', '10 ГБ қойма', 'Курстар мен оқу кестесі', 'Email арқылы қолдау'],
     cta: 'Бастау',
   },
   {
-    name: 'Business',
-    price: '99 000 ₸',
+    name: 'Стандарт',
+    price: '200 000 ₸',
     period: '/ ай',
-    text: 'Өсіп келе жатқан ұйымдарға',
+    text: 'Мектептер мен оқу орталықтарына',
     features: [
-      '1 000 білім алушыға дейін',
-      'Шектеусіз курстар',
-      'Сертификаттар',
-      'Кеңейтілген аналитика',
-      'Zoom және Teams интеграциясы',
+      '100 білім алушыға дейін',
+      '50 курс',
+      '100 ГБ қойма',
+      'Оқу аналитикасы мен есептер',
+      'Хабарламалар мен чат',
       'Басым қолдау',
     ],
     cta: 'Тегін бастау',
     popular: true,
   },
   {
-    name: 'Enterprise',
-    price: 'Жеке ұсыныс',
+    name: 'Бизнес',
+    price: '300 000 ₸',
+    period: '/ ай',
+    text: 'Ірі оқу орталықтарына',
+    features: ['1 000 білім алушыға дейін', '500 курс', '1 000 ГБ қойма', 'Вебинарлар мен сертификаттар', 'Барлық модульдер'],
+    cta: 'Бастау',
+  },
+  {
+    name: 'Ұйым',
+    price: 'Келісімшарт бойынша',
     period: '',
-    text: 'Ірі ұйымдар мен ЖОО-ларға',
+    text: 'Корпорациялар мен ЖОО-ларға',
     features: ['Шектеусіз білім алушылар', 'SSO және API', 'Жеке серверге орналастыру', 'SLA және жеке менеджер', 'Деректерді көшіру'],
     cta: 'Байланысу',
   },
@@ -612,24 +622,32 @@ function Pricing() {
     <Section id="pricing" labelledBy="pricing-h" className="bg-ln-soft">
       <Container>
         <SectionHeading id="pricing-h" title="Сізге сай жоспарды таңдаңыз" />
-        <div className="mt-12 grid gap-4 md:mt-16 lg:grid-cols-3 lg:gap-6">
+        <div className="mt-12 grid items-stretch gap-4 md:mt-16 md:grid-cols-2 lg:gap-6 xl:grid-cols-4">
           {PLANS.map((p, i) => (
-            <Reveal key={p.name} delay={i * 60}>
+            <Reveal key={p.name} delay={i * 60} className={p.popular ? 'xl:-mt-3 xl:mb-3' : undefined}>
               <article
-                className={`flex h-full flex-col rounded-xl border bg-ln-bg p-6 md:p-8 ${
-                  p.popular ? 'border-ln-brand ring-1 ring-ln-brand' : 'border-ln-border'
+                className={`relative flex h-full flex-col rounded-xl border bg-ln-bg p-6 md:p-7 ${
+                  p.popular ? 'border-2 border-ln-brand' : 'border-ln-border'
                 }`}
-                aria-label={`${p.name} тарифі`}
+                style={p.popular ? { boxShadow: '0 16px 40px rgba(24, 104, 219, 0.16)' } : undefined}
+                aria-label={`${p.name} тарифі${p.popular ? ', жиі таңдалады' : ''}`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="m-0 text-xl font-semibold text-ln-ink">{p.name}</h3>
-                  {p.popular && (
-                    <span className="rounded-full bg-ln-brand-soft px-2.5 py-0.5 text-xs font-semibold text-ln-brand">Танымал</span>
-                  )}
-                </div>
-                <p className="m-0 mt-1 text-sm text-ln-muted">{p.text}</p>
-                <p className="m-0 mt-6">
-                  <span className="tabular text-[32px] leading-10 font-bold tracking-[-0.02em] text-ln-ink">{p.price}</span>
+                {p.popular && (
+                  <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-ln-brand px-3 py-1 text-xs font-semibold whitespace-nowrap text-white">
+                    <Star size={12} fill="currentColor" aria-hidden /> Жиі таңдалады
+                  </span>
+                )}
+                <h3 className={`m-0 text-xl font-semibold ${p.popular ? 'text-ln-brand' : 'text-ln-ink'}`}>{p.name}</h3>
+                {/* Фиксированные высоты: цены и списки на соседних карточках стоят на одной линии */}
+                <p className="m-0 mt-1 min-h-10 text-sm text-ln-muted">{p.text}</p>
+                <p className="m-0 mt-4 flex min-h-16 flex-wrap items-end gap-x-1">
+                  <span
+                    className={`tabular font-bold tracking-[-0.02em] text-ln-ink ${
+                      p.period ? 'text-[32px] leading-10' : 'text-[22px] leading-7'
+                    }`}
+                  >
+                    {p.price}
+                  </span>
                   {p.period && <span className="text-base text-ln-muted"> {p.period}</span>}
                 </p>
                 <ul className="m-0 mt-6 flex flex-1 list-none flex-col gap-3 p-0">
@@ -645,7 +663,12 @@ function Pricing() {
                     {p.cta}
                   </PrimaryButton>
                 ) : (
-                  <SecondaryButton to="/login" size="lg" className="mt-8 w-full">
+                  <SecondaryButton
+                    to={p.period ? '/login' : undefined}
+                    href={p.period ? undefined : 'mailto:hello@sanastra.kz'}
+                    size="lg"
+                    className="mt-8 w-full"
+                  >
                     {p.cta}
                   </SecondaryButton>
                 )}
@@ -653,7 +676,6 @@ function Pricing() {
             </Reveal>
           ))}
         </div>
-        <p className="m-0 mt-6 text-center text-sm text-ln-muted">Бағалар үлгі ретінде көрсетілген және нақтылауды қажет етеді.</p>
       </Container>
     </Section>
   );
