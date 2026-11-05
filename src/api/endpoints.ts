@@ -9,13 +9,14 @@ import type {
   Paginated,
   AssignableRole,
   OrganizationUser,
-  OrganizationLimitsRow,
   PlatformUser,
+  PlatformUserPayload,
   Region,
   RegisterPayload,
   RoleAssignment,
   SubscriptionSettingsPayload,
   TariffPlanDetail,
+  TariffPlanPayload,
   SubscriptionSummary,
   TariffPlanSummary,
   TenantAccess,
@@ -63,7 +64,14 @@ export const api = {
   },
   platform: {
     users: (search: string) => request<PlatformUser[]>(`/api/superadmin/users${toQueryString({ search })}`),
-    limits: (search: string) => request<OrganizationLimitsRow[]>(`/api/superadmin/limits${toQueryString({ search })}`),
+    createUser: (payload: PlatformUserPayload) =>
+      request<PlatformUser>('/api/superadmin/users', { method: 'POST', body: JSON.stringify(payload) }),
+    updateUser: (id: string, payload: PlatformUserPayload) =>
+      request<PlatformUser>(`/api/superadmin/users/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
+    deleteUser: (id: string) => request<void>(`/api/superadmin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
   organizations: {
     list: (f: OrganizationFilters) =>
@@ -90,6 +98,13 @@ export const api = {
   tariffPlans: {
     list: () => request<TariffPlanSummary[]>('/api/superadmin/tariff-plans'),
     get: (id: string) => request<TariffPlanDetail>(`/api/superadmin/tariff-plans/${encodeURIComponent(id)}`),
+    create: (payload: TariffPlanPayload) =>
+      request<TariffPlanDetail>('/api/superadmin/tariff-plans', { method: 'POST', body: JSON.stringify(payload) }),
+    update: (id: string, payload: TariffPlanPayload) =>
+      request<TariffPlanDetail>(`/api/superadmin/tariff-plans/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
   },
   tenant: {
     access: (clientSlug: string) => request<TenantAccess>(`/api/tenant/access${toQueryString({ clientSlug })}`),

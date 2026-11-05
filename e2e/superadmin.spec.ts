@@ -49,29 +49,30 @@ test('2. Смена тарифа с preview и подтверждением', as
   await expect(page.getByText('Тариф: Стандарт')).toBeVisible();
 });
 
-test('3. Индивидуальное включение модуля и изменение лимита', async ({ page }) => {
+test('3. Индивидуальное включение модуля и ручная скидка', async ({ page }) => {
   await openAcademy(page);
   await page.getByTestId('module-row-REPORTS').getByText('Включён').click();
   await expect(page.getByTestId('module-effective-REPORTS')).toContainText('Индивидуально');
-  await page.getByLabel('Индивидуальное значение: Количество курсов').fill('25');
+  await page.getByLabel('Ручная скидка').fill('20000');
+  await expect(page.getByTestId('final-price')).toContainText(/80\s000 ₸/);
   await expect(page.getByText('Есть несохранённые изменения')).toBeVisible();
   await save(page).click();
-  await expect(page.getByText('Изменения сохранены')).toBeVisible();
-  await page.reload();
-  await expect(page.getByTestId('limit-effective-COURSES_COUNT')).toContainText('25');
-  await expect(page.getByTestId('module-effective-REPORTS')).toContainText('Включён');
-});
-
-test('4. Возврат override к значению тарифа', async ({ page }) => {
-  await openAcademy(page);
-  await expect(page.getByTestId('limit-effective-USERS_COUNT')).toContainText('150');
-  await page.getByRole('button', { name: 'Вернуть значение тарифа для «Количество пользователей»' }).click();
-  await expect(page.getByTestId('limit-effective-USERS_COUNT')).toContainText('50');
-  await save(page).click();
-  await expect(page.getByTestId('critical-changes')).toContainText('Уменьшение лимита');
   await page.getByRole('button', { name: 'Сохранить изменения' }).click();
   await expect(page.getByText('Изменения сохранены')).toBeVisible();
-  await expect(page.getByTestId('limit-effective-USERS_COUNT')).not.toContainText('Индивидуально');
+  await page.reload();
+  await expect(page.getByTestId('module-effective-REPORTS')).toContainText('Включён');
+  await expect(page.getByTestId('history-row-ACTIVE')).toContainText('Изменение условий');
+});
+
+test('4. Продление подписки и история периодов', async ({ page }) => {
+  await openAcademy(page);
+  await expect(page.getByTestId('limits-section')).toContainText('Только чтение');
+  await page.getByRole('button', { name: /Продлить подписку/ }).click();
+  await save(page).click();
+  await expect(page.getByText('Изменения сохранены')).toBeVisible();
+  await expect(page.getByTestId('history-row-ACTIVE')).toHaveCount(1);
+  await expect(page.getByTestId('history-row-ACTIVE')).toContainText('Продление');
+  await expect(page.getByTestId('org-usage-USERS_COUNT')).toContainText('Осталось');
 });
 
 test('5. Отключение подписки и блокировка tenant-интерфейса', async ({ page }) => {
@@ -99,7 +100,9 @@ test('6. Конфликт версий после внешнего измене�
   await expect(page.getByText('Конфликт версий')).toBeVisible();
   await page.getByRole('button', { name: 'Загрузить актуальные данные' }).click();
   await expect(page.getByText('Изменений нет')).toBeVisible();
-  await expect(page.getByText(/платёжный сервис/)).toBeVisible();
+  await expect(page.getByText(/обновлено .*платёжный сервис/)).toBeVisible();
+  // Оплата из ЛК клиента тоже фиксируется в истории подписки
+  await expect(page.getByTestId('history-row-ACTIVE')).toContainText('Продление · платёжный сервис');
 });
 
 test('7. Запрет доступа без SUPERADMIN', async ({ page }) => {

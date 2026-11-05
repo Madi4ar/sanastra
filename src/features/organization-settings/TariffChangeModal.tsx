@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { OrganizationDetail, OverridePolicy, TariffPlanDetail } from '@/api/types';
 import { useTariffPlan } from '@/features/organizations/queries';
 import { formatNumber } from '@/shared/format';
+import { formatKzt } from '@/shared/pricing';
 import { ModuleIcon } from '@/shared/ModuleIcon';
 import { ErrorState } from '@/shared/PageState';
 import {
@@ -27,7 +28,7 @@ interface Props {
   values: SettingsFormValues;
   currentDefaults: TariffDefaults;
   onCancel: () => void;
-  onConfirm: (next: Pick<SettingsFormValues, 'tariffPlanId' | 'moduleOverrides' | 'limitOverrides'>) => void;
+  onConfirm: (next: Pick<SettingsFormValues, 'tariffPlanId' | 'moduleOverrides'>) => void;
 }
 
 export function TariffChangeModal(props: Props) {
@@ -68,7 +69,7 @@ function TariffPreview({
   const policies = tariff.overridePolicies.length ? tariff.overridePolicies : (['RESET'] as OverridePolicy[]);
   const [policy, setPolicy] = useState<OverridePolicy>(policies[0]!);
   const lockedModules = base.modules.filter((m) => !m.canOverride).map((m) => m.code);
-  const overrides = applyOverridePolicy(values, nextDefaults, policy, base.limits, lockedModules);
+  const overrides = applyOverridePolicy(values, nextDefaults, policy, lockedModules);
   const after: SettingsFormValues = { ...values, tariffPlanId: tariff.id, ...overrides };
   const currentOverrides = countOverrides(values);
 
@@ -78,8 +79,8 @@ function TariffPreview({
     return { ...m, before, next, changed: before !== next };
   });
   const limitRows = base.limits.map((l) => {
-    const before = effectiveLimit(l.code, values, currentDefaults);
-    const next = effectiveLimit(l.code, after, nextDefaults);
+    const before = effectiveLimit(l.code, currentDefaults);
+    const next = effectiveLimit(l.code, nextDefaults);
     return { ...l, before, next, changed: before !== next };
   });
   const changedCount = moduleRows.filter((r) => r.changed).length + limitRows.filter((r) => r.changed).length;
@@ -92,11 +93,15 @@ function TariffPreview({
         <div>
           <Typography.Text type="secondary">Текущий тариф</Typography.Text>
           <div className="text-base font-semibold">{currentDefaults.name}</div>
+          <Typography.Text type="secondary">{formatKzt(currentDefaults.annualPrice)} / год</Typography.Text>
         </div>
         <ArrowRight size={18} aria-hidden />
         <div>
           <Typography.Text type="secondary">Новый тариф</Typography.Text>
           <div className="text-base font-semibold">{tariff.name}</div>
+          <Typography.Text type="secondary" data-testid="new-tariff-price">
+            {formatKzt(tariff.annualPrice)} / год
+          </Typography.Text>
         </div>
         <Tag className="ml-auto" color={changedCount ? 'gold' : 'default'}>
           Изменений: {changedCount}
@@ -188,7 +193,7 @@ function TariffPreview({
       <Alert
         type="info"
         showIcon
-        title="Изменение будет применено только после нажатия «Сохранить» в карточке организации."
+        title="Изменение будет применено только после нажатия «Сохранить» в карточке организации. Лимиты меняются только вместе с тарифом."
       />
 
       <div className="flex justify-end gap-2">

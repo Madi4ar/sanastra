@@ -1,27 +1,35 @@
+import dayjs from 'dayjs';
 import { z } from 'zod';
 import type {
+  Discount,
+  DiscountType,
   OrganizationDetail,
-  OrganizationLimit,
   OverridePolicy,
   SubscriptionSettingsPayload,
   TariffPlanDetail,
 } from '@/api/types';
-import { formatNumber, todayIso } from '@/shared/format';
+import { API_DATE, formatNumber, todayIso } from '@/shared/format';
+import { finalPrice, formatKzt } from '@/shared/pricing';
 
 export interface SettingsFormValues {
   tariffPlanId: string;
   subscriptionEnabled: boolean;
   subscriptionStartDate: string | null;
   subscriptionEndDate: string | null;
+  /** Ручная скидка на годовую цену */
+  discountType: DiscountType;
+  discountValue: number | null;
   /** null — наследование значения тарифа */
   moduleOverrides: Record<string, boolean | null>;
-  limitOverrides: Record<string, number | null>;
+  /** Срок действия модулей, включённых сверх тарифа (ISO date-time, null — бессрочно) */
+  moduleExpirations: Record<string, string | null>;
 }
 
-/** Значения тарифа по умолчанию (из карточки или из справочника выбранного тарифа). */
+/** Условия тарифа: из текущего периода организации или из справочника (новое назначение / продление). */
 export interface TariffDefaults {
   tariffPlanId: string;
   name: string;
+  annualPrice: number;
   modules: Record<string, boolean>;
   limits: Record<string, number>;
 }
@@ -32,8 +40,10 @@ export function toFormValues(org: OrganizationDetail): SettingsFormValues {
     subscriptionEnabled: org.subscriptionEnabled,
     subscriptionStartDate: org.subscriptionStartDate,
     subscriptionEndDate: org.subscriptionEndDate,
+    discountType: org.pricing.discount.type,
+    discountValue: org.pricing.discount.value,
     moduleOverrides: Object.fromEntries(org.modules.map((m) => [m.code, m.overrideEnabled])),
-    limitOverrides: Object.fromEntries(org.limits.map((l) => [l.code, l.overrideValue])),
+    moduleExpirations: Object.fromEntries(org.modules.map((m) => [m.code, m.expiresAt])),
   };
 }
 
@@ -41,8 +51,9 @@ export function defaultsFromOrganization(org: OrganizationDetail): TariffDefault
   return {
     tariffPlanId: org.tariffPlan.id,
     name: org.tariffPlan.name,
+    annualPrice: org.pricing.annualPrice,
     modules: Object.fromEntries(org.modules.map((m) => [m.code, m.tariffEnabled])),
-    limits: Object.fromEntries(org.limits.map((l) => [l.code, l.tariffValue])),
+    limits: Object.fromEntries(org.limits.map((l) => [l.code, l.value])),
   };
 }
 
@@ -50,36 +61,44 @@ export function defaultsFromTariff(t: TariffPlanDetail): TariffDefaults {
   return {
     tariffPlanId: t.id,
     name: t.name,
+    annualPrice: t.annualPrice,
     modules: Object.fromEntries(t.modules.map((m) => [m.code, m.enabled])),
     limits: Object.fromEntries(t.limits.map((l) => [l.code, l.value])),
   };
 }
 
-export function toPayload(values: SettingsFormValues, version: number): SubscriptionSettingsPayload {
+export const discountOf = (v: Pick<SettingsFormValues, 'discountType' | 'discountValue'>): Discount => ({
+  type: v.discountType,
+  value: v.discountValue ?? 0,
+});
+
+/** Модуль включён сверх тарифа — для него задаётся срок действия. */
+export const isExtraModule = (code: string, values: SettingsFormValues, d: TariffDefaults) =>
+  values.moduleOverrides[code] === true && !d.modules[code];
+
+export function toPayload(
+  values: SettingsFormValues,
+  version: number,
+  defaults: TariffDefaults,
+): SubscriptionSettingsPayload {
   return {
     tariffPlanId: values.tariffPlanId,
     subscriptionEnabled: values.subscriptionEnabled,
     subscriptionStartDate: values.subscriptionStartDate!,
     subscriptionEndDate: values.subscriptionEndDate!,
-    moduleOverrides: Object.entries(values.moduleOverrides).map(([code, value]) => ({ code, value })),
-    limitOverrides: Object.entries(values.limitOverrides).map(([code, value]) => ({ code, value })),
+    discount: discountOf(values),
+    moduleOverrides: Object.entries(values.moduleOverrides).map(([code, value]) => ({
+      code,
+      value,
+      expiresAt: isExtraModule(code, values, defaults) ? (values.moduleExpirations[code] ?? null) : null,
+    })),
     version,
   };
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Схема строится по справочнику лимитов из API: тип, min и max приходят с сервера. */
-export function buildSchema(limits: Pick<OrganizationLimit, 'code' | 'type' | 'min' | 'max'>[]) {
-  const limitShape = Object.fromEntries(
-    limits.map((l) => {
-      let n = z.number({ error: 'Введите число' }).min(l.min, `Минимум — ${formatNumber(l.min)}`);
-      n = n.max(l.max, `Максимум — ${formatNumber(l.max)}`);
-      const field = l.type === 'integer' ? n.int('Введите целое число') : n;
-      return [l.code, field.nullable()];
-    }),
-  );
-
+export function buildSchema() {
   return z
     .object({
       tariffPlanId: z.string({ error: 'Выберите тарифный план' }).min(1, 'Выберите тарифный план'),
@@ -92,8 +111,10 @@ export function buildSchema(limits: Pick<OrganizationLimit, 'code' | 'type' | 'm
         .string()
         .nullable()
         .refine((v) => v !== null && ISO_DATE.test(v), 'Укажите дату окончания'),
+      discountType: z.enum(['AMOUNT', 'PERCENT']),
+      discountValue: z.number({ error: 'Введите число' }).min(0, 'Скидка не может быть отрицательной').nullable(),
       moduleOverrides: z.record(z.string(), z.boolean().nullable()),
-      limitOverrides: z.object(limitShape),
+      moduleExpirations: z.record(z.string(), z.string().nullable()),
     })
     .superRefine((v, ctx) => {
       if (v.subscriptionStartDate && v.subscriptionEndDate && v.subscriptionEndDate < v.subscriptionStartDate) {
@@ -103,30 +124,38 @@ export function buildSchema(limits: Pick<OrganizationLimit, 'code' | 'type' | 'm
           message: 'Дата окончания не может быть раньше даты начала',
         });
       }
+      if (v.discountType === 'PERCENT' && (v.discountValue ?? 0) > 100) {
+        ctx.addIssue({ code: 'custom', path: ['discountValue'], message: 'Скидка в процентах — не больше 100' });
+      }
+      Object.entries(v.moduleExpirations).forEach(([code, at]) => {
+        if (at && v.moduleOverrides[code] === true && Date.parse(at) <= Date.now()) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['moduleExpirations', code],
+            message: 'Срок действия должен быть в будущем',
+          });
+        }
+      });
     });
 }
 
 export const effectiveModule = (code: string, values: SettingsFormValues, d: TariffDefaults) =>
   values.moduleOverrides[code] ?? d.modules[code] ?? false;
 
-export const effectiveLimit = (code: string, values: SettingsFormValues, d: TariffDefaults) =>
-  values.limitOverrides[code] ?? d.limits[code] ?? 0;
+/** Лимиты зафиксированы в тарифе — меняются только сменой тарифного плана. */
+export const effectiveLimit = (code: string, d: TariffDefaults) => d.limits[code] ?? 0;
 
-/** Применение политики сервера к overrides при смене тарифа. */
+/** Применение политики сервера к индивидуальным настройкам модулей при смене тарифа. */
 export function applyOverridePolicy(
   values: SettingsFormValues,
   next: TariffDefaults,
   policy: OverridePolicy,
-  limitDefs: Pick<OrganizationLimit, 'code' | 'min' | 'max'>[],
   lockedModules: string[] = [],
-): Pick<SettingsFormValues, 'moduleOverrides' | 'limitOverrides'> {
+): Pick<SettingsFormValues, 'moduleOverrides'> {
   if (policy === 'RESET') {
-    return {
-      moduleOverrides: Object.fromEntries(Object.keys(values.moduleOverrides).map((c) => [c, null])),
-      limitOverrides: Object.fromEntries(Object.keys(values.limitOverrides).map((c) => [c, null])),
-    };
+    return { moduleOverrides: Object.fromEntries(Object.keys(values.moduleOverrides).map((c) => [c, null])) };
   }
-  // KEEP_COMPATIBLE: сохраняются overrides, которые отличаются от нового тарифа и укладываются в диапазон
+  // KEEP_COMPATIBLE: сохраняются настройки, которые отличаются от нового тарифа
   return {
     moduleOverrides: Object.fromEntries(
       Object.entries(values.moduleOverrides).map(([c, v]) => [
@@ -134,19 +163,11 @@ export function applyOverridePolicy(
         v === null || lockedModules.includes(c) || v === next.modules[c] ? null : v,
       ]),
     ),
-    limitOverrides: Object.fromEntries(
-      Object.entries(values.limitOverrides).map(([c, v]) => {
-        const def = limitDefs.find((l) => l.code === c);
-        const compatible = v !== null && def && v >= def.min && v <= def.max && v !== next.limits[c];
-        return [c, compatible ? v : null];
-      }),
-    ),
   };
 }
 
-export const countOverrides = (v: Pick<SettingsFormValues, 'moduleOverrides' | 'limitOverrides'>) =>
-  Object.values(v.moduleOverrides).filter((x) => x !== null).length +
-  Object.values(v.limitOverrides).filter((x) => x !== null).length;
+export const countOverrides = (v: Pick<SettingsFormValues, 'moduleOverrides'>) =>
+  Object.values(v.moduleOverrides).filter((x) => x !== null).length;
 
 export interface CriticalChange {
   key: string;
@@ -172,22 +193,42 @@ export function criticalChanges(
   if (values.subscriptionEndDate && values.subscriptionEndDate < todayIso()) {
     out.push({ key: 'expired', text: 'Дата окончания подписки уже прошла — подписка будет считаться истёкшей' });
   }
+  const priceBefore = finalPrice(baseDefaults.annualPrice, base.pricing.discount);
+  const priceAfter = finalPrice(nextDefaults.annualPrice, discountOf(values));
+  if (priceAfter !== priceBefore) {
+    out.push({ key: 'price', text: `Итоговая годовая цена: ${formatKzt(priceBefore)} → ${formatKzt(priceAfter)}` });
+  }
   const disabled = base.modules.filter(
     (m) => effectiveModule(m.code, baseValues, baseDefaults) && !effectiveModule(m.code, values, nextDefaults),
   );
   if (disabled.length) {
     out.push({ key: 'modules', text: `Будут отключены модули: ${disabled.map((m) => m.name).join(', ')}` });
   }
-  const decreased = base.limits.filter(
-    (l) => effectiveLimit(l.code, values, nextDefaults) < effectiveLimit(l.code, baseValues, baseDefaults),
-  );
-  decreased.forEach((l) =>
-    out.push({
-      key: `limit-${l.code}`,
-      text: `Уменьшение лимита «${l.name}»: ${formatNumber(effectiveLimit(l.code, baseValues, baseDefaults))} → ${formatNumber(
-        effectiveLimit(l.code, values, nextDefaults),
-      )} ${l.unit}`,
-    }),
-  );
+  base.limits
+    .filter((l) => effectiveLimit(l.code, nextDefaults) < effectiveLimit(l.code, baseDefaults))
+    .forEach((l) =>
+      out.push({
+        key: `limit-${l.code}`,
+        text: `Уменьшение лимита «${l.name}»: ${formatNumber(effectiveLimit(l.code, baseDefaults))} → ${formatNumber(
+          effectiveLimit(l.code, nextDefaults),
+        )} ${l.unit}`,
+      }),
+    );
   return out;
+}
+
+/** Продление: +1 год от текущей даты окончания; если подписка уже истекла — новый период с сегодняшнего дня. */
+export function renewalDates(values: Pick<SettingsFormValues, 'subscriptionStartDate' | 'subscriptionEndDate'>) {
+  const today = todayIso();
+  const end = values.subscriptionEndDate;
+  if (!end || end < today) {
+    return {
+      subscriptionStartDate: today,
+      subscriptionEndDate: dayjs(today).add(1, 'year').subtract(1, 'day').format(API_DATE),
+    };
+  }
+  return {
+    subscriptionStartDate: values.subscriptionStartDate,
+    subscriptionEndDate: dayjs(end).add(1, 'year').format(API_DATE),
+  };
 }

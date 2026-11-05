@@ -8,10 +8,17 @@ import type {
   Role,
   RoleAssignment,
   CreateOrganizationPayload,
+  ChangeSource,
   CurrentUser,
+  PlatformUserPayload,
+  Discount,
+  SubscriptionHistoryEntry,
+  SubscriptionOperation,
   SubscriptionSettingsPayload,
+  TariffPlanPayload,
   TenantEvent,
 } from '@/api/types';
+import { finalPrice, NO_DISCOUNT } from '@/shared/pricing';
 import { RESERVED_SLUGS, SLUG_PATTERN, slugError } from '@/shared/slug';
 import {
   computeStatus,
@@ -24,15 +31,16 @@ import {
   MODULES,
   save,
   setSession,
-  TARIFFS,
   toAccess,
   toDetail,
   toListItem,
   toSummary,
   toTariffDetail,
+  toTariffSummary,
   toTenantModules,
   toUsage,
   type OrgRecord,
+  type TariffRecord,
 } from './db';
 import { publish, subscribe } from './eventBus';
 import {
@@ -51,7 +59,11 @@ import {
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
 import { addCourse, COURSE_CATEGORIES, courseCount, listCourses, listWebinars, toggleWebinarRegistration } from './content';
 
-const latency = () => delay(import.meta.env.MODE === 'test' ? 0 : 250);
+const latency = () => {
+  // Отложенные задачи планировщика выполняются до обработки запроса (плюс интервал в browser.ts)
+  runModuleExpirations();
+  return delay(import.meta.env.MODE === 'test' ? 0 : 250);
+};
 
 const err = (status: number, code: string, message?: string, fieldErrors?: Record<string, string>) =>
   HttpResponse.json({ code, message, fieldErrors }, { status });
@@ -73,22 +85,132 @@ function validateSettings(body: Partial<SubscriptionSettingsPayload>): Record<st
   if (!fe.subscriptionStartDate && !fe.subscriptionEndDate && body.subscriptionEndDate! < body.subscriptionStartDate!) {
     fe.subscriptionEndDate = 'Дата окончания не может быть раньше даты начала';
   }
+  const discount = body.discount ?? NO_DISCOUNT;
+  if (discount.type !== 'AMOUNT' && discount.type !== 'PERCENT') fe.discountType = 'Выберите тип скидки';
+  else if (typeof discount.value !== 'number' || Number.isNaN(discount.value) || discount.value < 0)
+    fe.discountValue = 'Скидка не может быть отрицательной';
+  else if (discount.type === 'PERCENT' && discount.value > 100) fe.discountValue = 'Скидка в процентах — не больше 100';
   for (const m of body.moduleOverrides ?? []) {
     const def = MODULES.find((d) => d.code === m.code);
     if (!def) fe[`moduleOverrides.${m.code}`] = 'Неизвестный модуль';
     else if (def.system && m.value !== null) fe[`moduleOverrides.${m.code}`] = 'Системный модуль нельзя переопределить';
-  }
-  for (const l of body.limitOverrides ?? []) {
-    const def = LIMITS.find((d) => d.code === l.code);
-    if (!def) fe[`limitOverrides.${l.code}`] = 'Неизвестный лимит';
-    else if (l.value !== null) {
-      if (typeof l.value !== 'number' || Number.isNaN(l.value)) fe[`limitOverrides.${l.code}`] = 'Введите число';
-      else if (def.type === 'integer' && !Number.isInteger(l.value)) fe[`limitOverrides.${l.code}`] = 'Введите целое число';
-      else if (l.value < def.min || l.value > def.max)
-        fe[`limitOverrides.${l.code}`] = `Значение должно быть от ${def.min} до ${def.max}`;
-    }
+    else if (m.expiresAt && (Number.isNaN(Date.parse(m.expiresAt)) || Date.parse(m.expiresAt) <= Date.now()))
+      fe[`moduleExpirations.${m.code}`] = 'Срок действия модуля должен быть в будущем';
   }
   return fe;
+}
+
+/** Валидация формы конструктора тарифов; лимиты — в диапазонах справочника. */
+function validateTariff(body: Partial<TariffPlanPayload>, selfId?: string): Record<string, string> {
+  const fe: Record<string, string> = {};
+  const tariffs = load().tariffs.filter((t) => t.id !== selfId);
+  const name = (body.name ?? '').trim();
+  const code = (body.code ?? '').trim();
+  if (name.length < 2 || name.length > 60) fe.name = 'Название — от 2 до 60 символов';
+  else if (tariffs.some((t) => t.name.toLowerCase() === name.toLowerCase())) fe.name = 'Тариф с таким названием уже существует';
+  if (!/^[a-z][a-z0-9_-]{1,39}$/.test(code)) fe.code = 'Латиница в нижнем регистре, цифры, «-» и «_», от 2 символов';
+  else if (tariffs.some((t) => t.code === code)) fe.code = 'Этот системный код уже используется';
+  if (typeof body.annualPrice !== 'number' || !Number.isFinite(body.annualPrice) || body.annualPrice < 0)
+    fe.annualPrice = 'Укажите годовую цену';
+  for (const l of LIMITS) {
+    const v = body.limits?.[l.code];
+    if (typeof v !== 'number' || Number.isNaN(v)) fe[`limits.${l.code}`] = 'Введите число';
+    else if (l.type === 'integer' && !Number.isInteger(v)) fe[`limits.${l.code}`] = 'Введите целое число';
+    else if (v < l.min || v > l.max) fe[`limits.${l.code}`] = `Значение должно быть от ${l.min} до ${l.max}`;
+  }
+  return fe;
+}
+
+function toTariffRecord(body: TariffPlanPayload, id: string, policies: TariffRecord['overridePolicies']): TariffRecord {
+  return {
+    id,
+    code: body.code.trim(),
+    name: body.name.trim(),
+    description: body.description?.trim() ?? '',
+    annualPrice: body.annualPrice,
+    // Системные модули включены в любой тариф
+    modules: Object.fromEntries(MODULES.map((m) => [m.code, Boolean(m.system || body.modules?.[m.code])])),
+    limits: Object.fromEntries(LIMITS.map((l) => [l.code, body.limits[l.code]!])),
+    overridePolicies: policies,
+  };
+}
+
+const nextDay = (d: string) => dayjs(d).add(1, 'day').format('YYYY-MM-DD');
+
+/**
+ * Автоматическое логирование истории подписки. Смена тарифа и продление фиксируют актуальные условия
+ * тарифа (цена, лимиты) — изменения шаблона не затрагивают уже оформленные периоды.
+ * В истории всегда одна запись «Активен», предыдущие переходят в «Завершён».
+ */
+export function recordSubscriptionChange(before: OrgRecord | null, next: OrgRecord, source: ChangeSource) {
+  let operation: SubscriptionOperation | null;
+  if (!before) operation = 'ACTIVATION';
+  else if (before.tariffPlanId !== next.tariffPlanId) operation = 'TARIFF_CHANGE';
+  else if (next.subscriptionEndDate > before.subscriptionEndDate) operation = 'RENEWAL';
+  else if (
+    before.subscriptionStartDate !== next.subscriptionStartDate ||
+    before.subscriptionEndDate !== next.subscriptionEndDate ||
+    JSON.stringify(before.discount) !== JSON.stringify(next.discount)
+  )
+    operation = 'UPDATE';
+  else operation = null;
+  if (!operation) return;
+
+  const tariff = findTariff(next.tariffPlanId)!;
+  if (operation !== 'UPDATE') {
+    next.annualPrice = tariff.annualPrice;
+    next.limits = { ...tariff.limits };
+  }
+  const active = next.history.find((h) => h.status === 'ACTIVE');
+  let periodStart = next.subscriptionStartDate;
+  if (before && operation === 'RENEWAL' && before.subscriptionEndDate >= next.subscriptionStartDate)
+    periodStart = nextDay(before.subscriptionEndDate);
+  if (operation === 'UPDATE' && active && active.periodStart > periodStart) periodStart = active.periodStart;
+
+  const entry: SubscriptionHistoryEntry = {
+    id: crypto.randomUUID(),
+    operation,
+    operationAt: new Date().toISOString(),
+    tariffName: tariff.name,
+    periodStart,
+    periodEnd: next.subscriptionEndDate,
+    basePrice: next.annualPrice,
+    discount: next.discount,
+    finalPrice: finalPrice(next.annualPrice, next.discount),
+    status: 'ACTIVE',
+    source,
+  };
+  next.history = [entry, ...next.history.map((h) => ({ ...h, status: 'COMPLETED' as const }))];
+}
+
+/**
+ * Фоновый сервис (cron worker): модули, включённые сверх тарифа со сроком действия,
+ * переводятся в OFF при наступлении даты и времени окончания доступа.
+ */
+export function runModuleExpirations(now = Date.now()) {
+  const db = load();
+  let changed = false;
+  db.organizations.forEach((org, idx) => {
+    const expired = Object.entries(org.moduleExpirations ?? {}).filter(([, at]) => at && Date.parse(at) <= now);
+    if (!expired.length) return;
+    const before = structuredClone(org);
+    const next: OrgRecord = {
+      ...org,
+      moduleOverrides: { ...org.moduleOverrides },
+      moduleExpirations: { ...org.moduleExpirations },
+      updatedAt: new Date(now).toISOString(),
+      updatedBy: 'SYSTEM_SCHEDULER',
+      version: org.version + 1,
+    };
+    expired.forEach(([code]) => {
+      next.moduleOverrides[code] = null;
+      next.moduleExpirations[code] = null;
+    });
+    db.organizations[idx] = next;
+    changed = true;
+    queueMicrotask(() => publishChanges(before, next));
+  });
+  if (changed) save(db);
 }
 
 /**
@@ -186,6 +308,55 @@ const toOrganizationUser = (u: UserRecord, slug: string): OrganizationUser => ({
   iin: u.iin,
   email: u.email,
   roles: u.roles.filter((r) => r.clientSlug === slug).map((r): Role => r.role),
+});
+
+function toPlatformUser(u: UserRecord) {
+  const orgs = load().organizations;
+  return {
+    id: u.id,
+    fullName: fullNameOf(u),
+    lastName: u.lastName,
+    firstName: u.firstName,
+    middleName: u.middleName,
+    iin: u.iin,
+    email: u.email,
+    phone: u.phone,
+    region: u.region,
+    roles: u.roles.map((r) => ({ ...r, organizationName: orgs.find((o) => o.clientSlug === r.clientSlug)?.name })),
+  };
+}
+
+/** Те же правила, что и при регистрации; уникальность ИИН и email — без учёта редактируемого пользователя. */
+function validateUserProfile(
+  body: Partial<PlatformUserPayload>,
+  users: UserRecord[],
+  opts: { passwordRequired: boolean; selfId?: string },
+): Record<string, string> {
+  const others = users.filter((u) => u.id !== opts.selfId);
+  const iin = (body.iin ?? '').trim();
+  const email = (body.email ?? '').trim();
+  const fe: Record<string, string> = {};
+  if (!isValidIin(iin)) fe.iin = MESSAGES.iin;
+  else if (others.some((u) => u.iin === iin)) fe.iin = 'Пользователь с таким ИИН уже зарегистрирован';
+  if (!body.lastName?.trim()) fe.lastName = MESSAGES.lastName;
+  if (!body.firstName?.trim()) fe.firstName = MESSAGES.firstName;
+  if (!REGIONS.some((r) => r.name === body.region)) fe.region = MESSAGES.region;
+  if (!isValidKzPhone(body.phone ?? '')) fe.phone = MESSAGES.phone;
+  if (!EMAIL_PATTERN.test(email)) fe.email = MESSAGES.email;
+  else if (others.some((u) => u.email.toLowerCase() === email.toLowerCase()))
+    fe.email = 'Пользователь с таким email уже зарегистрирован';
+  if ((opts.passwordRequired || body.password) && !isValidPassword(body.password ?? '')) fe.password = MESSAGES.password;
+  return fe;
+}
+
+const profileFields = (body: Partial<PlatformUserPayload>) => ({
+  iin: body.iin!.trim(),
+  lastName: body.lastName!.trim(),
+  firstName: body.firstName!.trim(),
+  middleName: body.middleName?.trim() || undefined,
+  region: body.region!,
+  phone: phoneDigits(body.phone!),
+  email: body.email!.trim(),
 });
 
 const sseDisabled = () => {
@@ -341,37 +512,66 @@ export const handlers = [
     const denied = requireRole('SUPERADMIN');
     if (denied) return denied;
     const search = (new URL(request.url).searchParams.get('search') ?? '').trim().toLowerCase();
-    const orgs = load().organizations;
     return HttpResponse.json(
       loadUsers()
         .filter((u) => !search || fullNameOf(u).toLowerCase().includes(search) || u.iin.includes(search) || u.email.toLowerCase().includes(search))
-        .map((u) => ({
-          id: u.id,
-          fullName: fullNameOf(u),
-          iin: u.iin,
-          email: u.email,
-          roles: u.roles.map((r) => ({ ...r, organizationName: orgs.find((o) => o.clientSlug === r.clientSlug)?.name })),
-        })),
+        .map(toPlatformUser),
     );
   }),
-  http.get('/api/superadmin/limits', async ({ request }) => {
+  http.post('/api/superadmin/users', async ({ request }) => {
     await latency();
     const denied = requireRole('SUPERADMIN');
     if (denied) return denied;
-    const search = (new URL(request.url).searchParams.get('search') ?? '').trim().toLowerCase();
-    return HttpResponse.json(
-      [...load().organizations]
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .filter((o) => !search || o.name.toLowerCase().includes(search) || o.clientSlug.includes(search))
-        .map((o) => ({
-          tenantId: o.tenantId,
-          name: o.name,
-          clientSlug: o.clientSlug,
-          tariffName: findTariff(o.tariffPlanId)!.name,
-          status: computeStatus(o),
-          items: toUsage(o).items.map((i) => ({ ...i, overridden: (o.limitOverrides[i.code] ?? null) !== null })),
-        })),
-    );
+    const body = (await request.json()) as Partial<PlatformUserPayload>;
+    const users = loadUsers();
+    const fe = validateUserProfile(body, users, { passwordRequired: true });
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const user: UserRecord = {
+      id: crypto.randomUUID(),
+      ...profileFields(body),
+      passwordHash: hashPassword(body.password!),
+      // Как и при регистрации, присваивается базовая роль «Слушатель»
+      roles: [{ role: 'LEARNER' }],
+      failedAttempts: 0,
+    };
+    saveUsers([...users, user]);
+    return HttpResponse.json(toPlatformUser(user), { status: 201 });
+  }),
+  http.put('/api/superadmin/users/:id', async ({ params, request }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const users = loadUsers();
+    const user = users.find((u) => u.id === params.id);
+    if (!user) return err(404, 'NOT_FOUND');
+    const body = (await request.json()) as Partial<PlatformUserPayload>;
+    const fe = validateUserProfile(body, users, { passwordRequired: false, selfId: user.id });
+    const roles = body.roles ?? user.roles;
+    // Через редактирование роли можно только снять; назначение — отдельным действием
+    if (roles.some((r) => !user.roles.some((x) => sameAssignment(x, r)))) fe.roles = 'Новые роли назначаются через «Назначить роль»';
+    if (user.id === getSession()!.id && !roles.some((r) => r.role === 'SUPERADMIN'))
+      fe.roles = 'Нельзя снять роль суперадминистратора с собственной учётной записи';
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    Object.assign(user, profileFields(body), {
+      roles: user.roles.filter((x) => roles.some((r) => sameAssignment(x, r))),
+    });
+    if (body.password) {
+      user.passwordHash = hashPassword(body.password);
+      user.failedAttempts = 0;
+      user.lockedUntil = undefined;
+    }
+    saveUsers(users);
+    return HttpResponse.json(toPlatformUser(user));
+  }),
+  http.delete('/api/superadmin/users/:id', async ({ params }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const users = loadUsers();
+    if (!users.some((u) => u.id === params.id)) return err(404, 'NOT_FOUND');
+    if (params.id === getSession()!.id) return err(400, 'VALIDATION_ERROR', 'Нельзя удалить собственную учётную запись');
+    saveUsers(users.filter((u) => u.id !== params.id));
+    return new HttpResponse(null, { status: 204 });
   }),
 
   // ---------- Superadmin ----------
@@ -430,27 +630,33 @@ export const handlers = [
     else if (db.organizations.some((o) => o.clientSlug === slug)) fe.clientSlug = 'Этот адрес уже занят';
     Object.assign(
       fe,
-      validateSettings({ ...body, moduleOverrides: [], limitOverrides: [] } as Partial<SubscriptionSettingsPayload>),
+      validateSettings({ ...body, moduleOverrides: [], discount: NO_DISCOUNT } as Partial<SubscriptionSettingsPayload>),
     );
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', undefined, fe);
 
     const now = new Date().toISOString();
+    const tariff = findTariff(body.tariffPlanId!)!;
     const org: OrgRecord = {
       tenantId: crypto.randomUUID(),
       name,
       clientSlug: slug,
-      tariffPlanId: body.tariffPlanId!,
+      tariffPlanId: tariff.id,
       subscriptionEnabled: Boolean(body.subscriptionEnabled),
       subscriptionStartDate: body.subscriptionStartDate!,
       subscriptionEndDate: body.subscriptionEndDate!,
       moduleOverrides: {},
-      limitOverrides: {},
+      moduleExpirations: {},
+      annualPrice: tariff.annualPrice,
+      limits: { ...tariff.limits },
+      discount: NO_DISCOUNT,
+      history: [],
       createdAt: now,
       updatedAt: now,
       updatedBy: 'SUPERADMIN',
       version: 1,
       usage: { USERS_COUNT: 0, COURSES_COUNT: 0, STORAGE_GB: 0 },
     };
+    recordSubscriptionChange(null, org, 'SUPERADMIN');
     db.organizations.push(org);
     save(db);
     return HttpResponse.json(toDetail(org), { status: 201 });
@@ -478,23 +684,30 @@ export const handlers = [
     const fieldErrors = validateSettings(body);
     if (Object.keys(fieldErrors).length) return err(400, 'VALIDATION_ERROR', undefined, fieldErrors);
 
+    const tariff = findTariff(body.tariffPlanId!)!;
     const moduleOverrides: Record<string, boolean | null> = {};
-    body.moduleOverrides!.forEach((m) => (moduleOverrides[m.code] = m.value));
-    const limitOverrides: Record<string, number | null> = {};
-    body.limitOverrides!.forEach((l) => (limitOverrides[l.code] = l.value));
+    const moduleExpirations: Record<string, string | null> = {};
+    (body.moduleOverrides ?? []).forEach((m) => {
+      moduleOverrides[m.code] = m.value;
+      // Срок действия — только у модулей, включённых сверх тарифа
+      moduleExpirations[m.code] = m.value === true && !tariff.modules[m.code] ? (m.expiresAt ?? null) : null;
+    });
+    const discount: Discount = body.discount ?? NO_DISCOUNT;
 
     const next: OrgRecord = {
       ...current,
-      tariffPlanId: body.tariffPlanId!,
+      tariffPlanId: tariff.id,
       subscriptionEnabled: Boolean(body.subscriptionEnabled),
       subscriptionStartDate: body.subscriptionStartDate!,
       subscriptionEndDate: body.subscriptionEndDate!,
       moduleOverrides,
-      limitOverrides,
+      moduleExpirations,
+      discount: { type: discount.type, value: discount.value },
       updatedAt: new Date().toISOString(),
       updatedBy: 'SUPERADMIN',
       version: current.version + 1,
     };
+    recordSubscriptionChange(current, next, 'SUPERADMIN');
     db.organizations[idx] = next;
     save(db);
     publishChanges(current, next);
@@ -505,7 +718,50 @@ export const handlers = [
     await latency();
     const denied = requireRole('SUPERADMIN');
     if (denied) return denied;
-    return HttpResponse.json(TARIFFS.map(({ id, code, name, description }) => ({ id, code, name, description })));
+    return HttpResponse.json(load().tariffs.map(toTariffSummary));
+  }),
+
+  http.post('/api/superadmin/tariff-plans', async ({ request }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const body = (await request.json()) as Partial<TariffPlanPayload>;
+    const fe = validateTariff(body);
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const db = load();
+    const tariff = toTariffRecord(body as TariffPlanPayload, crypto.randomUUID(), ['KEEP_COMPATIBLE', 'RESET']);
+    db.tariffs.push(tariff);
+    save(db);
+    return HttpResponse.json(toTariffDetail(tariff), { status: 201 });
+  }),
+
+  // Изменение шаблона влияет только на новые назначения/продления: условия оформленных периодов хранятся в организации
+  http.put('/api/superadmin/tariff-plans/:id', async ({ params, request }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const db = load();
+    const idx = db.tariffs.findIndex((t) => t.id === params.id);
+    if (idx < 0) return err(404, 'NOT_FOUND');
+    const body = (await request.json()) as Partial<TariffPlanPayload>;
+    const fe = validateTariff(body, String(params.id));
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const tariff = toTariffRecord(body as TariffPlanPayload, db.tariffs[idx]!.id, db.tariffs[idx]!.overridePolicies);
+    const affected = db.organizations.filter((o) => o.tariffPlanId === tariff.id);
+    const modulesBefore = new Map(affected.map((o) => [o.tenantId, effectiveModules(o)]));
+    db.tariffs[idx] = tariff;
+    save(db);
+    // Набор модулей тарифа применяется к организациям сразу — уведомляем активные сессии
+    affected.forEach((o) => {
+      const was = modulesBefore.get(o.tenantId)!;
+      const now = effectiveModules(o);
+      if (was.join() === now.join()) return;
+      const base = { tenantId: o.tenantId, version: o.version, changed: ['modules'] as ChangedArea[], occurredAt: new Date().toISOString() };
+      publish({ ...base, type: 'tenant-config.updated' });
+      const disabled = was.filter((m) => !now.includes(m));
+      if (disabled.length) publish({ ...base, type: 'module.disabled', modules: disabled });
+    });
+    return HttpResponse.json(toTariffDetail(tariff));
   }),
 
   http.get('/api/superadmin/tariff-plans/:id', async ({ params }) => {
@@ -650,9 +906,13 @@ export const handlers = [
     const base = dayjs(org.subscriptionEndDate).isAfter(dayjs()) ? dayjs(org.subscriptionEndDate) : dayjs();
     org.subscriptionEnabled = true;
     org.subscriptionEndDate = base.add(1, 'year').format('YYYY-MM-DD');
+    // Подписка истекла — новый период начинается с даты оплаты
+    if (before.subscriptionEndDate < dayjs().format('YYYY-MM-DD')) org.subscriptionStartDate = dayjs().format('YYYY-MM-DD');
     org.updatedAt = new Date().toISOString();
     org.updatedBy = 'SYSTEM_PAYMENT';
     org.version += 1;
+    // Вебхук онлайн-оплаты тоже создаёт запись в истории
+    recordSubscriptionChange(before, org, 'SYSTEM_PAYMENT');
     save(db);
     publishChanges(before, org);
     return HttpResponse.json(toDetail(org));

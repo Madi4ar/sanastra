@@ -17,9 +17,13 @@ import type {
   OrganizationDetail,
   OrganizationListItem,
   OverridePolicy,
+  SubscriptionHistoryEntry,
   SubscriptionStatus,
   TariffPlanDetail,
+  TariffPlanSummary,
+  Discount,
 } from '@/api/types';
+import { finalPrice, NO_DISCOUNT } from '@/shared/pricing';
 
 interface ModuleDef {
   code: string;
@@ -47,40 +51,46 @@ export const LIMITS: LimitDefinition[] = [
   { code: 'STORAGE_GB', name: 'Объём хранилища', unit: 'ГБ', type: 'decimal', min: 0.5, max: 2000 },
 ];
 
-interface TariffRecord {
+export interface TariffRecord {
   id: string;
   code: string;
   name: string;
   description: string;
+  /** Годовая цена, KZT за 12 месяцев */
+  annualPrice: number;
   modules: Record<string, boolean>;
   limits: Record<string, number>;
   overridePolicies: OverridePolicy[];
 }
 
+/** Начальный справочник tariff_plans; дальше тарифы живут в мок-БД и редактируются в конструкторе. */
 export const TARIFFS: TariffRecord[] = [
   {
     id: 'a1f0c3d2-0001-4a00-9000-000000000001',
-    code: 'BASIC',
+    code: 'basic',
     name: 'Базовый',
     description: 'Для небольших учебных центров',
+    annualPrice: 100_000,
     modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: false, CHAT: false, WEBINARS: false, CERTIFICATES: false },
-    limits: { USERS_COUNT: 50, COURSES_COUNT: 10, STORAGE_GB: 10 },
+    limits: { USERS_COUNT: 150, COURSES_COUNT: 10, STORAGE_GB: 10 },
     overridePolicies: ['RESET'],
   },
   {
     id: 'a1f0c3d2-0002-4a00-9000-000000000002',
-    code: 'STANDARD',
+    code: 'standard',
     name: 'Стандарт',
     description: 'Оптимальный набор для школ',
+    annualPrice: 200_000,
     modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: false, CERTIFICATES: false },
     limits: { USERS_COUNT: 100, COURSES_COUNT: 50, STORAGE_GB: 100 },
     overridePolicies: ['KEEP_COMPATIBLE', 'RESET'],
   },
   {
     id: 'a1f0c3d2-0003-4a00-9000-000000000003',
-    code: 'BUSINESS',
+    code: 'business',
     name: 'Бизнес',
     description: 'Все модули и расширенные лимиты',
+    annualPrice: 300_000,
     modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: true, CERTIFICATES: true },
     limits: { USERS_COUNT: 1000, COURSES_COUNT: 500, STORAGE_GB: 1000 },
     overridePolicies: ['KEEP_COMPATIBLE', 'RESET'],
@@ -96,7 +106,14 @@ export interface OrgRecord {
   subscriptionStartDate: string;
   subscriptionEndDate: string;
   moduleOverrides: Record<string, boolean | null>;
-  limitOverrides: Record<string, number | null>;
+  /** Срок действия модулей, включённых сверх тарифа (ISO date-time, null — бессрочно) */
+  moduleExpirations: Record<string, string | null>;
+  /** Условия текущего периода — снимок тарифа на момент оформления / продления / смены тарифа */
+  annualPrice: number;
+  limits: Record<string, number>;
+  discount: Discount;
+  /** Неизменяемая история периодов подписки, новые записи — первыми */
+  history: SubscriptionHistoryEntry[];
   createdAt: string;
   updatedAt: string;
   updatedBy: ChangeSource;
@@ -106,10 +123,11 @@ export interface OrgRecord {
 }
 
 interface DbState {
+  tariffs: TariffRecord[];
   organizations: OrgRecord[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-db-v2';
+const STORAGE_KEY = 'superadmin-mock-db-v3';
 const SESSION_KEY = 'superadmin-mock-session';
 
 /** За сколько дней предупреждать об окончании подписки — «конфигурация backend». */
@@ -173,12 +191,44 @@ function seed(): DbState {
     }
     const created = (i === 0 ? today.subtract(3, 'day') : today.subtract(200 - i * 5, 'day')).hour(9 + (i % 8)).minute((i * 7) % 60);
     const moduleOverrides: Record<string, boolean | null> = {};
-    const limitOverrides: Record<string, number | null> = {};
-    if (i === 0) {
-      moduleOverrides.WEBINARS = true;
-      limitOverrides.USERS_COUNT = 150;
-    }
+    const moduleExpirations: Record<string, string | null> = {};
+    if (i === 0) moduleOverrides.WEBINARS = true;
     if (i % 4 === 1) moduleOverrides.CHAT = !tariff.modules.CHAT;
+    if (i % 4 === 1 && !tariff.modules.CHAT) moduleExpirations.CHAT = today.add(20 + i, 'day').hour(18).toISOString();
+    const discount: Discount =
+      i % 5 === 2 ? { type: 'PERCENT', value: 10 } : i % 5 === 4 ? { type: 'AMOUNT', value: 20_000 } : NO_DISCOUNT;
+
+    const history: SubscriptionHistoryEntry[] = [];
+    const addEntry = (
+      operation: SubscriptionHistoryEntry['operation'],
+      from: dayjs.Dayjs,
+      to: dayjs.Dayjs,
+      d: Discount,
+      t: TariffRecord,
+    ) =>
+      history.unshift({
+        id: `h-${i + 1}-${history.length + 1}`,
+        operation,
+        operationAt: (from.isAfter(today) ? today : from).hour(10).toISOString(),
+        tariffName: t.name,
+        periodStart: from.format('YYYY-MM-DD'),
+        periodEnd: to.format('YYYY-MM-DD'),
+        basePrice: t.annualPrice,
+        discount: d,
+        finalPrice: finalPrice(t.annualPrice, d),
+        status: 'ACTIVE',
+        source: 'SUPERADMIN',
+      });
+    // У части организаций есть предыдущий (завершённый) период
+    if (i % 3 === 0) {
+      const prev = i === 0 ? tariff : TARIFFS[(i + 2) % 3]!;
+      addEntry('ACTIVATION', start.subtract(1, 'year'), start.subtract(1, 'day'), NO_DISCOUNT, prev);
+      addEntry(prev.id === tariff.id ? 'RENEWAL' : 'TARIFF_CHANGE', start, end, discount, tariff);
+    } else {
+      addEntry('ACTIVATION', start, end, discount, tariff);
+    }
+    history.forEach((h, idx) => (h.status = idx === 0 ? 'ACTIVE' : 'COMPLETED'));
+
     return {
       tenantId: `7c9e6679-7425-40de-944b-${pad(i + 1, 12)}`,
       name,
@@ -188,7 +238,11 @@ function seed(): DbState {
       subscriptionStartDate: start.format('YYYY-MM-DD'),
       subscriptionEndDate: end.format('YYYY-MM-DD'),
       moduleOverrides,
-      limitOverrides,
+      moduleExpirations,
+      annualPrice: tariff.annualPrice,
+      limits: { ...tariff.limits },
+      discount,
+      history,
       createdAt: created.toISOString(),
       updatedAt: created.add(1, 'day').toISOString(),
       updatedBy: 'SUPERADMIN',
@@ -199,7 +253,7 @@ function seed(): DbState {
           : { USERS_COUNT: 10 + i, COURSES_COUNT: 2 + (i % 5), STORAGE_GB: 1 + (i % 4) },
     };
   });
-  return { organizations };
+  return { tariffs: structuredClone(TARIFFS), organizations };
 }
 
 let memory: DbState | null = null;
@@ -251,7 +305,7 @@ export function resetDb() {
   resetUsers();
 }
 
-export const findTariff = (id: string) => TARIFFS.find((t) => t.id === id);
+export const findTariff = (id: string) => load().tariffs.find((t) => t.id === id);
 
 /** Итоговый статус вычисляется только на сервере. Дата окончания включительна. */
 export function computeStatus(o: OrgRecord): SubscriptionStatus {
@@ -282,6 +336,7 @@ export function toDetail(o: OrgRecord): OrganizationDetail {
       const tariffEnabled = t.modules[m.code] ?? false;
       const overrideEnabled = m.system ? null : (o.moduleOverrides[m.code] ?? null);
       return {
+        expiresAt: overrideEnabled === true && !tariffEnabled ? (o.moduleExpirations[m.code] ?? null) : null,
         code: m.code,
         name: m.name,
         description: m.description,
@@ -293,11 +348,10 @@ export function toDetail(o: OrgRecord): OrganizationDetail {
         lockReason: m.system ? 'Системный модуль обязателен для работы Sanastra' : undefined,
       };
     }),
-    limits: LIMITS.map((l) => {
-      const tariffValue = t.limits[l.code] ?? l.min;
-      const overrideValue = o.limitOverrides[l.code] ?? null;
-      return { ...l, tariffValue, overrideValue, effectiveValue: overrideValue ?? tariffValue };
-    }),
+    limits: LIMITS.map((l) => ({ ...l, value: o.limits[l.code] ?? l.min })),
+    pricing: { annualPrice: o.annualPrice, discount: o.discount, finalPrice: finalPrice(o.annualPrice, o.discount) },
+    history: o.history,
+    usage: toUsage(o).items,
     createdAt: o.createdAt,
     updatedAt: o.updatedAt,
     updatedBy: o.updatedBy,
@@ -321,12 +375,24 @@ export function toListItem(o: OrgRecord): OrganizationListItem {
   };
 }
 
-export function toTariffDetail(t: TariffRecord): TariffPlanDetail {
+export function toTariffSummary(t: TariffRecord): TariffPlanSummary {
   return {
     id: t.id,
     code: t.code,
     name: t.name,
     description: t.description,
+    annualPrice: t.annualPrice,
+    limits: t.limits,
+    enabledModulesCount: MODULES.filter((m) => t.modules[m.code]).length,
+    organizationsCount: load().organizations.filter((o) => o.tariffPlanId === t.id).length,
+  };
+}
+
+export function toTariffDetail(t: TariffRecord): TariffPlanDetail {
+  const summary: Omit<TariffPlanSummary, 'limits'> & { limits?: unknown } = { ...toTariffSummary(t) };
+  delete summary.limits;
+  return {
+    ...summary,
     overridePolicies: t.overridePolicies,
     modules: MODULES.map((m) => ({
       code: m.code,
@@ -375,9 +441,9 @@ export function daysLeft(o: OrgRecord): number {
   return Math.max(0, dayjs(o.subscriptionEndDate).diff(dayjs().startOf('day'), 'day') + 1);
 }
 
+/** Лимиты фиксированы условиями тарифа текущего периода */
 export function effectiveLimitValues(o: OrgRecord): Record<string, number> {
-  const t = findTariff(o.tariffPlanId)!;
-  return Object.fromEntries(LIMITS.map((l) => [l.code, o.limitOverrides[l.code] ?? t.limits[l.code] ?? l.min]));
+  return Object.fromEntries(LIMITS.map((l) => [l.code, o.limits[l.code] ?? l.min]));
 }
 
 export function toAccess(o: OrgRecord): TenantAccess {

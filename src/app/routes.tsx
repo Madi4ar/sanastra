@@ -8,7 +8,8 @@ import { LandingPage } from '@/pages/landing/LandingPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { OrganizationDetailPage } from '@/pages/OrganizationDetailPage';
 import { OrganizationsPage } from '@/pages/OrganizationsPage';
-import { LimitsPage, UsersPage } from '@/pages/PlatformPages';
+import { UsersPage } from '@/pages/PlatformPages';
+import { TariffPlansPage } from '@/pages/TariffPlansPage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/StatusPages';
 import { RequireOrganizationAdmin } from '@/features/tenant/access';
 import { DashboardPage } from '@/pages/tenant/DashboardPage';
@@ -91,7 +92,7 @@ export const routes: RouteObject[] = [
           },
         ],
       },
-      { path: 'limits', element: <LimitsPage />, handle: crumb('Лимиты') },
+      { path: 'tariffs', element: <TariffPlansPage />, handle: crumb('Тарифные планы') },
       { path: 'users', element: <UsersPage />, handle: crumb('Пользователи') },
       { path: '*', element: <NotFoundPage /> },
     ],

@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { describe, expect, it } from 'vitest';
 import { TARIFFS, load, toDetail, toTariffDetail } from '@/mocks/db';
+import { finalPrice } from '@/shared/pricing';
 import {
   applyOverridePolicy,
   buildSchema,
@@ -9,6 +10,7 @@ import {
   defaultsFromTariff,
   effectiveLimit,
   effectiveModule,
+  renewalDates,
   toFormValues,
   toPayload,
 } from './model';
@@ -17,7 +19,7 @@ const academy = () => toDetail(load().organizations[0]!);
 
 describe('валидация формы', () => {
   const org = academy();
-  const schema = buildSchema(org.limits);
+  const schema = buildSchema();
   const valid = toFormValues(org);
 
   it('принимает корректные данные', () => {
@@ -37,38 +39,65 @@ describe('валидация формы', () => {
     expect(r.error!.issues[0]!.message).toBe('Дата окончания не может быть раньше даты начала');
   });
 
-  it('лимит проверяется по min/max и типу из API', () => {
-    const tooBig = schema.safeParse({ ...valid, limitOverrides: { ...valid.limitOverrides, USERS_COUNT: 10001 } });
-    expect(tooBig.error!.issues[0]!.message).toMatch(/Максимум/);
-    const fractional = schema.safeParse({ ...valid, limitOverrides: { ...valid.limitOverrides, USERS_COUNT: 1.5 } });
-    expect(fractional.error!.issues[0]!.message).toBe('Введите целое число');
-    const decimalOk = schema.safeParse({ ...valid, limitOverrides: { ...valid.limitOverrides, STORAGE_GB: 1.5 } });
-    expect(decimalOk.success).toBe(true);
+  it('скидка: не отрицательная, в процентах — не больше 100', () => {
+    expect(schema.safeParse({ ...valid, discountValue: -1 }).success).toBe(false);
+    const pct = schema.safeParse({ ...valid, discountType: 'PERCENT', discountValue: 120 });
+    expect(pct.error!.issues[0]!.message).toBe('Скидка в процентах — не больше 100');
+    expect(schema.safeParse({ ...valid, discountType: 'AMOUNT', discountValue: 500_000 }).success).toBe(true);
   });
 
-  it('null у лимита означает наследование тарифа', () => {
-    const r = schema.safeParse({ ...valid, limitOverrides: { USERS_COUNT: null, COURSES_COUNT: null, STORAGE_GB: null } });
-    expect(r.success).toBe(true);
+  it('срок действия временного модуля должен быть в будущем', () => {
+    const past = dayjs().subtract(1, 'hour').toISOString();
+    const r = schema.safeParse({ ...valid, moduleExpirations: { ...valid.moduleExpirations, WEBINARS: past } });
+    expect(r.error!.issues[0]!.path.join('.')).toBe('moduleExpirations.WEBINARS');
   });
 });
 
-describe('default / override / effective', () => {
-  it('override имеет приоритет над значением тарифа', () => {
+describe('цена подписки', () => {
+  it('итоговая цена = max(0, базовая − скидка)', () => {
+    expect(finalPrice(100_000, { type: 'AMOUNT', value: 20_000 })).toBe(80_000);
+    expect(finalPrice(100_000, { type: 'PERCENT', value: 15 })).toBe(85_000);
+    expect(finalPrice(100_000, { type: 'AMOUNT', value: 150_000 })).toBe(0);
+  });
+
+  it('продление: +1 год от даты окончания, после истечения — с сегодняшнего дня', () => {
+    expect(renewalDates({ subscriptionStartDate: '2026-01-01', subscriptionEndDate: '2099-03-10' })).toEqual({
+      subscriptionStartDate: '2026-01-01',
+      subscriptionEndDate: '2100-03-10',
+    });
+    const today = dayjs().format('YYYY-MM-DD');
+    expect(renewalDates({ subscriptionStartDate: '2020-01-01', subscriptionEndDate: '2020-12-31' })).toEqual({
+      subscriptionStartDate: today,
+      subscriptionEndDate: dayjs().add(1, 'year').subtract(1, 'day').format('YYYY-MM-DD'),
+    });
+  });
+});
+
+describe('модули и лимиты', () => {
+  it('override модуля имеет приоритет над тарифом, лимиты — только из тарифа', () => {
     const org = academy();
     const values = toFormValues(org);
     const d = defaultsFromOrganization(org);
-    expect(d.limits.USERS_COUNT).toBe(50);
-    expect(effectiveLimit('USERS_COUNT', values, d)).toBe(150);
     expect(effectiveModule('WEBINARS', values, d)).toBe(true);
     expect(d.modules.WEBINARS).toBe(false);
+    expect(effectiveLimit('USERS_COUNT', d)).toBe(150);
   });
 
-  it('payload содержит overrides и version', () => {
+  it('payload содержит скидку, модули со сроком действия и version', () => {
     const org = academy();
-    const p = toPayload(toFormValues(org), org.version);
+    const values = toFormValues(org);
+    const expiresAt = dayjs().add(3, 'day').toISOString();
+    const p = toPayload(
+      { ...values, discountType: 'PERCENT', discountValue: 10, moduleExpirations: { ...values.moduleExpirations, WEBINARS: expiresAt, CHAT: expiresAt } },
+      org.version,
+      defaultsFromOrganization(org),
+    );
     expect(p.version).toBe(org.version);
-    expect(p.moduleOverrides).toContainEqual({ code: 'WEBINARS', value: true });
-    expect(p.limitOverrides).toContainEqual({ code: 'STORAGE_GB', value: null });
+    expect(p.discount).toEqual({ type: 'PERCENT', value: 10 });
+    expect(p.moduleOverrides).toContainEqual({ code: 'WEBINARS', value: true, expiresAt });
+    // Срок задаётся только модулям, включённым сверх тарифа
+    expect(p.moduleOverrides).toContainEqual({ code: 'CHAT', value: null, expiresAt: null });
+    expect(p).not.toHaveProperty('limitOverrides');
   });
 });
 
@@ -77,21 +106,19 @@ describe('политика overrides при смене тарифа', () => {
   const values = toFormValues(org);
   const business = defaultsFromTariff(toTariffDetail(TARIFFS[2]!));
 
-  it('RESET сбрасывает все overrides', () => {
-    const r = applyOverridePolicy(values, business, 'RESET', org.limits);
+  it('RESET сбрасывает индивидуальные настройки модулей', () => {
+    const r = applyOverridePolicy(values, business, 'RESET');
     expect(Object.values(r.moduleOverrides).every((v) => v === null)).toBe(true);
-    expect(Object.values(r.limitOverrides).every((v) => v === null)).toBe(true);
   });
 
-  it('KEEP_COMPATIBLE убирает overrides, совпадающие с новым тарифом', () => {
-    const r = applyOverridePolicy(values, business, 'KEEP_COMPATIBLE', org.limits);
+  it('KEEP_COMPATIBLE убирает настройки, совпадающие с новым тарифом', () => {
+    const r = applyOverridePolicy(values, business, 'KEEP_COMPATIBLE');
     expect(r.moduleOverrides.WEBINARS).toBeNull(); // в «Бизнес» вебинары уже включены
-    expect(r.limitOverrides.USERS_COUNT).toBe(150); // 150 ≠ 1000 — сохраняется
   });
 });
 
 describe('критические изменения', () => {
-  it('находит смену тарифа, отключение подписки, прошедшую дату, отключение модулей и уменьшение лимитов', () => {
+  it('находит смену тарифа, отключение подписки, прошедшую дату, цену, отключение модулей и уменьшение лимитов', () => {
     const org = academy();
     const v = toFormValues(org);
     const changes = criticalChanges(
@@ -102,12 +129,12 @@ describe('критические изменения', () => {
         subscriptionEnabled: false,
         subscriptionEndDate: dayjs().subtract(1, 'day').format('YYYY-MM-DD'),
         moduleOverrides: { ...v.moduleOverrides, WEBINARS: null },
-        limitOverrides: { ...v.limitOverrides, USERS_COUNT: null },
       },
-      defaultsFromTariff(toTariffDetail(TARIFFS[1]!)),
+      { ...defaultsFromTariff(toTariffDetail(TARIFFS[1]!)), limits: { USERS_COUNT: 100, COURSES_COUNT: 50, STORAGE_GB: 100 } },
     );
     const keys = changes.map((c) => c.key);
-    expect(keys).toEqual(expect.arrayContaining(['tariff', 'disabled', 'expired', 'modules', 'limit-USERS_COUNT']));
+    expect(keys).toEqual(expect.arrayContaining(['tariff', 'disabled', 'expired', 'price', 'modules', 'limit-USERS_COUNT']));
+    expect(changes.find((c) => c.key === 'price')!.text).toMatch(/^Итоговая годовая цена: 100\s000 ₸ → 200\s000 ₸$/);
   });
 
   it('без изменений — пустой список', () => {

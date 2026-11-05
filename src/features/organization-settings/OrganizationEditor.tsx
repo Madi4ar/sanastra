@@ -12,12 +12,14 @@ import type { OrganizationDetail } from '@/api/types';
 import { useTariffPlan, useTariffPlans } from '@/features/organizations/queries';
 import { broadcastTenantAccessInvalidated } from '@/shared/crossTab';
 import { formatDateTime, SOURCE_LABEL } from '@/shared/format';
+import { HistorySection } from './HistorySection';
 import { LimitsSection } from './LimitsSection';
 import {
   buildSchema,
   criticalChanges,
   defaultsFromOrganization,
   defaultsFromTariff,
+  renewalDates,
   toFormValues,
   toPayload,
   type CriticalChange,
@@ -27,6 +29,7 @@ import {
 import { ModulesSection } from './ModulesSection';
 import { OrganizationHeader } from './OrganizationHeader';
 import { SubscriptionSection } from './SubscriptionSection';
+import { UsageSection } from './UsageSection';
 import { TariffChangeModal } from './TariffChangeModal';
 
 interface Props {
@@ -46,7 +49,7 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
   const [conflict, setConflict] = useState(false);
   const [reloading, setReloading] = useState(false);
 
-  const schema = useMemo(() => buildSchema(base.limits), [base.limits]);
+  const schema = useMemo(() => buildSchema(), []);
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(schema),
     mode: 'onChange',
@@ -58,8 +61,11 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
 
   const tariffs = useTariffPlans();
   const tariffChanged = values.tariffPlanId !== base.tariffPlan.id;
-  const selectedTariff = useTariffPlan(tariffChanged ? values.tariffPlanId : undefined);
-  const defaults: TariffDefaults | undefined = !tariffChanged
+  const renewed = Boolean(values.subscriptionEndDate && values.subscriptionEndDate > base.subscriptionEndDate);
+  // Смена тарифа и продление оформляются по актуальным условиям тарифа (цена, лимиты)
+  const termsFromTariff = tariffChanged || renewed;
+  const selectedTariff = useTariffPlan(termsFromTariff ? values.tariffPlanId : undefined);
+  const defaults: TariffDefaults | undefined = !termsFromTariff
     ? defaultsFromOrganization(base)
     : selectedTariff.data
       ? defaultsFromTariff(selectedTariff.data)
@@ -84,7 +90,8 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
   }, [org, isDirty, base.version]);
 
   const save = useMutation({
-    mutationFn: (v: SettingsFormValues) => api.organizations.saveSettings(base.tenantId, toPayload(v, base.version)),
+    mutationFn: (v: SettingsFormValues) =>
+      api.organizations.saveSettings(base.tenantId, toPayload(v, base.version, defaults ?? defaultsFromOrganization(base))),
     onSuccess: (fresh) => {
       applySnapshot(fresh);
       qc.setQueryData(queryKeys.organization(fresh.tenantId), fresh);
@@ -201,43 +208,56 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
           />
         )}
 
-        <Card title="Тарифный план">
-          <div className="flex items-end gap-4">
-            <div style={{ width: 320 }}>
-              <label htmlFor="tariffPlanId" className="mb-2 block font-medium">
-                Тарифный план <span className="text-error">*</span>
-              </label>
-              <Select
-                id="tariffPlanId"
-                aria-label="Тарифный план"
-                style={{ width: '100%' }}
-                value={values.tariffPlanId}
-                loading={tariffs.isPending}
-                disabled={busy}
-                status={errors.tariffPlanId ? 'error' : undefined}
-                options={(tariffs.data ?? [{ ...base.tariffPlan }]).map((t) => ({ value: t.id, label: t.name }))}
-                onChange={(id: string) => {
-                  if (id !== values.tariffPlanId) setPendingTariffId(id);
-                }}
-              />
-              {errors.tariffPlanId && (
-                <div role="alert" className="mt-1 text-xs text-error">
-                  {errors.tariffPlanId.message}
+        <SubscriptionSection
+          values={values}
+          control={control}
+          errors={errors}
+          defaults={defaults}
+          priceFromTariff={termsFromTariff}
+          disabled={busy}
+          onRenew={() => {
+            const next = renewalDates(values);
+            setValue('subscriptionStartDate', next.subscriptionStartDate, { shouldDirty: true, shouldValidate: true });
+            setValue('subscriptionEndDate', next.subscriptionEndDate, { shouldDirty: true, shouldValidate: true });
+          }}
+          tariffField={
+            <div>
+              <div className="flex items-end gap-4">
+                <div style={{ width: 320 }}>
+                  <label htmlFor="tariffPlanId" className="mb-2 block font-medium">
+                    Тарифный план <span className="text-error">*</span>
+                  </label>
+                  <Select
+                    id="tariffPlanId"
+                    aria-label="Тарифный план"
+                    style={{ width: '100%' }}
+                    value={values.tariffPlanId}
+                    loading={tariffs.isPending}
+                    disabled={busy}
+                    status={errors.tariffPlanId ? 'error' : undefined}
+                    options={(tariffs.data ?? [{ ...base.tariffPlan }]).map((t) => ({ value: t.id, label: t.name }))}
+                    onChange={(id: string) => {
+                      if (id !== values.tariffPlanId) setPendingTariffId(id);
+                    }}
+                  />
+                  {errors.tariffPlanId && (
+                    <div role="alert" className="mt-1 text-xs text-error">
+                      {errors.tariffPlanId.message}
+                    </div>
+                  )}
                 </div>
+                {tariffChanged && (
+                  <Typography.Text type="warning" className="pb-1">
+                    Будет изменён с «{base.tariffPlan.name}» после сохранения
+                  </Typography.Text>
+                )}
+              </div>
+              {tariffs.isError && (
+                <Alert className="mt-3" type="error" showIcon title="Не удалось загрузить список тарифов" />
               )}
             </div>
-            {tariffChanged && (
-              <Typography.Text type="warning" className="pb-1">
-                Будет изменён с «{base.tariffPlan.name}» после сохранения
-              </Typography.Text>
-            )}
-          </div>
-          {tariffs.isError && (
-            <Alert className="mt-3" type="error" showIcon title="Не удалось загрузить список тарифов" />
-          )}
-        </Card>
-
-        <SubscriptionSection values={values} control={control} errors={errors} disabled={busy} />
+          }
+        />
 
         {defaults ? (
           <>
@@ -246,23 +266,19 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
               values={values}
               defaults={defaults}
               control={control}
+              errors={errors.moduleExpirations}
               disabled={busy}
             />
-            <LimitsSection
-              limits={base.limits}
-              values={values}
-              defaults={defaults}
-              control={control}
-              errors={errors}
-              disabled={busy}
-              onReset={(code) => setValue(`limitOverrides.${code}`, null, { shouldDirty: true, shouldValidate: true })}
-            />
+            <LimitsSection limits={base.limits} defaults={defaults} pending={termsFromTariff} />
           </>
         ) : (
           <Card>
             <Spin description="Загрузка конфигурации тарифа…" />
           </Card>
         )}
+
+        <HistorySection history={org.history} />
+        <UsageSection usage={org.usage} />
       </div>
 
       {/* Закреплённая панель сохранения */}
@@ -299,9 +315,6 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
             setValue('tariffPlanId', next.tariffPlanId, { shouldDirty: true, shouldValidate: true });
             Object.entries(next.moduleOverrides).forEach(([c, v]) =>
               setValue(`moduleOverrides.${c}`, v, { shouldDirty: true }),
-            );
-            Object.entries(next.limitOverrides).forEach(([c, v]) =>
-              setValue(`limitOverrides.${c}`, v, { shouldDirty: true, shouldValidate: true }),
             );
             setPendingTariffId(null);
           }}

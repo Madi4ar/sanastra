@@ -1,5 +1,5 @@
 export type SubscriptionStatus = 'ACTIVE' | 'BLOCKED' | 'EXPIRED';
-export type ChangeSource = 'SUPERADMIN' | 'SYSTEM_PAYMENT';
+export type ChangeSource = 'SUPERADMIN' | 'SYSTEM_PAYMENT' | 'SYSTEM_SCHEDULER';
 /** Роли (ТЗ «Регистрация, авторизация и ролевая модель»): Суперадминистратор, Администратор клиента, Тренер, Слушатель */
 export type Role = 'SUPERADMIN' | 'ORGANIZATION_ADMIN' | 'TRAINER' | 'LEARNER';
 
@@ -11,6 +11,46 @@ export interface TariffPlanRef {
 
 export interface TariffPlanSummary extends TariffPlanRef {
   description?: string;
+  /** Годовая цена, KZT за 12 месяцев */
+  annualPrice: number;
+  limits: Record<string, number>;
+  enabledModulesCount: number;
+  organizationsCount: number;
+}
+
+/** Форма конструктора тарифов (создание и редактирование) */
+export interface TariffPlanPayload {
+  name: string;
+  code: string;
+  description?: string;
+  annualPrice: number;
+  limits: Record<string, number>;
+  modules: Record<string, boolean>;
+}
+
+/** Ручная скидка на годовую цену: в KZT или в % */
+export type DiscountType = 'AMOUNT' | 'PERCENT';
+
+export interface Discount {
+  type: DiscountType;
+  value: number;
+}
+
+export type SubscriptionOperation = 'ACTIVATION' | 'RENEWAL' | 'TARIFF_CHANGE' | 'UPDATE';
+
+/** Запись неизменяемой истории тарифов и периодов подписки */
+export interface SubscriptionHistoryEntry {
+  id: string;
+  operation: SubscriptionOperation;
+  operationAt: string;
+  tariffName: string;
+  periodStart: string;
+  periodEnd: string;
+  basePrice: number;
+  discount: Discount;
+  finalPrice: number;
+  status: 'ACTIVE' | 'COMPLETED';
+  source: ChangeSource;
 }
 
 export interface TariffModuleDefault {
@@ -39,7 +79,7 @@ export interface TariffLimitDefault extends LimitDefinition {
 /** Политика обработки индивидуальных настроек при смене тарифа — задаётся сервером. */
 export type OverridePolicy = 'RESET' | 'KEEP_COMPATIBLE';
 
-export interface TariffPlanDetail extends TariffPlanSummary {
+export interface TariffPlanDetail extends Omit<TariffPlanSummary, 'limits'> {
   modules: TariffModuleDefault[];
   limits: TariffLimitDefault[];
   overridePolicies: OverridePolicy[];
@@ -73,14 +113,15 @@ export interface OrganizationModule {
   tariffEnabled: boolean;
   overrideEnabled: boolean | null;
   effectiveEnabled: boolean;
+  /** Окончание доступа к модулю, включённому сверх тарифа (null — бессрочно) */
+  expiresAt: string | null;
   canOverride: boolean;
   lockReason?: string;
 }
 
+/** Лимиты зафиксированы в тарифе (на момент оформления периода) и в карточке только для чтения */
 export interface OrganizationLimit extends LimitDefinition {
-  tariffValue: number;
-  overrideValue: number | null;
-  effectiveValue: number;
+  value: number;
 }
 
 export interface OrganizationDetail {
@@ -94,6 +135,11 @@ export interface OrganizationDetail {
   subscriptionEndDate: string;
   modules: OrganizationModule[];
   limits: OrganizationLimit[];
+  /** Условия текущего периода: базовая годовая цена фиксируется при оформлении/продлении */
+  pricing: { annualPrice: number; discount: Discount; finalPrice: number };
+  history: SubscriptionHistoryEntry[];
+  /** Использование ресурсов (считает сервер): потрачено и осталось по каждому лимиту */
+  usage: UsageItem[];
   createdAt: string;
   updatedAt: string;
   updatedBy: ChangeSource;
@@ -105,8 +151,8 @@ export interface SubscriptionSettingsPayload {
   subscriptionEnabled: boolean;
   subscriptionStartDate: string;
   subscriptionEndDate: string;
-  moduleOverrides: { code: string; value: boolean | null }[];
-  limitOverrides: { code: string; value: number | null }[];
+  discount: Discount;
+  moduleOverrides: { code: string; value: boolean | null; expiresAt: string | null }[];
   version: number;
 }
 
@@ -248,19 +294,21 @@ export type AssignableRole = 'ORGANIZATION_ADMIN' | 'TRAINER';
 export interface PlatformUser {
   id: string;
   fullName: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
   iin: string;
   email: string;
+  phone: string;
+  region: string;
   roles: RoleAssignment[];
 }
 
-/** Лимиты организации: использование и итоговые значения (раздел «Лимиты» суперадмина) */
-export interface OrganizationLimitsRow {
-  tenantId: string;
-  name: string;
-  clientSlug: string;
-  tariffName: string;
-  status: SubscriptionStatus;
-  items: (UsageItem & { overridden: boolean })[];
+/** Создание / редактирование пользователя суперадминистратором. При редактировании пароль необязателен,
+ * а список ролей позволяет снять роли (новые роли назначаются через «Назначить роль»). */
+export interface PlatformUserPayload extends Omit<RegisterPayload, 'password'> {
+  password?: string;
+  roles?: Pick<RoleAssignment, 'role' | 'clientSlug'>[];
 }
 
 // ---------- Контент модулей кабинета ----------

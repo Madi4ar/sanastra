@@ -11,6 +11,7 @@ export const todayIso = () => dayjs().format(API_DATE);
 export const SOURCE_LABEL: Record<ChangeSource, string> = {
   SUPERADMIN: 'суперадминистратор',
   SYSTEM_PAYMENT: 'платёжный сервис',
+  SYSTEM_SCHEDULER: 'планировщик',
 };
 
 export function formatNumber(v: number) {

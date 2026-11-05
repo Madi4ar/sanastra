@@ -133,11 +133,11 @@ describe('Кабинет: real-time обновления', () => {
     expect(await screen.findByText('Доступ к модулю отключён администратором Sanastra')).toBeInTheDocument();
   });
 
-  it('изменение лимита обновляет usage', async () => {
+  it('смена условий тарифа (лимит) обновляет usage', async () => {
     renderApp('/academy/admin/organization/usage');
     expect(await screen.findByTestId('usage-limit-USERS_COUNT')).toHaveTextContent('150');
     await connected();
-    serverUpdate({ limitOverrides: { USERS_COUNT: 85 } });
+    serverUpdate({ limits: { USERS_COUNT: 85, COURSES_COUNT: 10, STORAGE_GB: 10 } });
     await waitFor(() => expect(screen.getByTestId('usage-limit-USERS_COUNT')).toHaveTextContent('85'));
     // 82 из 85 — 96 %: «почти исчерпан»
     expect(within(screen.getByTestId('usage-USERS_COUNT')).getByText('Почти исчерпан')).toBeInTheDocument();
@@ -147,7 +147,7 @@ describe('Кабинет: real-time обновления', () => {
     renderApp('/academy/admin/organization/usage');
     await screen.findByTestId('usage-limit-USERS_COUNT');
     await connected();
-    serverUpdate({ limitOverrides: { USERS_COUNT: 60 } });
+    serverUpdate({ limits: { USERS_COUNT: 60, COURSES_COUNT: 10, STORAGE_GB: 10 } });
     expect(await screen.findByTestId('limit-alert-USERS_COUNT')).toHaveTextContent('уменьшен ниже текущего использования');
   });
 

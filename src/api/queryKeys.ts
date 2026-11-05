@@ -6,7 +6,6 @@ export const queryKeys = {
   organizationUsers: (clientSlug: string) => ['organization-users', clientSlug] as const,
   platformUsers: (search: string) => ['platform-users', search] as const,
   platformUsersAll: ['platform-users'] as const,
-  platformLimits: (search: string) => ['platform-limits', search] as const,
   organizations: (filters: OrganizationFilters) => ['organizations', filters] as const,
   organizationsAll: ['organizations'] as const,
   organization: (tenantId: string) => ['organization', tenantId] as const,

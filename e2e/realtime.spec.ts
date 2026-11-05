@@ -53,15 +53,17 @@ test('отключение модуля: пункт меню исчезает, �
   await expect(cabinet.getByRole('menuitem', { name: 'Вебинары' })).toHaveCount(0);
 });
 
-test('изменение лимита обновляет usage без перезагрузки', async ({ page }) => {
+test('лимиты меняются вместе с тарифом и обновляют usage без перезагрузки', async ({ page }) => {
   const { admin, cabinet } = await setup(page);
   await cabinet.goto('/academy/admin/organization/usage');
   await expect(cabinet.getByTestId('usage-limit-USERS_COUNT')).toContainText('150');
 
-  await admin.getByLabel('Индивидуальное значение: Количество пользователей').fill('200');
-  await adminSave(admin);
+  await admin.getByRole('combobox', { name: 'Тарифный план' }).click();
+  await admin.getByTitle('Бизнес').click();
+  await admin.getByTestId('tariff-preview').getByRole('button', { name: 'Применить тариф' }).click();
+  await adminSave(admin, true);
 
-  await expect(cabinet.getByTestId('usage-limit-USERS_COUNT')).toContainText('200', REALTIME_SLA);
+  await expect(cabinet.getByTestId('usage-limit-USERS_COUNT')).toContainText(/1\s000/, REALTIME_SLA);
 });
 
 test('отключение и восстановление подписки', async ({ page }) => {

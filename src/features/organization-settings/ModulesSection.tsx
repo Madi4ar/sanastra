@@ -1,9 +1,11 @@
-import { Card, Segmented, Table, Tag, Tooltip, Typography } from 'antd';
+import { Card, DatePicker, Segmented, Table, Tag, Tooltip, Typography } from 'antd';
+import dayjs from 'dayjs';
 import { Lock } from 'lucide-react';
-import { Controller, type Control } from 'react-hook-form';
+import { Controller, type Control, type FieldErrors } from 'react-hook-form';
 import type { OrganizationModule } from '@/api/types';
+import { UI_DATE } from '@/shared/format';
 import { ModuleIcon } from '@/shared/ModuleIcon';
-import type { SettingsFormValues, TariffDefaults } from './model';
+import { isExtraModule, type SettingsFormValues, type TariffDefaults } from './model';
 
 type Choice = 'on' | 'off';
 
@@ -20,10 +22,11 @@ interface Props {
   values: SettingsFormValues;
   defaults: TariffDefaults;
   control: Control<SettingsFormValues>;
+  errors?: FieldErrors<SettingsFormValues>['moduleExpirations'];
   disabled?: boolean;
 }
 
-export function ModulesSection({ modules, values, defaults, control, disabled }: Props) {
+export function ModulesSection({ modules, values, defaults, control, errors, disabled }: Props) {
   return (
     <Card
       title="Модули"
@@ -35,7 +38,7 @@ export function ModulesSection({ modules, values, defaults, control, disabled }:
         rowKey="code"
         pagination={false}
         dataSource={modules}
-        scroll={{ x: 980 }}
+        scroll={{ x: 1220 }}
         onRow={(m) => ({ 'data-testid': `module-row-${m.code}` }) as React.HTMLAttributes<HTMLElement>}
         columns={[
           {
@@ -111,6 +114,42 @@ export function ModulesSection({ modules, values, defaults, control, disabled }:
             },
           },
           {
+            title: 'Срок действия сверх тарифа',
+            key: 'expires',
+            width: 240,
+            render: (_, m) => {
+              if (!isExtraModule(m.code, values, defaults)) return <Typography.Text type="secondary">—</Typography.Text>;
+              const error = errors?.[m.code]?.message;
+              return (
+                <div>
+                  <Controller
+                    control={control}
+                    name={`moduleExpirations.${m.code}`}
+                    render={({ field }) => (
+                      <DatePicker
+                        showTime={{ format: 'HH:mm' }}
+                        format={`${UI_DATE} HH:mm`}
+                        aria-label={`Срок действия модуля «${m.name}»`}
+                        placeholder="Бессрочно"
+                        value={field.value ? dayjs(field.value) : null}
+                        onChange={(d) => field.onChange(d ? d.second(0).millisecond(0).toISOString() : null)}
+                        disabledDate={(d) => d.isBefore(dayjs().startOf('day'))}
+                        status={error ? 'error' : undefined}
+                        disabled={disabled}
+                        style={{ width: 210 }}
+                      />
+                    )}
+                  />
+                  {error && (
+                    <div role="alert" className="mt-1 text-xs text-error">
+                      {error}
+                    </div>
+                  )}
+                </div>
+              );
+            },
+          },
+          {
             title: 'Итоговое значение',
             key: 'effective',
             width: 210,
@@ -121,6 +160,9 @@ export function ModulesSection({ modules, values, defaults, control, disabled }:
                 <span className="flex flex-wrap items-center gap-1" data-testid={`module-effective-${m.code}`}>
                   <OnOffTag value={effective} strong />
                   {override !== null && <Tag color="blue">Индивидуально</Tag>}
+                  {isExtraModule(m.code, values, defaults) && values.moduleExpirations[m.code] && (
+                    <Tag color="purple">Временно</Tag>
+                  )}
                 </span>
               );
             },

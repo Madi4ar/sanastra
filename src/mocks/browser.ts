@@ -1,8 +1,11 @@
 import { setupWorker } from 'msw/browser';
-import { createSseHandler, handlers } from './handlers';
+import { createSseHandler, handlers, runModuleExpirations } from './handlers';
 import { resetDb } from './db';
 
 export const worker = setupWorker(...handlers, createSseHandler());
+
+// Cron worker: отключение временных модулей по наступлении срока действия
+setInterval(() => runModuleExpirations(), 5_000);
 
 declare global {
   interface Window {

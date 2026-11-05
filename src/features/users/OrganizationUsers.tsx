@@ -19,10 +19,21 @@ const ASSIGNABLE: { value: AssignableRole; label: string }[] = [
  * Назначение дополнительной роли зарегистрированному пользователю (по ИИН).
  * Без `clientSlug` (раздел суперадмина) организация выбирается в форме.
  */
-export function AssignRoleModal({ clientSlug, open, onClose }: { clientSlug?: string; open: boolean; onClose: () => void }) {
+export function AssignRoleModal({
+  clientSlug,
+  open,
+  onClose,
+  user,
+}: {
+  clientSlug?: string;
+  open: boolean;
+  onClose: () => void;
+  /** Пользователь выбран заранее (действие в строке таблицы) — ИИН подставляется и не редактируется */
+  user?: { iin: string; fullName: string };
+}) {
   const qc = useQueryClient();
   const { message } = App.useApp();
-  const [iin, setIin] = useState('');
+  const [iin, setIin] = useState(user?.iin ?? '');
   const [role, setRole] = useState<AssignableRole>();
   const [orgSlug, setOrgSlug] = useState<string>();
   const slug = clientSlug ?? orgSlug;
@@ -54,7 +65,7 @@ export function AssignRoleModal({ clientSlug, open, onClose }: { clientSlug?: st
   return (
     <Modal
       open={open}
-      title="Назначить роль"
+      title={user ? `Назначить роль: ${user.fullName}` : 'Назначить роль'}
       okText="Назначить"
       cancelText="Отмена"
       confirmLoading={assign.isPending}
@@ -70,6 +81,7 @@ export function AssignRoleModal({ clientSlug, open, onClose }: { clientSlug?: st
             inputMode="numeric"
             placeholder="12 цифр"
             value={iin}
+            disabled={Boolean(user)}
             status={fe.iin ? 'error' : undefined}
             onChange={(e) => {
               setIin(e.target.value.replace(/\D/g, '').slice(0, 12));

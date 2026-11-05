@@ -1,18 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Input, Progress, Table, Tag, Typography } from 'antd';
-import { Search, UserPlus } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { App, Button, Card, Input, Modal, Table, Tag, Typography } from 'antd';
+import { Pencil, Search, ShieldPlus, Trash2, UserRoundPlus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router';
-import { tokens } from '@/app/theme';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { OrganizationLimitsRow, PlatformUser, UsageState } from '@/api/types';
+import type { PlatformUser } from '@/api/types';
+import { useCurrentUser } from '@/auth/auth';
 import { ROLE_LABEL } from '@/features/auth/roles';
-import { usagePercent } from '@/features/tenant/UsageBar';
 import { AssignRoleModal } from '@/features/users/OrganizationUsers';
-import { formatNumber } from '@/shared/format';
+import { UserFormModal } from '@/features/users/UserFormModal';
+import { IconButton } from '@/shared/IconButton';
 import { ErrorState } from '@/shared/PageState';
-import { StatusTag } from '@/shared/StatusTag';
 import { useDebouncedValue } from '@/shared/useDebouncedValue';
 
 function PageLayout({ title, extra, search, onSearch, placeholder, children }: {
@@ -47,79 +45,27 @@ function PageLayout({ title, extra, search, onSearch, placeholder, children }: {
   );
 }
 
-const STROKE: Record<UsageState, string> = {
-  NORMAL: tokens.colorPrimary,
-  WARNING: tokens.colorWarning,
-  CRITICAL: tokens.colorError,
-  EXHAUSTED: tokens.colorError,
-};
-
-/** Лимиты всех организаций: использование и итоговые значения. Изменение — в карточке организации. */
-export function LimitsPage() {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const debounced = useDebouncedValue(search.trim(), 300);
-  const q = useQuery({ queryKey: queryKeys.platformLimits(debounced), queryFn: () => api.platform.limits(debounced) });
-  const codes = q.data?.[0]?.items ?? [];
-
-  return (
-    <PageLayout title="Лимиты" search={search} onSearch={setSearch} placeholder="Поиск по названию или slug">
-      {q.isError ? (
-        <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-      ) : (
-        <Card styles={{ body: { padding: 0 } }}>
-          <Table<OrganizationLimitsRow>
-            rowKey="tenantId"
-            loading={q.isPending}
-            dataSource={q.data}
-            pagination={{ pageSize: 20, showSizeChanger: false }}
-            scroll={{ x: 1000 }}
-            rowClassName={() => 'clickable-row'}
-            onRow={(r) => ({ onClick: () => navigate(`/superadmin/organizations/${r.tenantId}`), style: { cursor: 'pointer' } })}
-            columns={[
-              {
-                title: 'Организация',
-                key: 'org',
-                render: (_, r) => (
-                  <div className="min-w-0">
-                    <div className="font-semibold">{r.name}</div>
-                    <div className="mono text-xs text-muted">{r.clientSlug}</div>
-                  </div>
-                ),
-              },
-              { title: 'Тариф', dataIndex: 'tariffName', key: 'tariff', width: 120, render: (v: string) => <Tag>{v}</Tag> },
-              { title: 'Статус', dataIndex: 'status', key: 'status', width: 140, render: (v: string) => <StatusTag status={v} /> },
-              ...codes.map((c, idx) => ({
-                title: c.name,
-                key: c.code,
-                width: 200,
-                render: (_: unknown, r: OrganizationLimitsRow) => {
-                  const i = r.items[idx]!;
-                  return (
-                    <div data-testid={`limit-${r.clientSlug}-${i.code}`}>
-                      <div className="flex items-center gap-1 text-sm">
-                        {formatNumber(i.used)} из {formatNumber(i.limit)} {i.unit}
-                        {i.overridden && <Tag color="blue" style={{ marginInlineStart: 4 }}>Индивидуально</Tag>}
-                      </div>
-                      <Progress percent={usagePercent(i)} showInfo={false} size="small" strokeColor={STROKE[i.state]} />
-                    </div>
-                  );
-                },
-              })),
-            ]}
-          />
-        </Card>
-      )}
-    </PageLayout>
-  );
-}
-
-/** Все пользователи платформы и их роли; назначение ролей Администратор / Тренер в организации. */
+/** Все пользователи платформы: создание, редактирование, удаление и назначение ролей Администратор / Тренер. */
 export function UsersPage() {
+  const qc = useQueryClient();
+  const { message } = App.useApp();
+  const { data: me } = useCurrentUser();
   const [search, setSearch] = useState('');
-  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignFor, setAssignFor] = useState<PlatformUser | null>(null);
+  const [form, setForm] = useState<{ user: PlatformUser | null } | null>(null);
+  const [toDelete, setToDelete] = useState<PlatformUser | null>(null);
   const debounced = useDebouncedValue(search.trim(), 300);
   const q = useQuery({ queryKey: queryKeys.platformUsers(debounced), queryFn: () => api.platform.users(debounced) });
+  const remove = useMutation({
+    mutationFn: (u: PlatformUser) => api.platform.deleteUser(u.id),
+    onSuccess: (_, u) => {
+      message.success(`Пользователь удалён: ${u.fullName}`);
+      void qc.invalidateQueries({ queryKey: queryKeys.platformUsersAll });
+      void qc.invalidateQueries({ queryKey: ['organization-users'] });
+      setToDelete(null);
+    },
+    onError: (e) => message.error(e.message),
+  });
 
   return (
     <PageLayout
@@ -128,8 +74,8 @@ export function UsersPage() {
       onSearch={setSearch}
       placeholder="Поиск по ФИО, ИИН или email"
       extra={
-        <Button type="primary" icon={<UserPlus size={16} />} onClick={() => setAssignOpen(true)}>
-          Назначить роль
+        <Button type="primary" icon={<UserRoundPlus size={16} />} onClick={() => setForm({ user: null })}>
+          Создать пользователя
         </Button>
       }
     >
@@ -164,11 +110,59 @@ export function UsersPage() {
                   </span>
                 ),
               },
+              {
+                title: '',
+                key: 'actions',
+                width: 132,
+                align: 'center',
+                render: (_, u) => (
+                  <span className="flex justify-center gap-1">
+                    <IconButton
+                      type="text"
+                      label={`Редактировать: ${u.fullName}`}
+                      icon={<Pencil size={16} />}
+                      onClick={() => setForm({ user: u })}
+                    />
+                    <IconButton
+                      type="text"
+                      label={`Назначить роль: ${u.fullName}`}
+                      icon={<ShieldPlus size={16} />}
+                      onClick={() => setAssignFor(u)}
+                    />
+                    <IconButton
+                      type="text"
+                      danger
+                      label={u.id === me?.id ? 'Нельзя удалить собственную учётную запись' : `Удалить: ${u.fullName}`}
+                      icon={<Trash2 size={16} />}
+                      disabled={u.id === me?.id}
+                      onClick={() => setToDelete(u)}
+                    />
+                  </span>
+                ),
+              },
             ]}
           />
         </Card>
       )}
-      <AssignRoleModal open={assignOpen} onClose={() => setAssignOpen(false)} />
+      {assignFor && (
+        <AssignRoleModal key={assignFor.id} open user={assignFor} onClose={() => setAssignFor(null)} />
+      )}
+      {form && <UserFormModal key={form.user?.id ?? 'new'} user={form.user} onClose={() => setForm(null)} />}
+      <Modal
+        open={Boolean(toDelete)}
+        title="Удалить пользователя?"
+        okText="Удалить"
+        cancelText="Отмена"
+        okButtonProps={{ danger: true }}
+        confirmLoading={remove.isPending}
+        onOk={() => toDelete && remove.mutate(toDelete)}
+        onCancel={() => setToDelete(null)}
+      >
+        <Typography.Paragraph>
+          Учётная запись «{toDelete?.fullName}» (ИИН <span className="mono">{toDelete?.iin}</span>) и все её роли будут
+          удалены. Пользователь больше не сможет войти в систему.
+        </Typography.Paragraph>
+      </Modal>
     </PageLayout>
   );
 }
