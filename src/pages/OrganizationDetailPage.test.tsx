@@ -143,6 +143,27 @@ describe('Карточка организации', () => {
     });
   });
 
+  it('удаление организации с подтверждением адресом кабинета', async () => {
+    const { user, router } = await openCard();
+    await user.click(within(moduleRow('CHAT')).getByText('Включён')); // несохранённые правки не мешают удалению
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+    const confirm = await screen.findByLabelText('Для подтверждения введите адрес кабинета');
+    const modal = confirm.closest('.ant-modal') as HTMLElement;
+    const ok = within(modal).getByRole('button', { name: /Удалить организацию/ });
+    expect(ok).toBeDisabled();
+    await user.click(confirm);
+    await user.paste('academy');
+    expect(ok).toBeEnabled();
+    await user.click(ok);
+
+    expect(await screen.findByText('Организация «Academy» удалена')).toBeInTheDocument();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/superadmin/organizations'));
+    expect(load().organizations.some((o) => o.tenantId === ACADEMY_ID)).toBe(false);
+    expect(loadUsers().find((u) => u.iin === '920705400239')!.roles).not.toContainEqual(
+      expect.objectContaining({ clientSlug: 'academy' }),
+    );
+  });
+
   it('внизу карточки — история подписки и использование ресурсов', async () => {
     await openCard();
     const history = screen.getByTestId('subscription-history');

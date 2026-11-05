@@ -90,6 +90,8 @@ export const api = {
     slugAvailable: (slug: string) =>
       request<{ available: boolean }>(`/api/superadmin/organizations/slug-availability${toQueryString({ slug })}`),
     get: (tenantId: string) => request<OrganizationDetail>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}`),
+    remove: (tenantId: string) =>
+      request<void>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}`, { method: 'DELETE' }),
     updateProfile: (tenantId: string, payload: OrganizationProfilePayload) =>
       request<OrganizationDetail>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}`, {
         method: 'PATCH',

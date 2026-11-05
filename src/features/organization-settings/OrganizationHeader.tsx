@@ -1,8 +1,9 @@
 import { Button, Card, Descriptions, Tag, Typography } from 'antd';
-import { ArrowLeft, ExternalLink, Pencil } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import type { OrganizationDetail } from '@/api/types';
+import { DeleteOrganizationModal } from '@/features/organizations/DeleteOrganizationModal';
 import { EditOrganizationModal } from '@/features/organizations/EditOrganizationModal';
 import { CopyText } from '@/shared/CopyText';
 import { formatDateTime, SOURCE_LABEL } from '@/shared/format';
@@ -16,9 +17,10 @@ export function useBackToRegistry() {
   return () => navigate(`/superadmin/organizations${from}`);
 }
 
-export function OrganizationHeader({ org }: { org: OrganizationDetail }) {
+export function OrganizationHeader({ org, onDeleted }: { org: OrganizationDetail; onDeleted?: () => void }) {
   const back = useBackToRegistry();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   return (
     <Card>
       <div className="flex items-start gap-3">
@@ -43,9 +45,13 @@ export function OrganizationHeader({ org }: { org: OrganizationDetail }) {
           <Button href={`/${org.clientSlug}/admin`} target="_blank" icon={<ExternalLink size={16} />}>
             Интерфейс организации
           </Button>
+          <Button danger icon={<Trash2 size={16} />} onClick={() => setDeleting(true)}>
+            Удалить
+          </Button>
         </div>
       </div>
       {editing && <EditOrganizationModal org={org} onClose={() => setEditing(false)} />}
+      {deleting && <DeleteOrganizationModal org={org} onClose={() => setDeleting(false)} onDeleted={onDeleted} />}
       <Descriptions
         className="mt-4"
         size="small"

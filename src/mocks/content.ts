@@ -76,6 +76,13 @@ function saveAll(all: Record<string, TenantContent>) {
   }
 }
 
+/** Удаление контента организации вместе с ней */
+export function removeContent(tenantId: string) {
+  const all = loadAll();
+  delete all[tenantId];
+  saveAll(all);
+}
+
 export function resetContent() {
   memory = {};
   try {

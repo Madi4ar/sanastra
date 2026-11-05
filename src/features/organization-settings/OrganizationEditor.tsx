@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Badge, Button, Card, Modal, Select, Spin, Typography } from 'antd';
 import { Save, TriangleAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch, type FieldPath } from 'react-hook-form';
 import { useBlocker } from 'react-router';
 import { isApiError, type ApiError } from '@/api/client';
@@ -171,9 +171,11 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
   };
 
   // Защита от потери несохранённых изменений
+  /** После удаления организации уход со страницы не требует подтверждения */
+  const deletedRef = useRef(false);
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      isDirty && !save.isPending && currentLocation.pathname !== nextLocation.pathname,
+      !deletedRef.current && isDirty && !save.isPending && currentLocation.pathname !== nextLocation.pathname,
   );
   useEffect(() => {
     if (!isDirty) return;
@@ -192,7 +194,7 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
   return (
     <form onSubmit={submit} noValidate aria-label="Настройки подписки организации">
       <div className="flex flex-col gap-4 pb-4">
-        <OrganizationHeader org={org} />
+        <OrganizationHeader org={org} onDeleted={() => (deletedRef.current = true)} />
 
         {externalUpdate && (
           <Alert

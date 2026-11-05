@@ -58,7 +58,7 @@ import {
   type UserRecord,
 } from './users';
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
-import { addCourse, COURSE_CATEGORIES, courseCount, listCourses, listWebinars, toggleWebinarRegistration } from './content';
+import { addCourse, COURSE_CATEGORIES, courseCount, listCourses, listWebinars, removeContent, toggleWebinarRegistration } from './content';
 
 const latency = () => {
   // Отложенные задачи планировщика выполняются до обработки запроса (плюс интервал в browser.ts)
@@ -705,6 +705,31 @@ export const handlers = [
       saveUsers(users);
     }
     return HttpResponse.json(toDetail(org));
+  }),
+
+  // Удаление организации: запись, роли пользователей в ней и контент кабинета
+  http.delete('/api/superadmin/organizations/:tenantId', async ({ params }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const db = load();
+    const org = db.organizations.find((o) => o.tenantId === params.tenantId);
+    if (!org) return err(404, 'NOT_FOUND');
+    db.organizations = db.organizations.filter((o) => o.tenantId !== org.tenantId);
+    save(db);
+    const users = loadUsers();
+    users.forEach((u) => (u.roles = u.roles.filter((r) => r.clientSlug !== org.clientSlug)));
+    saveUsers(users);
+    removeContent(org.tenantId);
+    // Открытые кабинеты организации сразу теряют доступ
+    publish({
+      type: 'subscription.blocked',
+      tenantId: org.tenantId,
+      version: org.version + 1,
+      changed: ['subscription'],
+      occurredAt: new Date().toISOString(),
+    });
+    return new HttpResponse(null, { status: 204 });
   }),
 
   http.patch('/api/superadmin/organizations/:tenantId/subscription-settings', async ({ params, request }) => {
