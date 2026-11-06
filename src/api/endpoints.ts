@@ -1,6 +1,11 @@
 import { request, toQueryString } from './client';
 import type {
   Course,
+  DirectoryItem,
+  DirectoryItemPayload,
+  DirectoryOption,
+  DirectorySummary,
+  TenantDirectorySummary,
   BillingInfo,
   CatalogModule,
   OrgDepartment,
@@ -193,6 +198,30 @@ export const api = {
     publishModule: (payload: RegistryPublishPayload) =>
       request<RegistryModule>('/api/system/module-registry', { method: 'POST', body: JSON.stringify(payload) }),
   },
+  /** Справочники суперадминистратора: глобальные записи */
+  directories: {
+    list: () => request<DirectorySummary[]>('/api/superadmin/directories'),
+    items: (code: string) => request<DirectoryItem[]>(`/api/superadmin/directories/${code}/items`),
+    create: (code: string, payload: DirectoryItemPayload) =>
+      request<DirectoryItem>(`/api/superadmin/directories/${code}/items`, { method: 'POST', body: JSON.stringify(payload) }),
+    update: (code: string, id: string, payload: DirectoryItemPayload) =>
+      request<DirectoryItem>(`/api/superadmin/directories/${code}/items/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    remove: (code: string, id: string) => request<void>(`/api/superadmin/directories/${code}/items/${id}`, { method: 'DELETE' }),
+  },
+  /** Справочники организации: глобальные записи и собственные локальные */
+  tenantDirectories: (clientSlug: string) => {
+    const q = toQueryString({ clientSlug });
+    return {
+      list: () => request<TenantDirectorySummary[]>(`/api/tenant/directories${q}`),
+      options: (code: string) => request<DirectoryOption[]>(`/api/tenant/directories/${code}/options${q}`),
+      items: (code: string) => request<DirectoryItem[]>(`/api/tenant/directories/${code}/items${q}`),
+      create: (code: string, payload: DirectoryItemPayload) =>
+        request<DirectoryItem>(`/api/tenant/directories/${code}/items${q}`, { method: 'POST', body: JSON.stringify(payload) }),
+      update: (code: string, id: string, payload: DirectoryItemPayload) =>
+        request<DirectoryItem>(`/api/tenant/directories/${code}/items/${id}${q}`, { method: 'PUT', body: JSON.stringify(payload) }),
+      remove: (code: string, id: string) => request<void>(`/api/tenant/directories/${code}/items/${id}${q}`, { method: 'DELETE' }),
+    };
+  },
   /** Кабинет администратора организации */
   tenantAdmin: (clientSlug: string) => {
     const q = toQueryString({ clientSlug });
@@ -213,8 +242,7 @@ export const api = {
       trainers: () => send<OrgTrainer[]>('/trainers', 'GET'),
       searchTrainers: (q: string) =>
         request<TrainerCandidate[]>(`/api/tenant/trainers/search${toQueryString({ clientSlug, q })}`),
-      addTrainer: (userId: string) => send<OrgTrainer>('/trainers', 'POST', { userId }),
-      updateTrainer: (id: string, specialization: string) => send<OrgTrainer>(`/trainers/${id}`, 'PUT', { specialization }),
+      addTrainer: (userId: string, categoryId: string | null) => send<OrgTrainer>('/trainers', 'POST', { userId, categoryId }),
       setTrainerActive: (id: string, active: boolean) => send<OrgTrainer>(`/trainers/${id}/status`, 'PUT', { active }),
       departments: () => send<OrgDepartment[]>('/departments', 'GET'),
       createDepartment: (payload: OrgDepartmentPayload) => send<OrgDepartment>('/departments', 'POST', payload),
@@ -231,9 +259,12 @@ export const api = {
       removeGroup: (id: string) => send<void>(`/groups/${id}`, 'DELETE'),
       addListeners: (id: string, memberIds: string[]) => send<OrgGroup>(`/groups/${id}/listeners`, 'POST', { memberIds }),
       removeListener: (id: string, memberId: string) => send<OrgGroup>(`/groups/${id}/listeners/${memberId}`, 'DELETE'),
-      report: (type: ReportType, f: { groupId?: string; courseId?: string }) =>
+      report: (type: ReportType, f: { groupId?: string; courseId?: string; positionId?: string }) =>
         request<ReportResult>(`/api/tenant/reports/${type}${toQueryString({ clientSlug, ...f })}`),
-      updateCourse: (id: string, payload: { title: string; category: string }) =>
+      updateCourse: (
+        id: string,
+        payload: { title: string; category: string; formatId: string | null; assessmentId: string | null; languageId: string | null },
+      ) =>
         send<Course>(`/courses/${encodeURIComponent(id)}`, 'PATCH', payload),
       removeCourse: (id: string) => send<void>(`/courses/${encodeURIComponent(id)}`, 'DELETE'),
     };

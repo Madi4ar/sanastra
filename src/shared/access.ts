@@ -3,6 +3,7 @@
  * Итоговый доступ пользователя = Матрица глобальной роли ∩ Состав модулей тарифа организации.
  */
 import type { RegistryModule, RegistryOption, Role } from '@/api/types';
+import { ADVANCED_DIRECTORIES, ADVANCED_DIRECTORIES_MODULE, DIRECTORIES, directoryModuleKey } from './directories';
 
 const ELEMENT_TYPE_KEYS = [
   'text',
@@ -32,6 +33,13 @@ export const elementModuleKey = (type: string) => `lms_element_${type}`;
 export const TARIFF_MODULE_OF: Record<string, string | null> = {
   lms_prog_core: 'COURSES',
   ...Object.fromEntries(ELEMENT_TYPE_KEYS.map((t) => [elementModuleKey(t), 'COURSES'])),
+  // Справочники доступны при любом тарифе, расширенные классификаторы — с отдельным модулем тарифа
+  ...Object.fromEntries(
+    DIRECTORIES.map((d) => [
+      directoryModuleKey(d.code),
+      (ADVANCED_DIRECTORIES as readonly string[]).includes(d.code) ? ADVANCED_DIRECTORIES_MODULE : null,
+    ]),
+  ),
   lms_groups: 'COURSES',
   lms_course_showcase: 'COURSES',
   lms_users: 'USERS',

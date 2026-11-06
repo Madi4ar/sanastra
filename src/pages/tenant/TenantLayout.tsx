@@ -21,6 +21,7 @@ import {
 } from 'antd';
 import {
   Bell,
+  BookMarked,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -49,6 +50,7 @@ import { useTenantContext } from '@/features/tenant/access';
 import { useTenantAccess } from '@/features/tenant/queries';
 import type { CrumbHandle } from '@/layout/AppLayout';
 import { HIDDEN_PAGES } from '@/features/tenant/access';
+import { ADVANCED_DIRECTORIES_MODULE } from '@/shared/directories';
 import { demoBadgeText, UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
 import type { CatalogModule } from '@/api/types';
 import { formatDate, formatDateTime } from '@/shared/format';
@@ -82,7 +84,7 @@ const navTheme: ThemeConfig = {
 };
 
 /** Разделы скрыты из меню и поиска; доступ к ним настраивается в матрице доступов */
-const HIDDEN_FROM_MENU = ['REPORTS', 'CHAT', 'CERTIFICATES', ...HIDDEN_PAGES];
+const HIDDEN_FROM_MENU = ['REPORTS', 'CHAT', 'CERTIFICATES', ADVANCED_DIRECTORIES_MODULE, ...HIDDEN_PAGES];
 
 /** Названия разделов в кабинете администратора */
 const ADMIN_MODULE_LABEL: Record<string, string> = { COURSES: 'Учебные программы', REPORTS: 'Конструктор отчётов' };
@@ -127,6 +129,10 @@ function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boo
         ]
       : []),
     ...available('USERS'),
+    // «Справочники» показываются, если в матрице роли открыт хотя бы один из них
+    ...(access.some((k) => /^lms_dir_[a-z_]+\.view$/.test(k))
+      ? [{ key: 'directories', label: 'Справочники', icon: <BookMarked size={16} />, to: `${base}/directories` }]
+      : []),
     ...section('lms_trainers.list_view', 'trainers', 'Тренерский состав', <Presentation size={16} />),
     ...section('lms_departments.view', 'departments', 'Отделы', <Network size={16} />),
     ...section('lms_roles.view', 'roles', 'Роли и доступы', <ShieldCheck size={16} />),

@@ -8,6 +8,7 @@ import { isApiError } from '@/api/client';
 import { api, type ModuleData } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { Course } from '@/api/types';
+import { useDirectoryOptions } from '@/features/directories/useDirectoryOptions';
 import { CardGrid } from '@/features/tenant/ModuleCard';
 import { StatCard, StatGrid, TONE_CLASS, type Tone } from '@/features/tenant/StatCard';
 import { formatDate } from '@/shared/format';
@@ -84,8 +85,17 @@ function CreateCourseModal({
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string | undefined>(categories[0]);
   const [error, setError] = useState<string | null>(null);
+  const [refs, setRefs] = useState<{ formatId?: string; assessmentId?: string; languageId?: string }>({});
+  const formats = useDirectoryOptions(clientSlug, 'course_format');
+  const assessments = useDirectoryOptions(clientSlug, 'course_assessment');
+  const languages = useDirectoryOptions(clientSlug, 'language');
   const create = useMutation({
-    mutationFn: () => api.tenant.createInModule(clientSlug, 'COURSES', { title: title.trim(), category: category ?? '' }),
+    mutationFn: () =>
+      api.tenant.createInModule(clientSlug, 'COURSES', {
+        title: title.trim(),
+        category: category ?? '',
+        ...Object.fromEntries(Object.entries(refs).filter(([, v]) => v)),
+      }),
     onSuccess: () => {
       message.success('Курс создан как черновик');
       setTitle('');
@@ -153,6 +163,9 @@ function CreateCourseModal({
             options={categories.map((c) => ({ value: c, label: c }))}
           />
         </div>
+        <Select aria-label="Формат курса" allowClear placeholder="Формат курса" style={{ width: '100%' }} value={refs.formatId} options={formats.data ?? []} onChange={(formatId) => setRefs({ ...refs, formatId })} />
+        <Select aria-label="Оценивание курса" allowClear placeholder="Оценивание курса" style={{ width: '100%' }} value={refs.assessmentId} options={assessments.data ?? []} onChange={(assessmentId) => setRefs({ ...refs, assessmentId })} />
+        <Select aria-label="Язык обучения" allowClear placeholder="Язык обучения" style={{ width: '100%' }} value={refs.languageId} options={languages.data ?? []} onChange={(languageId) => setRefs({ ...refs, languageId })} />
       </div>
     </Modal>
   );

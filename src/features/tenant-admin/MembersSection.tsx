@@ -10,6 +10,7 @@ import type { OrgMember, OrgMemberPayload, SystemOrgRole } from '@/api/types';
 import { useCurrentUser } from '@/auth/auth';
 import { ROLE_LABEL } from '@/features/auth/roles';
 import { formatPhone } from '@/features/auth/validation';
+import { useDirectoryOptions } from '@/features/directories/useDirectoryOptions';
 import { AssignRoleModal } from '@/features/users/OrganizationUsers';
 import { Field } from '@/shared/FormField';
 import { IconButton } from '@/shared/IconButton';
@@ -39,6 +40,7 @@ function MemberModal({ clientSlug, member, preset, onClose }: { clientSlug: stri
   const regions = useQuery({ queryKey: queryKeys.regions, queryFn: api.dictionaries.regions, staleTime: Infinity });
   const departments = useQuery({ queryKey: queryKeys.tenantAdmin(clientSlug, 'departments'), queryFn: admin.departments });
   const roles = useQuery({ queryKey: queryKeys.tenantAdmin(clientSlug, 'roles'), queryFn: admin.roles });
+  const positions = useDirectoryOptions(clientSlug, 'position');
   const [values, setValues] = useState<OrgMemberPayload>({
     iin: member?.iin ?? preset?.iin ?? '',
     lastName: member?.lastName ?? '',
@@ -51,6 +53,7 @@ function MemberModal({ clientSlug, member, preset, onClose }: { clientSlug: stri
     role: member?.role ?? preset?.role ?? 'LEARNER',
     departmentId: member?.departmentId ?? null,
     localRoleIds: member?.localRoleIds ?? [],
+    positionId: member?.positionId ?? null,
   });
   const set = (patch: Partial<OrgMemberPayload>) => setValues((v) => ({ ...v, ...patch }));
   const save = useMutation({
@@ -127,6 +130,19 @@ function MemberModal({ clientSlug, member, preset, onClose }: { clientSlug: stri
             value={values.departmentId ?? undefined}
             options={(departments.data ?? []).map((d) => ({ value: d.id, label: d.name }))}
             onChange={(v) => set({ departmentId: v ?? null })}
+          />
+        </Field>
+        <Field label="Должность" htmlFor="member-position" error={fe.positionId}>
+          <Select
+            id="member-position"
+            aria-label="Должность"
+            allowClear
+            style={{ width: '100%' }}
+            placeholder="Не указана"
+            showSearch={{ optionFilterProp: 'label' }}
+            value={values.positionId ?? undefined}
+            options={positions.data ?? []}
+            onChange={(v) => set({ positionId: v ?? null })}
           />
         </Field>
         <div className="sm:col-span-2">

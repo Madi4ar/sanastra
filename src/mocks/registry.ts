@@ -6,8 +6,9 @@
 import dayjs from 'dayjs';
 import type { RegistryModule, RegistryOption, RegistryPublishOption, RegistryPublishPayload } from '@/api/types';
 import { elementModuleKey } from '@/shared/access';
+import { DIRECTORIES, directoryModuleKey } from '@/shared/directories';
 
-const STORAGE_KEY = 'superadmin-mock-registry-v5';
+const STORAGE_KEY = 'superadmin-mock-registry-v7';
 
 /** Элемент начального наполнения: [сегмент ключа, системное название, коммерческое название, вложенные опции] */
 type SeedOption = [string, string, string, SeedOption[]?];
@@ -82,7 +83,6 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
     versions: ['1.0.0'],
     options: [
       ['create', 'create', 'Создание (добавление из БД)'],
-      ['edit', 'edit', 'Редактирование'],
       ['deactivate', 'deactivate', 'Деактивация'],
       ['list_view', 'list_view', 'Просмотр списка'],
     ],
@@ -135,6 +135,18 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
       ['issue', 'issue', 'Выдача сертификатов'],
     ],
   },
+  // Каждый справочник — отдельный атомарный модуль реестра
+  ...DIRECTORIES.map((d) => ({
+    key: directoryModuleKey(d.code),
+    displayName: `Справочник: ${d.name}`,
+    versions: ['1.0.0'],
+    options: [
+      ['create', 'create', 'Создание'],
+      ['edit', 'edit', 'Редактирование'],
+      ['delete', 'delete', 'Удаление'],
+      ['view', 'view', 'Просмотр'],
+    ] as SeedOption[],
+  })),
   // Каждый элемент контента — отдельный модуль реестра со своими опциями
   ...CONTENT_ELEMENTS.map(([key, name]) => ({
     key: elementModuleKey(key),

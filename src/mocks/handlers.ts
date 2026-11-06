@@ -60,7 +60,6 @@ import {
   loadUsers,
   LOCK_MINUTES,
   MAX_FAILED_ATTEMPTS,
-  REGIONS,
   ROLE_PRIORITY,
   accessFor,
   sameAssignment,
@@ -71,6 +70,8 @@ import {
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
 import { scheduleEndDate } from './paymentSchedule';
 import { isDeactivated, isTrainerDeactivated, loadStructure, removeStructure, roleHolders, syncMembers } from './orgStructure';
+import { directoryHandlers } from './directoryHandlers';
+import { isVisibleItem, removeDirectoriesOf, visibleItems } from './directories';
 import { tenantAdminHandlers } from './tenantAdminHandlers';
 import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
 import { findCustomRole, loadRoles, saveRoles, type GlobalRoleRecord } from './roles';
@@ -107,7 +108,7 @@ export const latency = () => {
 export const err = (status: number, code: string, message?: string, fieldErrors?: Record<string, string>) =>
   HttpResponse.json({ code, message, fieldErrors }, { status });
 
-function requireRole(role?: CurrentUser['role']) {
+export function requireRole(role?: CurrentUser['role']) {
   const session = getSession();
   if (!session) return err(401, 'UNAUTHORIZED');
   if (role && session.role !== role) return err(403, 'FORBIDDEN');
@@ -370,6 +371,20 @@ function afterStructureChange(ctx: CourseCtx) {
   return HttpResponse.json(courseContent(ctx));
 }
 
+/** Значения формы курса: только записи, видимые этой организации */
+export function courseRefs(body: { formatId?: string | null; assessmentId?: string | null; languageId?: string | null }, tenantId: string) {
+  const fields = [
+    ['formatId', 'course_format'],
+    ['assessmentId', 'course_assessment'],
+    ['languageId', 'language'],
+  ] as const;
+  for (const [field, code] of fields) {
+    const id = body[field];
+    if (id && !isVisibleItem(id, code, tenantId)) return { error: 'Значение справочника недоступно.' };
+  }
+  return { formatId: body.formatId || null, assessmentId: body.assessmentId || null, languageId: body.languageId || null };
+}
+
 const titleOf = (v: unknown, fallback: string) => {
   const t = typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
   return t ? t.slice(0, 255) : fallback;
@@ -527,7 +542,9 @@ export function validateUserProfile(
   else if (others.some((u) => u.iin === iin)) fe.iin = 'Пользователь с таким ИИН уже зарегистрирован';
   if (!body.lastName?.trim()) fe.lastName = MESSAGES.lastName;
   if (!body.firstName?.trim()) fe.firstName = MESSAGES.firstName;
-  if (!REGIONS.some((r) => r.name === body.region)) fe.region = MESSAGES.region;
+  // Уже указанная область остаётся допустимой, даже если её нет в списке текущего контекста
+  const currentRegion = users.find((u) => u.id === opts.selfId)?.region;
+  if (body.region !== currentRegion && !regionNames().includes(body.region ?? '')) fe.region = MESSAGES.region;
   if (!isValidKzPhone(body.phone ?? '')) fe.phone = MESSAGES.phone;
   if (!EMAIL_PATTERN.test(email)) fe.email = MESSAGES.email;
   else if (others.some((u) => u.email.toLowerCase() === email.toLowerCase()))
@@ -545,6 +562,13 @@ export const profileFields = (body: Partial<PlatformUserPayload>) => ({
   phone: phoneDigits(body.phone!),
   email: body.email!.trim(),
 });
+
+/** Области из справочника: глобальные и локальные организации из текущего контекста */
+function regionNames(): string[] {
+  const slug = getSession()?.clientSlug;
+  const tenantId = slug ? (load().organizations.find((o) => o.clientSlug === slug)?.tenantId ?? null) : null;
+  return visibleItems('region', tenantId).map((r) => r.nameRu);
+}
 
 const sseDisabled = () => {
   try {
@@ -573,7 +597,7 @@ export const handlers: HttpHandler[] = [
   }),
   http.get('/api/dictionaries/regions', async () => {
     await latency();
-    return HttpResponse.json(REGIONS);
+    return HttpResponse.json(regionNames().map((name, i) => ({ code: `R-${i}`, name })));
   }),
   // Шаг 1 входа: поиск ИИН в базе
   http.post('/api/auth/check-iin', async ({ request }) => {
@@ -626,7 +650,7 @@ export const handlers: HttpHandler[] = [
     else if (users.some((u) => u.iin === iin)) fe.iin = 'Пользователь с таким ИИН уже зарегистрирован';
     if (!body.lastName?.trim()) fe.lastName = MESSAGES.lastName;
     if (!body.firstName?.trim()) fe.firstName = MESSAGES.firstName;
-    if (!REGIONS.some((r) => r.name === body.region)) fe.region = MESSAGES.region;
+    if (!regionNames().includes(body.region ?? '')) fe.region = MESSAGES.region;
     if (!isValidKzPhone(body.phone ?? '')) fe.phone = MESSAGES.phone;
     if (!EMAIL_PATTERN.test(email)) fe.email = MESSAGES.email;
     else if (users.some((u) => u.email.toLowerCase() === email.toLowerCase()))
@@ -682,7 +706,7 @@ export const handlers: HttpHandler[] = [
     if (!EMAIL_PATTERN.test(email)) fe.email = MESSAGES.email;
     else if (users.some((u) => u.id !== user.id && u.email.toLowerCase() === email.toLowerCase()))
       fe.email = 'Пользователь с таким email уже зарегистрирован';
-    if (body.region !== undefined && !REGIONS.some((r) => r.name === body.region)) fe.region = MESSAGES.region;
+    if (body.region !== undefined && body.region !== user.region && !regionNames().includes(body.region)) fe.region = MESSAGES.region;
     if (typeof body.avatar === 'string' && (!body.avatar.startsWith('data:image/') || body.avatar.length > 700_000))
       fe.avatar = 'Изображение до 500 КБ';
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
@@ -988,6 +1012,7 @@ export const handlers: HttpHandler[] = [
     removeContent(org.tenantId);
     removeCourseContentOf(`${org.tenantId}-`);
     removeStructure(org.tenantId);
+    removeDirectoriesOf(org.tenantId);
     // Открытые кабинеты организации сразу теряют доступ
     publish({
       type: 'subscription.blocked',
@@ -1601,12 +1626,20 @@ export const handlers: HttpHandler[] = [
     const used = ctx.org.usage[action.limitCode] ?? 0;
     if (used >= limit) return err(403, 'LIMIT_REACHED');
 
-    const body = (await request.json().catch(() => ({}))) as { title?: string; category?: string };
+    const body = (await request.json().catch(() => ({}))) as {
+      title?: string;
+      category?: string;
+      formatId?: string;
+      assessmentId?: string;
+      languageId?: string;
+    };
     if (code === 'COURSES') {
       const title = (body.title ?? '').trim();
       if (title.length < 3 || title.length > 120)
         return err(400, 'VALIDATION_ERROR', 'Название курса — от 3 до 120 символов', { title: 'Название курса — от 3 до 120 символов' });
-      addCourse(ctx.org, { title, category: body.category || 'Без категории', teacher: ctx.user.fullName });
+      const refs = courseRefs(body, ctx.org.tenantId);
+      if ('error' in refs) return err(400, 'VALIDATION_ERROR', refs.error);
+      addCourse(ctx.org, { title, category: body.category || 'Без категории', teacher: ctx.user.fullName, ...refs });
     }
 
     const db = load();
@@ -1660,7 +1693,7 @@ export const handlers: HttpHandler[] = [
   }),
 ];
 
-handlers.push(...tenantAdminHandlers());
+handlers.push(...tenantAdminHandlers(), ...directoryHandlers());
 
 /**
  * SSE: только события своей организации, только авторизованным участникам.

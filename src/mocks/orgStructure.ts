@@ -28,6 +28,8 @@ export interface Member {
   email: string;
   departmentId: string | null;
   localRoleIds: string[];
+  /** Должность — запись справочника */
+  positionId?: string | null;
   /** Активная учётная запись: неактивные не входят в «Количество сотрудников» */
   active: boolean;
 }
@@ -52,7 +54,8 @@ export interface TrainerEntry {
   userId: string;
   active: boolean;
   assignedAt: string;
-  specialization: string;
+  /** Категория тренера — запись справочника */
+  categoryId?: string | null;
 }
 
 interface Store {
@@ -68,7 +71,7 @@ interface Store {
   audit: AuditEntry[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-org-structure-v4';
+const STORAGE_KEY = 'superadmin-mock-org-structure-v5';
 
 const EMPLOYEES = [
   'Ержанова Динара',
@@ -343,7 +346,6 @@ export function syncMembers(org: OrgRecord, materialize = false): Store {
       userId: u.id,
       active: true,
       assignedAt: new Date().toISOString(),
-      specialization: '',
     });
   }
   if (materialize) {

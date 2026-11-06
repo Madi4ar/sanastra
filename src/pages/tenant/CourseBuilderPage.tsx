@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { App, Button, Card, Dropdown, Empty, Input, Modal, Skeleton, Tag, Tooltip } from 'antd';
+import { App, Button, Card, Dropdown, Empty, Input, Modal, Select, Skeleton, Tag, Tooltip } from 'antd';
 import { ArrowDown, ArrowLeft, ArrowUp, Eye, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -10,10 +10,19 @@ import { useCabinet } from '@/features/tenant/cabinet';
 import { AddElementModal, ElementEditor, ElementIcon } from '@/features/course-builder/ElementEditor';
 import { ElementPreview } from '@/features/course-builder/ElementPreview';
 import { ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
+import { useDirectoryOptions } from '@/features/directories/useDirectoryOptions';
 import { FeatureGuard } from '@/features/tenant/access';
 import { IconButton } from '@/shared/IconButton';
 import { ErrorState } from '@/shared/PageState';
 import { PageHeader } from './PageHeader';
+
+interface CourseForm {
+  title: string;
+  category: string;
+  formatId: string | null;
+  assessmentId: string | null;
+  languageId: string | null;
+}
 
 /** Название, которое можно переименовать по месту */
 function EditableTitle({
@@ -156,11 +165,14 @@ function CourseBuilder({ courseId }: { courseId: string }) {
   const [adding, setAdding] = useState<string | null>(null);
   const [editing, setEditing] = useState<CourseElement | null>(null);
   const [viewing, setViewing] = useState<CourseElement | null>(null);
-  const [courseForm, setCourseForm] = useState<{ title: string; category: string } | null>(null);
+  const [courseForm, setCourseForm] = useState<CourseForm | null>(null);
+  const formats = useDirectoryOptions(clientSlug, 'course_format');
+  const assessments = useDirectoryOptions(clientSlug, 'course_assessment');
+  const languages = useDirectoryOptions(clientSlug, 'language');
   const navigate = useNavigate();
   const admin = api.tenantAdmin(clientSlug);
   const saveCourse = useMutation({
-    mutationFn: (v: { title: string; category: string }) => admin.updateCourse(courseId, v),
+    mutationFn: (v: CourseForm) => admin.updateCourse(courseId, v),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: queryKeys.tenantModuleData(clientSlug, 'COURSES') });
@@ -290,7 +302,15 @@ function CourseBuilder({ courseId }: { courseId: string }) {
         extra={
           <>
             {canEdit && (
-              <Button icon={<Pencil size={16} />} onClick={() => setCourseForm({ title: course.title, category: course.category })}>
+              <Button icon={<Pencil size={16} />} onClick={() =>
+                  setCourseForm({
+                    title: course.title,
+                    category: course.category,
+                    formatId: course.formatId ?? null,
+                    assessmentId: course.assessmentId ?? null,
+                    languageId: course.languageId ?? null,
+                  })
+                }>
                 Редактировать программу
               </Button>
             )}
@@ -408,6 +428,9 @@ function CourseBuilder({ courseId }: { courseId: string }) {
           <div className="flex flex-col gap-3 pt-2">
             <Input aria-label="Название программы" placeholder="Название" maxLength={120} value={courseForm.title} onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })} />
             <Input aria-label="Категория" placeholder="Категория" maxLength={60} value={courseForm.category} onChange={(e) => setCourseForm({ ...courseForm, category: e.target.value })} />
+            <Select aria-label="Формат курса" allowClear placeholder="Формат курса" style={{ width: '100%' }} value={courseForm.formatId ?? undefined} options={formats.data ?? []} onChange={(v) => setCourseForm({ ...courseForm, formatId: v ?? null })} />
+            <Select aria-label="Оценивание курса" allowClear placeholder="Оценивание курса" style={{ width: '100%' }} value={courseForm.assessmentId ?? undefined} options={assessments.data ?? []} onChange={(v) => setCourseForm({ ...courseForm, assessmentId: v ?? null })} />
+            <Select aria-label="Язык обучения" allowClear placeholder="Язык обучения" style={{ width: '100%' }} value={courseForm.languageId ?? undefined} options={languages.data ?? []} onChange={(v) => setCourseForm({ ...courseForm, languageId: v ?? null })} />
           </div>
         </Modal>
       )}

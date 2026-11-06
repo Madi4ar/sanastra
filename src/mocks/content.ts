@@ -159,13 +159,19 @@ export function listWebinars(org: OrgRecord, userId: string): Webinar[] {
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 }
 
-export function addCourse(org: OrgRecord, input: { title: string; category: string; teacher: string }): Course {
+export function addCourse(
+  org: OrgRecord,
+  input: { title: string; category: string; teacher: string; formatId?: string | null; assessmentId?: string | null; languageId?: string | null },
+): Course {
   const { all, content } = contentFor(org);
   const course: Course = {
     id: `${org.tenantId}-c${Date.now()}`,
     title: input.title,
     category: input.category,
     teacher: input.teacher,
+    formatId: input.formatId ?? null,
+    assessmentId: input.assessmentId ?? null,
+    languageId: input.languageId ?? null,
     lessonsCount: 0,
     studentsCount: 0,
     progress: 0,
@@ -206,7 +212,11 @@ export function touchCourse(org: OrgRecord, courseId: string, patch: Partial<Pic
   saveAll(all);
 }
 
-export function updateCourse(org: OrgRecord, courseId: string, patch: Pick<Course, 'title' | 'category'>): Course | null {
+export function updateCourse(
+  org: OrgRecord,
+  courseId: string,
+  patch: Pick<Course, 'title' | 'category' | 'formatId' | 'assessmentId' | 'languageId'>,
+): Course | null {
   const { all, content } = contentFor(org);
   const course = content.courses.find((c) => c.id === courseId);
   if (!course) return null;
@@ -221,4 +231,14 @@ export function removeCourse(org: OrgRecord, courseId: string): boolean {
   content.courses = content.courses.filter((c) => c.id !== courseId);
   saveAll(all);
   return content.courses.length < before;
+}
+
+/** Запись справочника используется в курсах: локальная — только своей организации, глобальная — любой */
+export function allCoursesUsing(itemId: string, tenantId: string | null): boolean {
+  const all = loadAll();
+  return Object.entries(all).some(
+    ([id, c]) =>
+      (tenantId === null || id === tenantId) &&
+      c.courses.some((x) => x.formatId === itemId || x.assessmentId === itemId || x.languageId === itemId),
+  );
 }

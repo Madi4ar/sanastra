@@ -8,7 +8,7 @@ import { loadRegistry } from './registry';
 
 export type GlobalRoleRecord = Omit<GlobalRole, 'usersCount'>;
 
-const STORAGE_KEY = 'superadmin-mock-roles-v4';
+const STORAGE_KEY = 'superadmin-mock-roles-v6';
 
 export const SYSTEM_ROLE_CODE: Record<SystemRole, string> = {
   SUPERADMIN: 'superadmin',
@@ -26,6 +26,8 @@ function seed(): GlobalRoleRecord[] {
   const all = allLeafKeys(loadRegistry());
   const elements = all.filter((k) => k.startsWith('lms_element_'));
   const contentView = elements.filter((k) => k.endsWith('.view'));
+  // Справочники: тренер и методист только просматривают, слушателю они закрыты
+  const directoriesView = all.filter((k) => k.startsWith('lms_dir_') && k.endsWith('.view'));
   const at = new Date().toISOString();
   const system = (systemRole: SystemRole, name: string, description: string, matrix: string[]): GlobalRoleRecord => ({
     id: `role-${SYSTEM_ROLE_CODE[systemRole]}`,
@@ -45,6 +47,7 @@ function seed(): GlobalRoleRecord[] {
       ...pick(all, ['lms_prog_core.view', 'lms_trainer_cabinet', 'lms_groups.view', 'lms_report_builder', 'lms_chat', 'lms_certificates']),
       ...elements,
       ...pick(all, ['lms_course_showcase.catalog_view']),
+      ...directoriesView,
     ]),
     system('LEARNER', 'Слушатель', 'Проходит курсы, оставляет заявки на витрине', [
       ...pick(all, ['lms_learner_cabinet', 'lms_course_showcase', 'lms_chat', 'lms_certificates.view']),
@@ -59,6 +62,7 @@ function seed(): GlobalRoleRecord[] {
       matrix: [
         ...pick(all, ['lms_prog_core', 'lms_groups', 'lms_report_builder', 'lms_users', 'lms_departments', 'lms_course_showcase', 'lms_trainer_cabinet', 'lms_chat', 'lms_certificates']),
         ...elements,
+        ...directoriesView,
       ],
       updatedAt: at,
     },

@@ -353,6 +353,10 @@ export interface Course {
   progress: number;
   status: 'PUBLISHED' | 'DRAFT';
   updatedAt: string;
+  /** Значения справочников: формат, оценивание, язык обучения */
+  formatId?: string | null;
+  assessmentId?: string | null;
+  languageId?: string | null;
 }
 
 /** Статус вычисляет сервер по времени начала и длительности */
@@ -704,6 +708,8 @@ export interface OrgMember {
   localRoleIds: string[];
   localRoleNames: string[];
   isSelf: boolean;
+  positionId: string | null;
+  positionName: string | null;
 }
 
 export interface OrgMemberPayload {
@@ -719,6 +725,7 @@ export interface OrgMemberPayload {
   role: SystemOrgRole;
   departmentId: string | null;
   localRoleIds: string[];
+  positionId: string | null;
 }
 
 export type DepartmentKind = 'DEPARTMENT' | 'MANAGEMENT' | 'BRANCH' | 'UNIT';
@@ -811,7 +818,8 @@ export interface OrgTrainer {
   /** Активен / Деактивирован только в этой организации */
   active: boolean;
   assignedAt: string;
-  specialization: string;
+  categoryId: string | null;
+  categoryName: string | null;
 }
 
 /** Результат поиска по общей базе. ИИН скрыт, кроме случая точного совпадения с запросом. */
@@ -820,4 +828,49 @@ export interface TrainerCandidate {
   fullName: string;
   iin: string;
   alreadyTrainer: boolean;
+}
+
+// ---------- Справочники ----------
+
+export type DirectoryAction = 'create' | 'edit' | 'delete' | 'view';
+
+export interface DirectorySummary {
+  code: string;
+  name: string;
+  count: number;
+}
+
+export interface TenantDirectorySummary extends DirectorySummary {
+  /** WORK — рабочий режим, DEMO — справочник включён в матрице, но закрыт тарифом */
+  mode: 'WORK' | 'DEMO';
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  upgradeTariff: { id: string; name: string } | null;
+}
+
+export interface DirectoryItem {
+  id: string;
+  nameKz: string;
+  nameRu: string;
+  parentId: string | null;
+  parentName: string | null;
+  /** GLOBAL — запись суперадминистратора, LOCAL — запись организации */
+  scope: 'GLOBAL' | 'LOCAL';
+  /** Текущий пользователь может менять запись */
+  editable: boolean;
+  createdAt: string;
+}
+
+export interface DirectoryItemPayload {
+  nameKz: string;
+  nameRu: string;
+  parentId: string | null;
+}
+
+/** Значения для выпадающих списков: глобальные ∪ локальные своей организации */
+export interface DirectoryOption {
+  value: string;
+  label: string;
+  parentId?: string | null;
 }

@@ -7,6 +7,7 @@ import { resetContent } from './content';
 import { resetCourseContent } from './courseBuilder';
 import { resetOrgStructure } from './orgStructure';
 import type { StoredSchedule } from './paymentSchedule';
+import { resetDirectories } from './directories';
 import { resetRegistry } from './registry';
 import { resetRoles } from './roles';
 import { resetUsers } from './users';
@@ -47,6 +48,7 @@ export const MODULES: ModuleDef[] = [
   { code: 'REPORTS', name: 'Отчёты', description: 'Аналитика успеваемости и активности', icon: 'ChartColumn', permission: 'reports.view' },
   { code: 'CHAT', name: 'Сообщения', description: 'Чаты между участниками', icon: 'MessageSquare', permission: 'chat.view' },
   { code: 'WEBINARS', name: 'Вебинары', description: 'Онлайн-трансляции и записи', icon: 'Video', permission: 'webinars.view' },
+  { code: 'ADV_DIRECTORIES', name: 'Расширенные справочники', description: 'Классификаторы научных уровней и категорий', icon: 'FileText', permission: 'directories.advanced' },
   { code: 'CERTIFICATES', name: 'Сертификаты', description: 'Выдача сертификатов о прохождении', icon: 'FileText', permission: 'certificates.view' },
 ];
 
@@ -76,7 +78,7 @@ export const TARIFFS: TariffRecord[] = [
     name: 'Базовый',
     description: 'Для небольших учебных центров',
     annualPrice: 100_000,
-    modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: false, CHAT: false, WEBINARS: false, CERTIFICATES: false },
+    modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: false, CHAT: false, WEBINARS: false, ADV_DIRECTORIES: false, CERTIFICATES: false },
     limits: { USERS_COUNT: 150, COURSES_COUNT: 10, STORAGE_GB: 10 },
     overridePolicies: ['RESET'],
   },
@@ -86,7 +88,7 @@ export const TARIFFS: TariffRecord[] = [
     name: 'Стандарт',
     description: 'Оптимальный набор для школ',
     annualPrice: 200_000,
-    modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: false, CERTIFICATES: false },
+    modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: false, ADV_DIRECTORIES: true, CERTIFICATES: false },
     limits: { USERS_COUNT: 100, COURSES_COUNT: 50, STORAGE_GB: 100 },
     overridePolicies: ['KEEP_COMPATIBLE', 'RESET'],
   },
@@ -96,7 +98,7 @@ export const TARIFFS: TariffRecord[] = [
     name: 'Бизнес',
     description: 'Все модули и расширенные лимиты',
     annualPrice: 300_000,
-    modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: true, CERTIFICATES: true },
+    modules: { USERS: true, COURSES: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: true, ADV_DIRECTORIES: true, CERTIFICATES: true },
     limits: { USERS_COUNT: 1000, COURSES_COUNT: 500, STORAGE_GB: 1000 },
     overridePolicies: ['KEEP_COMPATIBLE', 'RESET'],
   },
@@ -134,7 +136,7 @@ interface DbState {
   organizations: OrgRecord[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-db-v3';
+const STORAGE_KEY = 'superadmin-mock-db-v4';
 const SESSION_KEY = 'superadmin-mock-session';
 
 /** За сколько дней предупреждать об окончании подписки — «конфигурация backend». */
@@ -314,6 +316,7 @@ export function resetDb() {
   resetCourseContent();
   resetRoles();
   resetOrgStructure();
+  resetDirectories();
 }
 
 export const findTariff = (id: string) => load().tariffs.find((t) => t.id === id);

@@ -26,6 +26,9 @@ export const queryKeys = {
   courseContent: (clientSlug: string, courseId: string) => ['course-content', clientSlug, courseId] as const,
   tenantAdmin: (clientSlug: string, area: string) => ['tenant-admin', clientSlug, area] as const,
   moduleCatalog: (clientSlug: string) => ['module-catalog', clientSlug] as const,
+  directories: ['directories'] as const,
+  tenantDirectories: (clientSlug: string) => ['tenant-directories', clientSlug] as const,
+  directoryOptions: (clientSlug: string, code: string) => ['tenant-directories', clientSlug, 'options', code] as const,
   tenantBilling: (clientSlug: string) => ['tenant-billing', clientSlug] as const,
   tenantModuleData: (clientSlug: string, code: string) => ['tenant-module', clientSlug, code] as const,
 };

@@ -1,21 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Card, Input, Modal, Switch, Table, Tag } from 'antd';
-import { Pencil, Search, UserPlus } from 'lucide-react';
+import { Alert, App, Button, Card, Input, Modal, Segmented, Select, Switch, Table, Tag } from 'antd';
+import { Search, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { OrgTrainer, TrainerCandidate } from '@/api/types';
 import { useCurrentUser } from '@/auth/auth';
 import { formatPhone } from '@/features/auth/validation';
+import { useDirectoryOptions } from '@/features/directories/useDirectoryOptions';
 import { useCabinet } from '@/features/tenant/cabinet';
 import { Field } from '@/shared/FormField';
 import { formatDate } from '@/shared/format';
-import { IconButton } from '@/shared/IconButton';
 import { ErrorState } from '@/shared/PageState';
 import { useDebouncedValue } from '@/shared/useDebouncedValue';
 import { PageHeader } from './PageHeader';
+
+type StatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE';
 
 /** «Добавить тренера»: поиск по общей базе и подтверждение привязки к организации */
 function AddTrainerModal({ canRegister, onClose }: { canRegister: boolean; onClose: () => void }) {
@@ -26,6 +27,8 @@ function AddTrainerModal({ canRegister, onClose }: { canRegister: boolean; onClo
   const admin = api.tenantAdmin(clientSlug);
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<TrainerCandidate | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const categories = useDirectoryOptions(clientSlug, 'trainer_category');
   const q = useDebouncedValue(query.trim(), 300);
   const ready = q.length >= 3;
   const search = useQuery({
@@ -34,11 +37,11 @@ function AddTrainerModal({ canRegister, onClose }: { canRegister: boolean; onClo
     enabled: ready,
   });
   const add = useMutation({
-    mutationFn: () => admin.addTrainer(picked!.userId),
+    mutationFn: () => admin.addTrainer(picked!.userId, categoryId),
     onSuccess: (t) => {
       void qc.invalidateQueries({ queryKey: ['tenant-admin', clientSlug] });
       void qc.invalidateQueries({ queryKey: queryKeys.tenantUsage(clientSlug) });
-      message.success(`${t.fullName} добавлен в тренерский состав`);
+      message.success(`Добавлено в тренерский состав: ${t.fullName}`);
       onClose();
     },
   });
@@ -74,6 +77,18 @@ function AddTrainerModal({ canRegister, onClose }: { canRegister: boolean; onClo
             Новый пользователь не создаётся: у этой учётной записи появится роль тренера в вашей организации, а личный кабинет
             Слушателя сохранится.
           </p>
+          <Field label="Категория тренера" htmlFor="trainer-category">
+            <Select
+              id="trainer-category"
+              aria-label="Категория тренера"
+              allowClear
+              style={{ width: '100%' }}
+              placeholder="Не указана"
+              value={categoryId ?? undefined}
+              options={categories.data ?? []}
+              onChange={(v) => setCategoryId(v ?? null)}
+            />
+          </Field>
           {add.isError && <Alert type="error" showIcon title={add.error.message} />}
         </div>
       ) : (
@@ -132,43 +147,6 @@ function AddTrainerModal({ canRegister, onClose }: { canRegister: boolean; onClo
   );
 }
 
-function EditTrainerModal({ trainer, onClose }: { trainer: OrgTrainer; onClose: () => void }) {
-  const { clientSlug } = useCabinet();
-  const qc = useQueryClient();
-  const [specialization, setSpecialization] = useState(trainer.specialization);
-  const save = useMutation({
-    mutationFn: () => api.tenantAdmin(clientSlug).updateTrainer(trainer.id, specialization),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.tenantAdmin(clientSlug, 'trainers') });
-      onClose();
-    },
-  });
-  const fe = isApiError(save.error) ? save.error.fieldErrors : {};
-  return (
-    <Modal
-      open
-      title={`Редактирование: ${trainer.fullName}`}
-      okText="Сохранить"
-      cancelText="Отмена"
-      confirmLoading={save.isPending}
-      onOk={() => save.mutate()}
-      onCancel={onClose}
-      destroyOnHidden
-    >
-      <div className="pt-2">
-        <Field
-          label="Специализация"
-          htmlFor="trainer-specialization"
-          error={fe.specialization}
-          hint="Видна только в вашей организации. ФИО и контакты человек меняет в своём профиле."
-        >
-          <Input id="trainer-specialization" maxLength={200} value={specialization} onChange={(e) => setSpecialization(e.target.value)} />
-        </Field>
-      </div>
-    </Modal>
-  );
-}
-
 /** Раздел «Тренерский состав»: пул тренеров организации из общей базы пользователей */
 export function TrainersPage() {
   const { clientSlug } = useCabinet();
@@ -179,7 +157,17 @@ export function TrainersPage() {
   const canToggle = access.includes('lms_trainers.deactivate');
   const q = useQuery({ queryKey: queryKeys.tenantAdmin(clientSlug, 'trainers'), queryFn: () => api.tenantAdmin(clientSlug).trainers() });
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<OrgTrainer | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('ALL');
+  const [categoryId, setCategoryId] = useState<string>();
+  const categories = useDirectoryOptions(clientSlug, 'trainer_category');
+  const text = search.trim().toLowerCase();
+  const trainers = q.data ?? [];
+  const visible = trainers
+    .filter((t) => !text || [t.fullName, t.iin, t.email, t.phone].some((v) => v.toLowerCase().includes(text)))
+    .filter((t) => status === 'ALL' || t.active === (status === 'ACTIVE'))
+    .filter((t) => !categoryId || t.categoryId === categoryId);
+  const filtered = Boolean(text) || status !== 'ALL' || Boolean(categoryId);
 
   const toggle = useMutation({
     mutationFn: ({ t, active }: { t: OrgTrainer; active: boolean }) => api.tenantAdmin(clientSlug).setTrainerActive(t.id, active),
@@ -222,13 +210,59 @@ export function TrainersPage() {
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
         <Card styles={{ body: { padding: 0 } }} data-testid="trainers">
+          <div className="flex flex-wrap items-center gap-3 p-4" data-testid="trainers-filters">
+            <Input
+              allowClear
+              aria-label="Поиск тренера"
+              placeholder="Поиск по ФИО, ИИН, Email или телефону"
+              prefix={<Search size={14} className="text-muted" aria-hidden />}
+              style={{ maxWidth: 340 }}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <Segmented<StatusFilter>
+              aria-label="Статус"
+              value={status}
+              onChange={setStatus}
+              options={[
+                { value: 'ALL', label: 'Все' },
+                { value: 'ACTIVE', label: 'Активен' },
+                { value: 'INACTIVE', label: 'Деактивирован' },
+              ]}
+            />
+            <Select
+              aria-label="Фильтр по категории тренера"
+              allowClear
+              placeholder="Все категории"
+              style={{ minWidth: 200 }}
+              value={categoryId}
+              options={categories.data ?? []}
+              onChange={setCategoryId}
+            />
+            {filtered && (
+              <Button
+                type="link"
+                className="px-0"
+                onClick={() => {
+                  setSearch('');
+                  setStatus('ALL');
+                  setCategoryId(undefined);
+                }}
+              >
+                Сбросить
+              </Button>
+            )}
+            <span className="ml-auto text-sm text-muted" data-testid="trainers-count">
+              Показано: {visible.length} из {trainers.length}
+            </span>
+          </div>
           <Table<OrgTrainer>
             rowKey="id"
             loading={q.isPending}
-            dataSource={q.data}
+            dataSource={visible}
             pagination={{ pageSize: 20, hideOnSinglePage: true, showSizeChanger: false }}
             scroll={{ x: 960 }}
-            locale={{ emptyText: 'Тренеров пока нет' }}
+            locale={{ emptyText: filtered ? 'Никого не найдено, измените фильтры' : 'Тренеров пока нет' }}
             onRow={(t) => ({ 'data-testid': `trainer-${t.iin}` }) as React.HTMLAttributes<HTMLElement>}
             columns={[
               {
@@ -237,7 +271,7 @@ export function TrainersPage() {
                 render: (_, t) => (
                   <div>
                     <div className="font-medium">{t.fullName}</div>
-                    {t.specialization && <div className="text-xs text-muted">{t.specialization}</div>}
+                    {t.categoryName && <div className="text-xs text-muted">{t.categoryName}</div>}
                   </div>
                 ),
               },
@@ -258,24 +292,11 @@ export function TrainersPage() {
                 ),
               },
               { title: 'Дата назначения', key: 'assignedAt', width: 150, render: (_, t) => formatDate(t.assignedAt) },
-              ...(access.includes('lms_trainers.edit')
-                ? [
-                    {
-                      title: '',
-                      key: 'actions',
-                      width: 56,
-                      render: (_: unknown, t: OrgTrainer) => (
-                        <IconButton type="text" label={`Редактировать: ${t.fullName}`} icon={<Pencil size={16} />} onClick={() => setEditing(t)} />
-                      ),
-                    },
-                  ]
-                : []),
             ]}
           />
         </Card>
       )}
       {adding && <AddTrainerModal canRegister={access.includes('lms_users.create')} onClose={() => setAdding(false)} />}
-      {editing && <EditTrainerModal trainer={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }

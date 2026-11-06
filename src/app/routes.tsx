@@ -20,6 +20,7 @@ import { DepartmentsPage } from '@/pages/tenant/DepartmentsPage';
 import { GroupsPage } from '@/pages/tenant/GroupsPage';
 import { TenantRolesPage } from '@/pages/tenant/TenantRolesPage';
 import { TrainersPage } from '@/pages/tenant/TrainersPage';
+import { SuperadminDirectoriesPage, TenantDirectoriesPage } from '@/features/directories/DirectoriesPage';
 import { DashboardPage } from '@/pages/tenant/DashboardPage';
 import { FeatureUnavailablePage, ModulePage, ProfilePage } from '@/pages/tenant/MiscPages';
 import { ModulesPage, OrganizationInfoPage, SubscriptionPage, UsagePage } from '@/pages/tenant/OrganizationPages';
@@ -69,6 +70,7 @@ function cabinetRoutes(): RouteObject[] {
           ],
         },
         { path: 'profile', element: <ProfilePage /> },
+        { path: 'directories', element: <TenantDirectoriesPage /> },
         {
           path: 'trainers',
           element: (
@@ -142,6 +144,7 @@ export const routes: RouteObject[] = [
       },
       { path: 'tariffs', element: <TariffPlansPage />, handle: crumb('Тарифные планы') },
       { path: 'modules', element: <ModuleRegistryPage />, handle: crumb('Модули') },
+      { path: 'directories', element: <SuperadminDirectoriesPage />, handle: crumb('Справочники') },
       {
         path: 'roles',
         handle: crumb('Роли и доступы'),

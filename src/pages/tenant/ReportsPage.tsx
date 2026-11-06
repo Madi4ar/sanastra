@@ -6,6 +6,7 @@ import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { ReportResult, ReportType } from '@/api/types';
 import { useCurrentUser } from '@/auth/auth';
+import { useDirectoryOptions } from '@/features/directories/useDirectoryOptions';
 import { useCabinet } from '@/features/tenant/cabinet';
 import { Field } from '@/shared/FormField';
 import { formatDateTime } from '@/shared/format';
@@ -47,6 +48,8 @@ export function ReportsPage() {
   const [type, setType] = useState<ReportType>('PERFORMANCE');
   const [groupId, setGroupId] = useState<string>();
   const [courseId, setCourseId] = useState<string>();
+  const [positionId, setPositionId] = useState<string>();
+  const positions = useDirectoryOptions(clientSlug, 'position');
   const groups = useQuery({
     queryKey: queryKeys.tenantAdmin(clientSlug, 'groups'),
     queryFn: admin.groups,
@@ -58,7 +61,7 @@ export function ReportsPage() {
     retry: false,
   });
   const generate = useMutation({
-    mutationFn: () => admin.report(type, { groupId, courseId }),
+    mutationFn: () => admin.report(type, { groupId, courseId, positionId }),
     onError: (e) => message.error(e.message),
   });
   const report = generate.data;
@@ -69,7 +72,7 @@ export function ReportsPage() {
       <PageHeader title="Конструктор отчётов" subtitle="Сводные отчёты по успеваемости, прохождению курсов, посещаемости и активности." />
       <div className="flex flex-col gap-4">
         <Card>
-          <div className="grid items-end gap-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <div className="grid items-end gap-4 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
             <Field label="Отчёт" htmlFor="report-type">
               <Select id="report-type" aria-label="Отчёт" style={{ width: '100%' }} value={type} options={REPORT_OPTIONS} onChange={setType} />
             </Field>
@@ -97,6 +100,19 @@ export function ReportsPage() {
                 value={usesCourse ? courseId : undefined}
                 options={(courses.data?.courses ?? []).map((c) => ({ value: c.id, label: c.title }))}
                 onChange={setCourseId}
+              />
+            </Field>
+            <Field label="Должность" htmlFor="report-position">
+              <Select
+                id="report-position"
+                aria-label="Должность"
+                allowClear
+                style={{ width: '100%' }}
+                placeholder="Все должности"
+                showSearch={{ optionFilterProp: 'label' }}
+                value={positionId}
+                options={positions.data ?? []}
+                onChange={setPositionId}
               />
             </Field>
             <Button type="primary" icon={<Play size={16} />} loading={generate.isPending} onClick={() => generate.mutate()}>

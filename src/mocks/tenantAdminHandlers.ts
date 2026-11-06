@@ -30,10 +30,11 @@ import { finalPrice, planAmount } from '@/shared/pricing';
 import { computeStatus, effectiveLimitValues, effectiveModules, load, MODULES, save, type OrgRecord } from './db';
 import { courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
 import { removeCourseContent } from './courseBuilder';
-import { err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
+import { courseRefs, err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
 import { addAudit, loadStructure, localMatrixOf, roleHolders, saveStructure, syncMembers, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
 import { canContinue, currentMonths, markPaid, newSchedule, planFor, scheduleEndDate } from './paymentSchedule';
 import { publish } from './eventBus';
+import { isVisibleItem, itemName } from './directories';
 import { loadRegistry } from './registry';
 import { loadRoles, matrixOf, SYSTEM_ROLE_CODE } from './roles';
 import { accessFor, fullNameOf, hashPassword, loadUsers, saveUsers, type UserRecord } from './users';
@@ -88,6 +89,8 @@ function toMember(m: Member, org: OrgRecord, users: UserRecord[], selfId: string
     localRoleIds: m.localRoleIds,
     localRoleNames: localRoles.map((r) => r.name),
     isSelf: m.userId === selfId,
+    positionId: m.positionId ?? null,
+    positionName: itemName(m.positionId),
   };
 }
 
@@ -157,7 +160,7 @@ function toBilling(org: OrgRecord): BillingInfo {
 const delegable = (org: OrgRecord) => accessFor({ role: 'ORGANIZATION_ADMIN', clientSlug: org.clientSlug });
 
 /** Ближайший тариф дороже текущего, в который входит модуль */
-function upgradeTariffFor(org: OrgRecord, code: string): { id: string; name: string } | null {
+export function upgradeTariffFor(org: OrgRecord, code: string): { id: string; name: string } | null {
   const tariffs = [...load().tariffs].sort((a, b) => a.annualPrice - b.annualPrice);
   const current = tariffs.find((t) => t.id === org.tariffPlanId);
   const target = tariffs.find((t) => t.modules[code] && t.annualPrice > (current?.annualPrice ?? 0));
@@ -287,10 +290,12 @@ const REPORT_TITLE: Record<ReportType, string> = {
   ACTIVITY: 'Активность пользователей',
 };
 
-function buildReport(type: ReportType, org: OrgRecord, f: { groupId: string | null; courseId: string | null }): ReportResult {
+function buildReport(type: ReportType, org: OrgRecord, f: { groupId: string | null; courseId: string | null; positionId: string | null }): ReportResult {
   const store = syncMembers(org);
   const group = store.groups.find((g) => g.id === f.groupId && g.tenantId === org.tenantId);
-  const members = store.members.filter((m) => m.tenantId === org.tenantId && m.active && (!group || group.listenerIds.includes(m.id)));
+  const members = store.members.filter(
+    (m) => m.tenantId === org.tenantId && m.active && (!group || group.listenerIds.includes(m.id)) && (!f.positionId || m.positionId === f.positionId),
+  );
   const courses = listCourses(org).filter((c) => !f.courseId || c.id === f.courseId);
   const base = { type, title: REPORT_TITLE[type], generatedAt: new Date().toISOString() };
   const groupOf = (m: Member) => store.groups.filter((g) => g.tenantId === org.tenantId && g.listenerIds.includes(m.id)).map((g) => g.name).join(', ') || '—';
@@ -513,6 +518,7 @@ export const tenantAdminHandlers = () => [
     const users = loadUsers();
     const fe = validateUserProfile(body, users, { passwordRequired: true });
     if (!SYSTEM_ORG_ROLES.includes(body.role as SystemOrgRole)) fe.role = 'Выберите роль';
+    if (body.positionId && !isVisibleItem(body.positionId, 'position', ctx.org.tenantId)) fe.positionId = 'Значение справочника недоступно';
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
     const user: UserRecord = {
       id: crypto.randomUUID(),
@@ -528,6 +534,7 @@ export const tenantAdminHandlers = () => [
     if (store.departments.some((d) => d.id === body.departmentId && d.tenantId === ctx.org.tenantId))
       bindDepartment(store, ctx, member, body.departmentId!);
     member.localRoleIds = (body.localRoleIds ?? []).filter((id) => store.roles.some((r) => r.id === id && r.tenantId === ctx.org.tenantId));
+    member.positionId = body.positionId ?? null;
     saveStructure(store);
     changeUsersUsage(ctx.org.tenantId, 1);
     return HttpResponse.json(toMember(member, ctx.org, loadUsers(), ctx.user.id), { status: 201 });
@@ -548,6 +555,7 @@ export const tenantAdminHandlers = () => [
     if (user.id === ctx.user.id && body.role !== orgRoleOf(user, ctx.org.clientSlug)) fe.role = 'Нельзя изменить собственную роль';
     if (body.departmentId && !store.departments.some((d) => d.id === body.departmentId && d.tenantId === ctx.org.tenantId))
       fe.departmentId = 'Отдел не найден';
+    if (body.positionId && !isVisibleItem(body.positionId, 'position', ctx.org.tenantId)) fe.positionId = 'Значение справочника недоступно';
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
     const previous = orgRoleOf(user, ctx.org.clientSlug);
     Object.assign(user, profileFields(body));
@@ -562,6 +570,7 @@ export const tenantAdminHandlers = () => [
     member.email = user.email;
     bindDepartment(store, ctx, member, body.departmentId ?? null);
     member.localRoleIds = (body.localRoleIds ?? []).filter((id) => store.roles.some((r) => r.id === id && r.tenantId === ctx.org.tenantId));
+    member.positionId = body.positionId ?? null;
     saveStructure(store);
     return HttpResponse.json(toMember(member, ctx.org, users, ctx.user.id));
   }),
@@ -624,7 +633,9 @@ export const tenantAdminHandlers = () => [
     await latency();
     const ctx = sectionContext(request, 'lms_trainers.create');
     if (ctx instanceof Response) return ctx;
-    const { userId } = (await request.json().catch(() => ({}))) as { userId?: string };
+    const { userId, categoryId } = (await request.json().catch(() => ({}))) as { userId?: string; categoryId?: string | null };
+    if (categoryId && !isVisibleItem(categoryId, 'trainer_category', ctx.org.tenantId))
+      return err(400, 'VALIDATION_ERROR', 'Значение справочника недоступно.');
     const users = loadUsers();
     const user = users.find((u) => u.id === userId && !u.roles.some((r) => r.role === 'SUPERADMIN'));
     if (!user) return err(404, 'NOT_FOUND', 'Пользователь не найден.');
@@ -640,22 +651,9 @@ export const tenantAdminHandlers = () => [
     const store = syncMembers(ctx.org);
     if (isNewMember) changeUsersUsage(ctx.org.tenantId, 1);
     const trainer = store.trainers.find((t) => t.tenantId === ctx.org.tenantId && t.userId === user.id)!;
-    return HttpResponse.json(toTrainer(trainer, users), { status: 201 });
-  }),
-
-  http.put('/api/tenant/trainers/:id', async ({ params, request }) => {
-    await latency();
-    const ctx = sectionContext(request, 'lms_trainers.edit');
-    if (ctx instanceof Response) return ctx;
-    const store = syncMembers(ctx.org);
-    const trainer = store.trainers.find((t) => t.id === params.id && t.tenantId === ctx.org.tenantId);
-    if (!trainer) return err(404, 'NOT_FOUND');
-    const { specialization } = (await request.json().catch(() => ({}))) as { specialization?: string };
-    if ((specialization ?? '').length > 200)
-      return err(400, 'VALIDATION_ERROR', 'Проверьте данные.', { specialization: 'Не более 200 символов' });
-    trainer.specialization = (specialization ?? '').trim();
+    trainer.categoryId = categoryId ?? null;
     saveStructure(store);
-    return HttpResponse.json(toTrainer(trainer, loadUsers()));
+    return HttpResponse.json(toTrainer(trainer, users), { status: 201 });
   }),
 
   // Деактивация сразу закрывает интерфейс тренера; учётная запись и личный кабинет сохраняются
@@ -957,7 +955,10 @@ export const tenantAdminHandlers = () => [
     const type = String(params.type) as ReportType;
     if (!(type in REPORT_TITLE)) return err(400, 'VALIDATION_ERROR', 'Неизвестный тип отчёта.');
     const url = new URL(request.url);
-    return HttpResponse.json(buildReport(type, ctx.org, { groupId: url.searchParams.get('groupId'), courseId: url.searchParams.get('courseId') }));
+    const positionId = url.searchParams.get('positionId');
+    // Фильтр принимает только значения, видимые организации
+    if (positionId && !isVisibleItem(positionId, 'position', ctx.org.tenantId)) return err(400, 'VALIDATION_ERROR', 'Значение справочника недоступно.');
+    return HttpResponse.json(buildReport(type, ctx.org, { groupId: url.searchParams.get('groupId'), courseId: url.searchParams.get('courseId'), positionId }));
   }),
 
   // ---------- Учебные программы: изменение и удаление ----------
@@ -965,11 +966,19 @@ export const tenantAdminHandlers = () => [
     await latency();
     const ctx = sectionContext(request, 'lms_prog_core.edit');
     if (ctx instanceof Response) return ctx;
-    const body = (await request.json().catch(() => ({}))) as { title?: string; category?: string };
+    const body = (await request.json().catch(() => ({}))) as {
+      title?: string;
+      category?: string;
+      formatId?: string | null;
+      assessmentId?: string | null;
+      languageId?: string | null;
+    };
+    const refs = courseRefs(body, ctx.org.tenantId);
+    if ('error' in refs) return err(400, 'VALIDATION_ERROR', refs.error);
     const title = (body.title ?? '').trim();
     if (title.length < 3 || title.length > 120)
       return err(400, 'VALIDATION_ERROR', 'Название курса — от 3 до 120 символов', { title: 'Название курса — от 3 до 120 символов' });
-    const course = updateCourse(ctx.org, String(params.id), { title, category: body.category || 'Без категории' });
+    const course = updateCourse(ctx.org, String(params.id), { title, category: body.category || 'Без категории', ...refs });
     return course ? HttpResponse.json(course) : err(404, 'NOT_FOUND');
   }),
 
@@ -1000,7 +1009,8 @@ function toTrainer(t: TrainerEntry, users: UserRecord[]): OrgTrainer {
     phone: u?.phone ?? '',
     active: t.active,
     assignedAt: t.assignedAt,
-    specialization: t.specialization,
+    categoryId: t.categoryId ?? null,
+    categoryName: itemName(t.categoryId),
   };
 }
 
