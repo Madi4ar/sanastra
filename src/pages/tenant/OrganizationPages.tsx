@@ -7,12 +7,11 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { BillingInfo, CatalogModule, SubscriptionHistoryEntry, UsageItem } from '@/api/types';
+import type { BillingInfo, SubscriptionHistoryEntry, UsageItem } from '@/api/types';
 import { PaymentModal } from '@/features/tenant-admin/PaymentModal';
-import { DemoBadge, UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
-import { ModuleIcon } from '@/shared/ModuleIcon';
+import { DemoModulesGrid } from '@/features/tenant-admin/UpgradePromo';
 import { formatDiscount, formatKzt, OPERATION_LABEL } from '@/shared/pricing';
-import { HIDDEN_PAGES, useTenantContext } from '@/features/tenant/access';
+import { useDemoModules, useTenantContext } from '@/features/tenant/access';
 import { CardGrid, ModuleCard } from '@/features/tenant/ModuleCard';
 import { StatCard, StatGrid } from '@/features/tenant/StatCard';
 import { useSubscriptionSummary, useTenantUsage } from '@/features/tenant/queries';
@@ -287,14 +286,11 @@ export function SubscriptionPage() {
 }
 
 export function ModulesPage() {
-  const { visibleModules: availableModules, clientSlug, isAdmin } = useTenantContext();
-  const catalog = useModuleCatalog(clientSlug, isAdmin);
-  const [promo, setPromo] = useState<CatalogModule | null>(null);
-  const locked = (catalog.data ?? []).filter((m) => !m.enabled && !HIDDEN_PAGES.includes(m.code));
+  const { visibleModules: availableModules } = useTenantContext();
+  const demo = useDemoModules();
   return (
     <>
       <PageHeader title="Модули" subtitle="Модули вашего тарифа и модули, доступные при переходе на другой тариф." />
-      {promo && <UpgradePromoModal module={promo} onClose={() => setPromo(null)} />}
       {availableModules.length ? (
         <CardGrid testId="modules-grid">
           {availableModules.map((m, i) => (
@@ -306,23 +302,9 @@ export function ModulesPage() {
           <Empty description="Нет доступных модулей" />
         </Card>
       )}
-      {locked.length > 0 && (
-        <div className="mt-6">
-          <h2 className="m-0 mb-3 text-lg font-semibold text-text">Доступно в других тарифах</h2>
-          <CardGrid testId="demo-modules-grid">
-            {locked.map((m) => (
-              <Card key={m.code} hoverable className="h-full" onClick={() => setPromo(m)} data-testid={`demo-module-${m.code}`}>
-                <div className="flex flex-col items-start gap-2">
-                  <ModuleIcon name={m.icon} />
-                  <span className="font-semibold">{m.name}</span>
-                  <span className="text-sm text-muted">{m.description}</span>
-                  <DemoBadge module={m} />
-                </div>
-              </Card>
-            ))}
-          </CardGrid>
-        </div>
-      )}
+      <div className="mt-6">
+        <DemoModulesGrid modules={demo} title="Доступно в других тарифах (демо)" />
+      </div>
     </>
   );
 }

@@ -746,8 +746,10 @@ export interface TenantRole {
   nameKz: string;
   description: string;
   isSystem: boolean;
-  /** Опции, действующие в организации (в пределах тарифа) */
+  /** Включённые опции; вне тарифа они работают только в демо-режиме */
   matrix: string[];
+  /** Сколько включённых опций вне тарифа */
+  demoOptions: number;
   scope: 'DEPARTMENT' | 'MEMBERS' | null;
   departmentId: string | null;
   memberIds: string[];
@@ -756,8 +758,10 @@ export interface TenantRole {
 
 export interface TenantRolesData {
   roles: TenantRole[];
-  /** Модули и опции, разрешённые тарифом: только из них собирается матрица */
+  /** Все модули и опции глобальной роли администратора: из них собирается матрица */
   catalog: RegistryModule[];
+  /** Модули вне тарифа организации: ключ модуля → название тарифа, в котором он есть */
+  demoModules: Record<string, string | null>;
 }
 
 export interface TenantRolePayload {

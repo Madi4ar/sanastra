@@ -1,3 +1,5 @@
+import { useDemoModules } from '@/features/tenant/access';
+import { DemoModulesGrid } from '@/features/tenant-admin/UpgradePromo';
 import { Alert, Avatar, Button, Card, Empty, Skeleton } from 'antd';
 import { ArrowRight, CalendarDays, CreditCard, LayoutGrid, ShieldCheck, UserRound } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
@@ -24,6 +26,16 @@ export function ExpiringAlert({ daysLeft, endDate }: { daysLeft: number; endDate
       title="Подписка скоро истекает"
       description={`Осталось ${daysLeft} дн. — до ${formatDate(endDate)} включительно. Обратитесь к администратору Sanastra для продления.`}
     />
+  );
+}
+
+/** Модули вне тарифа: открываются в демо-режиме */
+function DashboardDemo() {
+  const demo = useDemoModules();
+  return (
+    <div className="mt-6">
+      <DemoModulesGrid modules={demo} title="Демо-доступ" />
+    </div>
   );
 }
 
@@ -117,6 +129,7 @@ function OrganizationDashboard() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <ModulesSection modules={visibleModules} title="Быстрые действия" />
+        <DashboardDemo />
         <section aria-labelledby="usage-h">
           <SectionTitle
             title={<span id="usage-h">Использование лимитов</span>}
@@ -189,6 +202,7 @@ function UserDashboard() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <ModulesSection modules={visibleModules} title="Мои разделы" />
+        <DashboardDemo />
         <section aria-labelledby="profile-h">
           <SectionTitle title={<span id="profile-h">Профиль</span>} />
           <Card styles={{ body: { padding: 20 } }}>

@@ -23,15 +23,16 @@ import type {
   TenantRole,
   TenantRolePayload,
 } from '@/api/types';
+import { inTariff, moduleOfKey, TARIFF_MODULE_OF } from '@/shared/access';
 import { finalPrice, planAmount } from '@/shared/pricing';
 import { computeStatus, effectiveLimitValues, effectiveModules, load, MODULES, save, type OrgRecord } from './db';
 import { courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
 import { removeCourseContent } from './courseBuilder';
 import { err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
-import { addAudit, loadStructure, roleHolders, saveStructure, syncMembers, type LocalRole, type Member } from './orgStructure';
+import { addAudit, loadStructure, localMatrixOf, roleHolders, saveStructure, syncMembers, type LocalRole, type Member } from './orgStructure';
 import { canContinue, currentMonths, markPaid, newSchedule, planFor, scheduleEndDate } from './paymentSchedule';
 import { loadRegistry } from './registry';
-import { loadRoles, SYSTEM_ROLE_CODE } from './roles';
+import { loadRoles, matrixOf, SYSTEM_ROLE_CODE } from './roles';
 import { accessFor, fullNameOf, hashPassword, loadUsers, saveUsers, type UserRecord } from './users';
 
 const SYSTEM_ORG_ROLES: SystemOrgRole[] = ['ORGANIZATION_ADMIN', 'TRAINER', 'LEARNER'];
@@ -149,8 +150,29 @@ function toBilling(org: OrgRecord): BillingInfo {
 
 // ---------- роли ----------
 
-/** Что компания может делегировать: глобальная роль администратора ∩ тариф */
+/** Рабочий режим: глобальная роль администратора ∩ тариф */
 const delegable = (org: OrgRecord) => accessFor({ role: 'ORGANIZATION_ADMIN', clientSlug: org.clientSlug });
+
+/** Ближайший тариф дороже текущего, в который входит модуль */
+function upgradeTariffFor(org: OrgRecord, code: string): { id: string; name: string } | null {
+  const tariffs = [...load().tariffs].sort((a, b) => a.annualPrice - b.annualPrice);
+  const current = tariffs.find((t) => t.id === org.tariffPlanId);
+  const target = tariffs.find((t) => t.modules[code] && t.annualPrice > (current?.annualPrice ?? 0));
+  return target ? { id: target.id, name: target.name } : null;
+}
+
+/** Модули реестра вне тарифа организации */
+function demoModulesOf(org: OrgRecord): Record<string, string | null> {
+  const enabled = effectiveModules(org);
+  return Object.fromEntries(
+    loadRegistry()
+      .filter((m) => !inTariff(m.key, enabled))
+      .map((m) => {
+        const code = TARIFF_MODULE_OF[m.key];
+        return [m.key, code ? (upgradeTariffFor(org, code)?.name ?? null) : null];
+      }),
+  );
+}
 
 function pruneCatalog(allowed: string[]): RegistryModule[] {
   const prune = (nodes: RegistryOption[]): RegistryOption[] =>
@@ -172,7 +194,8 @@ function toTenantRole(r: LocalRole, store: ReturnType<typeof loadStructure>, all
     nameKz: r.nameKz,
     description: r.description,
     isSystem: false,
-    matrix: r.matrix.filter((k) => allowed.includes(k)),
+    matrix: r.matrix,
+    demoOptions: r.matrix.filter((k) => !allowed.includes(k)).length,
     scope: r.scope,
     departmentId: r.departmentId,
     memberIds: store.members.filter((m) => m.localRoleIds.includes(r.id)).map((m) => m.id),
@@ -194,9 +217,10 @@ function validateRole(body: Partial<TenantRolePayload>, ctx: Ctx, selfId?: strin
     if (!store.departments.some((d) => d.id === body.departmentId && d.tenantId === ctx.org.tenantId)) fe.departmentId = 'Выберите отдел';
   } else if (body.scope !== 'MEMBERS') fe.scope = 'Выберите, к кому привязана роль';
   const matrix = Array.isArray(body.matrix) ? [...new Set(body.matrix.filter((k) => typeof k === 'string'))] : [];
-  const allowed = delegable(ctx.org);
+  // Тариф не ограничивает выбор: опции вне тарифа работают в демо-режиме до перехода на нужный тариф
+  const allowed = matrixOf('ORGANIZATION_ADMIN');
   const denied = matrix.filter((k) => !allowed.includes(k));
-  if (denied.length) fe.matrix = `Опции не разрешены тарифом или глобальной ролью администратора: ${denied.slice(0, 3).join(', ')}`;
+  if (denied.length) fe.matrix = `Опции не разрешены глобальной ролью администратора: ${denied.slice(0, 3).join(', ')}`;
   return { fe, matrix };
 }
 
@@ -338,22 +362,24 @@ export const tenantAdminHandlers = () => [
   // ---------- Каталог модулей: рабочие и демо ----------
   http.get('/api/tenant/module-catalog', async ({ request }) => {
     await latency();
-    const ctx = adminContext(request);
+    const ctx = tenantContext(request);
     if (ctx instanceof Response) return ctx;
     const enabled = effectiveModules(ctx.org);
-    const tariffs = [...load().tariffs].sort((a, b) => a.annualPrice - b.annualPrice);
-    const current = tariffs.find((t) => t.id === ctx.org.tariffPlanId);
-    const result: CatalogModule[] = MODULES.map((m) => {
-      const target = tariffs.find((t) => t.modules[m.code] && t.annualPrice > (current?.annualPrice ?? 0));
-      return {
-        code: m.code,
-        name: m.name,
-        description: m.description,
-        icon: m.icon,
-        enabled: enabled.includes(m.code),
-        upgradeTariff: target ? { id: target.id, name: target.name } : null,
-      };
-    });
+    // Администратор видит все модули; сотрудник — только те, что включены в матрице его ролей
+    const isAdmin = ctx.user.role === 'ORGANIZATION_ADMIN';
+    const granted = new Set(
+      [...matrixOf(ctx.user.role, ctx.user.customRole), ...localMatrixOf(ctx.user.id, ctx.org.clientSlug)].map(
+        (k) => TARIFF_MODULE_OF[moduleOfKey(k)],
+      ),
+    );
+    const result: CatalogModule[] = MODULES.filter((m) => isAdmin || enabled.includes(m.code) || granted.has(m.code)).map((m) => ({
+      code: m.code,
+      name: m.name,
+      description: m.description,
+      icon: m.icon,
+      enabled: enabled.includes(m.code),
+      upgradeTariff: upgradeTariffFor(ctx.org, m.code),
+    }));
     return HttpResponse.json(result);
   }),
 
@@ -653,7 +679,8 @@ export const tenantAdminHandlers = () => [
         nameKz: r.name,
         description: r.description,
         isSystem: true,
-        matrix: r.matrix.filter((k) => allowed.includes(k)),
+        matrix: r.matrix,
+        demoOptions: r.matrix.filter((k) => !allowed.includes(k)).length,
         scope: null,
         departmentId: null,
         memberIds: [],
@@ -661,7 +688,8 @@ export const tenantAdminHandlers = () => [
       }));
     return HttpResponse.json({
       roles: [...systemRoles, ...store.roles.filter((r) => r.tenantId === ctx.org.tenantId).map((r) => toTenantRole(r, store, allowed))],
-      catalog: pruneCatalog(allowed),
+      catalog: pruneCatalog(matrixOf('ORGANIZATION_ADMIN')),
+      demoModules: demoModulesOf(ctx.org),
     });
   }),
 

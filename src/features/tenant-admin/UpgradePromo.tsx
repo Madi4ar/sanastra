@@ -1,10 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Modal, Tag } from 'antd';
 import { Lock, PlayCircle } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { CatalogModule } from '@/api/types';
+import { useCurrentUser } from '@/auth/auth';
+import { CardGrid } from '@/features/tenant/ModuleCard';
 import { useCabinet } from '@/features/tenant/cabinet';
 import { ModuleIcon } from '@/shared/ModuleIcon';
 
@@ -41,6 +44,7 @@ export function DemoBadge({ module }: { module: CatalogModule }) {
 
 function PromoBody({ module }: { module: CatalogModule }) {
   const video = DEMO_VIDEO_URL[module.code];
+  const isAdmin = useCurrentUser().data?.role === 'ORGANIZATION_ADMIN';
   return (
     <div className="flex flex-col gap-4" data-testid={`promo-${module.code}`}>
       <div className="flex flex-wrap items-center gap-3">
@@ -66,9 +70,13 @@ function PromoBody({ module }: { module: CatalogModule }) {
           ))}
         </ul>
       )}
-      {!module.upgradeTariff && (
-        <p className="m-0 text-sm text-muted">Чтобы подключить модуль, обратитесь к администратору Sanastra.</p>
-      )}
+      <p className="m-0 text-sm text-muted" data-testid="demo-hint">
+        {module.upgradeTariff
+          ? isAdmin
+            ? `Сейчас открыт демо-доступ. Чтобы работать с модулем, перейдите на тариф ${module.upgradeTariff.name}.`
+            : `Сейчас открыт демо-доступ. Чтобы работать с модулем, попросите администратора организации перейти на тариф ${module.upgradeTariff.name}.`
+          : 'Сейчас открыт демо-доступ. Чтобы подключить модуль, обратитесь к администратору Sanastra.'}
+      </p>
     </div>
   );
 }
@@ -76,7 +84,8 @@ function PromoBody({ module }: { module: CatalogModule }) {
 function UpgradeButton({ module, onGo }: { module: CatalogModule; onGo?: () => void }) {
   const { base } = useCabinet();
   const navigate = useNavigate();
-  if (!module.upgradeTariff) return null;
+  const isAdmin = useCurrentUser().data?.role === 'ORGANIZATION_ADMIN';
+  if (!module.upgradeTariff || !isAdmin) return null;
   return (
     <Button
       type="primary"
@@ -96,7 +105,7 @@ export function UpgradePromoModal({ module, onClose }: { module: CatalogModule; 
     <Modal
       open
       width={640}
-      title="Модуль не входит в ваш тариф"
+      title="Демо-доступ"
       onCancel={onClose}
       destroyOnHidden
       footer={[
@@ -108,6 +117,30 @@ export function UpgradePromoModal({ module, onClose }: { module: CatalogModule; 
     >
       <PromoBody module={module} />
     </Modal>
+  );
+}
+
+/** Закрытые модули карточками: клик открывает демо-доступ */
+export function DemoModulesGrid({ modules, title }: { modules: CatalogModule[]; title: string }) {
+  const [promo, setPromo] = useState<CatalogModule | null>(null);
+  if (!modules.length) return null;
+  return (
+    <section data-testid="demo-modules">
+      <h2 className="m-0 mb-3 text-lg font-semibold text-text">{title}</h2>
+      <CardGrid testId="demo-modules-grid">
+        {modules.map((m) => (
+          <Card key={m.code} hoverable className="h-full" onClick={() => setPromo(m)} data-testid={`demo-module-${m.code}`}>
+            <div className="flex flex-col items-start gap-2">
+              <ModuleIcon name={m.icon} />
+              <span className="font-semibold">{m.name}</span>
+              <span className="text-sm text-muted">{m.description}</span>
+              <DemoBadge module={m} />
+            </div>
+          </Card>
+        ))}
+      </CardGrid>
+      {promo && <UpgradePromoModal module={promo} onClose={() => setPromo(null)} />}
+    </section>
   );
 }
 

@@ -94,7 +94,7 @@ function StructureModal({ row, onClose }: { row: LocalRoleRow; onClose: () => vo
           <div>
             <p className="m-0 mb-1 text-sm font-medium">Доступ локальных ролей</p>
             <p className="m-0 mb-2 text-xs text-muted">
-              Компания может делегировать только опции, разрешённые её тарифом и глобальной ролью «Администратор организации».
+              В рабочем режиме действуют опции тарифа и глобальной роли «Администратор организации»; остальные — в демо-режиме.
             </p>
             <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
               {q.data.roles.map((r) => (

@@ -81,17 +81,23 @@ function RevokedRedirect({ code }: { code: string }) {
 export function FeatureGuard({ code, children }: { code: string; children: ReactNode }) {
   const { base, clientSlug } = useCabinet();
   const { enabled, isLoading } = useFeature(code);
-  const isAdmin = canManageOrganization(useCurrentUser().data);
-  const catalog = useModuleCatalog(clientSlug, isAdmin);
+  const catalog = useModuleCatalog(clientSlug, true);
   const [wasEnabled, setWasEnabled] = useState(false);
   if (enabled && !wasEnabled) setWasEnabled(true);
 
-  if (isLoading || (isAdmin && catalog.isPending)) return <Skeleton active paragraph={{ rows: 4 }} />;
+  if (isLoading || catalog.isPending) return <Skeleton active paragraph={{ rows: 4 }} />;
   if (enabled) return <>{children}</>;
   if (wasEnabled) return <RevokedRedirect code={code} />;
   const locked = catalog.data?.find((m) => m.code === code && !m.enabled);
-  if (isAdmin && locked) return <LockedModulePage module={locked} />;
+  if (locked) return <LockedModulePage module={locked} />;
   return <Navigate to={`${base}/feature-unavailable`} replace />;
+}
+
+/** Модули вне тарифа, доступные пользователю в демо-режиме */
+export function useDemoModules() {
+  const { clientSlug } = useCabinet();
+  const catalog = useModuleCatalog(clientSlug, true);
+  return (catalog.data ?? []).filter((m) => !m.enabled && !HIDDEN_PAGES.includes(m.code));
 }
 
 /** Раздел кабинета: опция есть в итоговом доступе (матрица роли ∩ тариф). */

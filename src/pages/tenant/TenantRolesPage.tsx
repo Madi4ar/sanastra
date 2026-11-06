@@ -32,10 +32,12 @@ function optionRow(o: RegistryOption): MatrixRow {
 /** Матрица доступов: только модули и опции, разрешённые текущим тарифом */
 function OptionMatrix({
   catalog,
+  demoModules,
   selected,
   onChange,
 }: {
   catalog: RegistryModule[];
+  demoModules: Record<string, string | null>;
   selected: string[];
   /** Без обработчика — только просмотр */
   onChange?: (next: string[]) => void;
@@ -59,7 +61,20 @@ function OptionMatrix({
       data-testid="role-matrix"
       expandable={{ indentSize: 20 }}
       columns={[
-        { title: 'Модуль / опция', dataIndex: 'name', key: 'name' },
+        {
+          title: 'Модуль / опция',
+          key: 'name',
+          render: (_, r) => (
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {r.name}
+              {r.key in demoModules && (
+                <Tag color="gold" className="m-0" data-testid={`matrix-demo-${r.key}`}>
+                  {demoModules[r.key] ? `Демо / Доступно в тарифе ${demoModules[r.key]}` : 'Демо'}
+                </Tag>
+              )}
+            </span>
+          ),
+        },
         {
           title: 'Доступ',
           key: 'switch',
@@ -96,11 +111,13 @@ function RoleModal({
   clientSlug,
   role,
   catalog,
+  demoModules,
   onClose,
 }: {
   clientSlug: string;
   role: TenantRole | null;
   catalog: RegistryModule[];
+  demoModules: Record<string, string | null>;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -198,8 +215,17 @@ function RoleModal({
           <p className="m-0 mb-2 text-sm font-medium">
             Матрица доступов <span className="font-normal text-muted">· включено опций: {values.matrix.length}</span>
           </p>
+          {Object.keys(demoModules).length > 0 && (
+            <Alert
+              className="mb-2"
+              type="info"
+              showIcon
+              title="Модули с пометкой «Демо» можно включить"
+              description="Сотрудник увидит демо-доступ. Рабочий режим откроется после перехода на указанный тариф."
+            />
+          )}
           {fe.matrix && <Alert className="mb-2" type="error" showIcon title={fe.matrix} />}
-          <OptionMatrix catalog={catalog} selected={values.matrix} onChange={(matrix) => set({ matrix })} />
+          <OptionMatrix catalog={catalog} demoModules={demoModules} selected={values.matrix} onChange={(matrix) => set({ matrix })} />
         </div>
         {other && <Alert type="error" showIcon title={other} />}
       </div>
@@ -219,6 +245,7 @@ export function TenantRolesPage() {
   const [viewing, setViewing] = useState<TenantRole | null>(null);
   const roles = q.data?.roles ?? [];
   const catalog = q.data?.catalog ?? [];
+  const demoModules = q.data?.demoModules ?? {};
 
   const remove = useMutation({
     mutationFn: (r: TenantRole) => api.tenantAdmin(clientSlug).removeRole(r.id),
@@ -244,8 +271,17 @@ export function TenantRolesPage() {
     {
       title: 'Модулей / опций',
       key: 'matrix',
-      width: 150,
-      render: (_: unknown, r: TenantRole) => `${modulesOf(r.matrix).length} / ${r.matrix.length}`,
+      width: 190,
+      render: (_: unknown, r: TenantRole) => (
+        <span>
+          {modulesOf(r.matrix).length} / {r.matrix.length}
+          {r.demoOptions > 0 && (
+            <Tag color="gold" className="ml-2">
+              Демо: {r.demoOptions}
+            </Tag>
+          )}
+        </span>
+      ),
     },
     { title: 'Сотрудников', dataIndex: 'employeesCount', key: 'employees', width: 120, align: 'right' as const },
     {
@@ -283,7 +319,7 @@ export function TenantRolesPage() {
 
   return (
     <>
-      <PageHeader title="Роли и доступы" subtitle="Системные роли и собственные роли компании. Доступны только модули и опции вашего тарифа." />
+      <PageHeader title="Роли и доступы" subtitle="Системные роли и собственные роли компании. Модули вне вашего тарифа работают в демо-режиме." />
       {q.isError ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
@@ -324,14 +360,14 @@ export function TenantRolesPage() {
           </Card>
         </div>
       )}
-      {editing && <RoleModal clientSlug={clientSlug} role={editing === 'new' ? null : editing} catalog={catalog} onClose={() => setEditing(null)} />}
+      {editing && <RoleModal clientSlug={clientSlug} role={editing === 'new' ? null : editing} catalog={catalog} demoModules={demoModules} onClose={() => setEditing(null)} />}
       {viewing && (
         <Modal open width={720} title={`Матрица прав: ${viewing.nameRu}`} footer={null} onCancel={() => setViewing(null)} destroyOnHidden>
           <div className="flex flex-col gap-3 pt-2">
             <Tag className="self-start" icon={<Lock size={12} className="mr-1 inline" aria-hidden />}>
               Системная роль: только просмотр
             </Tag>
-            <OptionMatrix catalog={catalog} selected={viewing.matrix} />
+            <OptionMatrix catalog={catalog} demoModules={demoModules} selected={viewing.matrix} />
           </div>
         </Modal>
       )}
