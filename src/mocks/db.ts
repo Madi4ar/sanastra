@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import { resetContent } from './content';
 import { resetCourseContent } from './courseBuilder';
 import { resetOrgStructure } from './orgStructure';
+import type { StoredSchedule } from './paymentSchedule';
 import { resetRegistry } from './registry';
 import { resetRoles } from './roles';
 import { resetUsers } from './users';
@@ -46,7 +47,7 @@ export const MODULES: ModuleDef[] = [
   { code: 'REPORTS', name: 'Отчёты', description: 'Аналитика успеваемости и активности', icon: 'ChartColumn', permission: 'reports.view' },
   { code: 'CHAT', name: 'Сообщения', description: 'Чаты между участниками', icon: 'MessageSquare', permission: 'chat.view' },
   { code: 'WEBINARS', name: 'Вебинары', description: 'Онлайн-трансляции и записи', icon: 'Video', permission: 'webinars.view' },
-  { code: 'CERTIFICATES', name: 'Сертификаты', description: 'Выдача сертификатов о прохождении', icon: 'FileText', permission: 'certificates.manage' },
+  { code: 'CERTIFICATES', name: 'Сертификаты', description: 'Выдача сертификатов о прохождении', icon: 'FileText', permission: 'certificates.view' },
 ];
 
 export const LIMITS: LimitDefinition[] = [
@@ -102,6 +103,8 @@ export const TARIFFS: TariffRecord[] = [
 ];
 
 export interface OrgRecord {
+  /** График помесячной оплаты; без него период считается оплаченным целиком */
+  paymentSchedule?: StoredSchedule | null;
   tenantId: string;
   name: string;
   clientSlug: string;

@@ -48,7 +48,7 @@ function ModulesSection({ modules, title }: { modules: TenantModule[]; title: st
 
 /** Обзор администратора организации: KPI подписки, быстрые действия и лимиты. */
 function OrganizationDashboard() {
-  const { clientSlug, base, user, access, availableModules } = useTenantContext();
+  const { clientSlug, base, user, access, visibleModules } = useTenantContext();
   const navigate = useNavigate();
   const usage = useTenantUsage(clientSlug);
   if (!access || !user) return null;
@@ -101,7 +101,7 @@ function OrganizationDashboard() {
           />
           <StatCard
             label="Доступно разделов"
-            value={availableModules.length}
+            value={visibleModules.length}
             hint="по тарифу и правам ролей"
             tone="info"
             icon={<LayoutGrid size={20} />}
@@ -116,7 +116,7 @@ function OrganizationDashboard() {
       )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
-        <ModulesSection modules={availableModules} title="Быстрые действия" />
+        <ModulesSection modules={visibleModules} title="Быстрые действия" />
         <section aria-labelledby="usage-h">
           <SectionTitle
             title={<span id="usage-h">Использование лимитов</span>}
@@ -147,10 +147,10 @@ function OrganizationDashboard() {
 
 /** Личный кабинет пользователя: крупная приветственная карточка и доступные разделы. */
 function UserDashboard() {
-  const { base, user, access, availableModules } = useTenantContext();
+  const { base, user, access, visibleModules } = useTenantContext();
   const navigate = useNavigate();
   if (!access || !user) return null;
-  const first = availableModules[0];
+  const first = visibleModules[0];
 
   return (
     <>
@@ -169,8 +169,8 @@ function UserDashboard() {
         </p>
         <h1 className="m-0 mt-1 text-3xl font-bold tracking-tight">Здравствуйте, {user.fullName.split(' ')[0]}!</h1>
         <p className="m-0 mt-2 max-w-xl opacity-85">
-          {availableModules.length
-            ? `Вам доступно разделов: ${availableModules.length}. Выберите, с чего начать.`
+          {visibleModules.length
+            ? `Вам доступно разделов: ${visibleModules.length}. Выберите, с чего начать.`
             : 'Пока нет доступных разделов — обратитесь к администратору организации.'}
         </p>
         {first && (
@@ -188,7 +188,7 @@ function UserDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <ModulesSection modules={availableModules} title="Мои разделы" />
+        <ModulesSection modules={visibleModules} title="Мои разделы" />
         <section aria-labelledby="profile-h">
           <SectionTitle title={<span id="profile-h">Профиль</span>} />
           <Card styles={{ body: { padding: 20 } }}>

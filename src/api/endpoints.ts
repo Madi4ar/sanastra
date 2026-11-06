@@ -199,8 +199,8 @@ export const api = {
     return {
       catalog: () => send<CatalogModule[]>('/module-catalog', 'GET'),
       billing: () => send<BillingInfo>('/billing', 'GET'),
-      createPayment: (tariffPlanId: string, period: PaymentPeriod) =>
-        send<PaymentOrder>('/payments', 'POST', { tariffPlanId, period }),
+      createPayment: (tariffPlanId: string, period: PaymentPeriod, months: number[]) =>
+        send<PaymentOrder>('/payments', 'POST', { tariffPlanId, period, months }),
       /** Результат эквайринга (вебхук). Данные карты на сервер не передаются. */
       completePayment: (id: string, outcome: 'SUCCESS' | 'DECLINED') =>
         send<BillingInfo>(`/payments/${encodeURIComponent(id)}/webhook`, 'POST', { outcome }),

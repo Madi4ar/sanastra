@@ -40,7 +40,7 @@ export interface Discount {
   value: number;
 }
 
-export type SubscriptionOperation = 'ACTIVATION' | 'RENEWAL' | 'TARIFF_CHANGE' | 'UPDATE';
+export type SubscriptionOperation = 'ACTIVATION' | 'RENEWAL' | 'TARIFF_CHANGE' | 'UPDATE' | 'PAYMENT';
 
 /** Запись неизменяемой истории тарифов и периодов подписки */
 export interface SubscriptionHistoryEntry {
@@ -56,7 +56,7 @@ export interface SubscriptionHistoryEntry {
   status: 'ACTIVE' | 'COMPLETED';
   source: ChangeSource;
   /** Онлайн-оплата: выбранный период и списанная сумма */
-  payment?: { period: PaymentPeriod; amount: number };
+  payment?: { months: number; amount: number };
 }
 
 export interface TariffModuleDefault {
@@ -619,6 +619,31 @@ export interface BillingTariff {
   monthlyPrice: number;
   modules: string[];
   isCurrent: boolean;
+  /** Что будет оплачиваться при выборе этого тарифа */
+  plan: PaymentPlan;
+}
+
+/** Месяц годового периода подписки */
+export interface PaymentMonth {
+  index: number;
+  from: string;
+  to: string;
+  paid: boolean;
+  paidAt: string | null;
+  amount: number | null;
+  /** Сегодняшний день попадает в этот месяц */
+  current: boolean;
+}
+
+export interface PaymentPlan {
+  /** true — продолжение текущего графика, false — новый годовой период */
+  continuing: boolean;
+  startDate: string;
+  monthlyAmount: number;
+  annualAmount: number;
+  /** Уже оплачено по графику */
+  paidAmount: number;
+  months: PaymentMonth[];
 }
 
 export interface BillingInfo {
@@ -632,6 +657,8 @@ export interface BillingInfo {
   discount: Discount;
   finalPrice: number;
   history: SubscriptionHistoryEntry[];
+  /** Месяцы текущей подписки: оплаченные и нет */
+  months: PaymentMonth[];
   /** Текущий тариф и тарифы для перехода */
   tariffs: BillingTariff[];
 }
@@ -641,6 +668,8 @@ export interface PaymentOrder {
   tariffPlanId: string;
   tariffName: string;
   period: PaymentPeriod;
+  /** Оплачиваемые месяцы графика */
+  months: number[];
   amount: number;
 }
 

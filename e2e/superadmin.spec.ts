@@ -113,10 +113,10 @@ test('7. Запрет доступа без SUPERADMIN', async ({ page }) => {
   await expect(page.getByText('Недостаточно прав для просмотра этой страницы.')).toBeVisible();
 });
 
-test('Демо-модули: администратор видит закрытый модуль и предложение перейти на другой тариф', async ({ page }) => {
+test('Демо-модули: скрытый из меню закрытый модуль предлагает перейти на другой тариф', async ({ page }) => {
   await login(page, 'tenant');
-  await expect(page.getByRole('menuitem', { name: 'Вебинары' })).toBeVisible(); // включён индивидуально
-  await expect(page.getByRole('menuitem', { name: /Конструктор отчётов.*Демо/ })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Вебинары' })).toHaveCount(0); // страница временно скрыта
+  await expect(page.getByRole('menuitem', { name: /Конструктор отчётов/ })).toHaveCount(0);
   await page.goto('/academy/admin/m/REPORTS');
   await expect(page.getByTestId('promo-REPORTS')).toContainText('Демо / Доступно в тарифе Стандарт');
   await expect(page.getByRole('button', { name: 'Перейти на тариф Стандарт' })).toBeVisible();

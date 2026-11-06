@@ -47,6 +47,7 @@ import { roleLabel, useRoleSwitchItems } from '@/features/auth/roles';
 import { useTenantContext } from '@/features/tenant/access';
 import { useTenantAccess } from '@/features/tenant/queries';
 import type { CrumbHandle } from '@/layout/AppLayout';
+import { HIDDEN_PAGES } from '@/features/tenant/access';
 import { demoBadgeText, UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
 import type { CatalogModule } from '@/api/types';
 import { formatDate, formatDateTime } from '@/shared/format';
@@ -79,6 +80,9 @@ const navTheme: ThemeConfig = {
   },
 };
 
+/** Разделы скрыты из меню и поиска; доступ к ним настраивается в матрице доступов */
+const HIDDEN_FROM_MENU = ['REPORTS', 'CHAT', 'CERTIFICATES', ...HIDDEN_PAGES];
+
 /** Названия разделов в кабинете администратора */
 const ADMIN_MODULE_LABEL: Record<string, string> = { COURSES: 'Учебные программы', REPORTS: 'Конструктор отчётов' };
 
@@ -106,7 +110,8 @@ function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boo
   const available = (code: string) => availableModules.filter((m) => m.code === code).map(moduleItem);
   const section = (option: string, key: string, label: string, icon: ReactNode): NavItem[] =>
     access.includes(option) ? [{ key, label, icon, to: `${base}/${key}` }] : [];
-  const SECTION_MODULES = ['USERS', 'COURSES', 'REPORTS'];
+  const SECTION_MODULES = ['USERS', 'COURSES'];
+  const inMenu = (m: { code: string }) => !HIDDEN_FROM_MENU.includes(m.code);
   const main: NavItem[] = [
     { key: 'profile', label: 'Профиль', icon: <UserRound size={16} />, to: `${base}/profile` },
     { key: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={16} />, to: base, exact: true },
@@ -125,10 +130,9 @@ function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boo
     ...section('lms_roles.view', 'roles', 'Роли и доступы', <ShieldCheck size={16} />),
     ...available('COURSES'),
     ...section('lms_groups.view', 'groups', 'Группы', <UsersRound size={16} />),
-    ...available('REPORTS'),
-    ...availableModules.filter((m) => !SECTION_MODULES.includes(m.code)).map(moduleItem),
+    ...availableModules.filter((m) => inMenu(m) && !SECTION_MODULES.includes(m.code)).map(moduleItem),
     // Администратор видит все модули платформы; закрытые — в демо-режиме
-    ...(isAdmin ? (catalog.data ?? []).filter((m) => !m.enabled).map((m) => ({ ...moduleItem(m), demo: m })) : []),
+    ...(isAdmin ? (catalog.data ?? []).filter((m) => !m.enabled && inMenu(m)).map((m) => ({ ...moduleItem(m), demo: m })) : []),
   ];
   const organization: NavItem[] = isAdmin
     ? [

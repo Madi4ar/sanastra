@@ -52,12 +52,12 @@ interface Store {
   roles: LocalRole[];
   groups: (OrgGroup & { tenantId: string })[];
   /** Заказы на оплату: одна оплата продлевает подписку один раз */
-  payments: (PaymentOrder & { tenantId: string; status: 'PENDING' | 'PAID' | 'DECLINED' })[];
+  payments: (PaymentOrder & { tenantId: string; status: 'PENDING' | 'PAID' | 'DECLINED'; annualAmount: number; monthlyAmount: number })[];
   /** Новые записи сверху */
   audit: AuditEntry[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-org-structure-v2';
+const STORAGE_KEY = 'superadmin-mock-org-structure-v3';
 
 const EMPLOYEES = [
   'Ержанова Динара',
@@ -73,7 +73,7 @@ const EMPLOYEES = [
 
 const ROLE_TEMPLATES: { name: string; nameKz: string; department: number; modules: string[] }[] = [
   { name: 'Руководитель филиала', nameKz: 'Филиал басшысы', department: 3, modules: ['lms_users', 'lms_departments', 'lms_groups', 'lms_report_builder'] },
-  { name: 'Методист', nameKz: 'Әдіскер', department: 1, modules: ['lms_prog_core', 'lms_content_elements.text', 'lms_content_elements.test'] },
+  { name: 'Методист', nameKz: 'Әдіскер', department: 1, modules: ['lms_prog_core', 'lms_element_text', 'lms_element_test'] },
   { name: 'Куратор курса', nameKz: 'Курс кураторы', department: 1, modules: ['lms_groups.view', 'lms_groups.add_members_manual', 'lms_prog_core.view'] },
 ];
 

@@ -5,8 +5,9 @@
  */
 import dayjs from 'dayjs';
 import type { RegistryModule, RegistryOption, RegistryPublishOption, RegistryPublishPayload } from '@/api/types';
+import { elementModuleKey } from '@/shared/access';
 
-const STORAGE_KEY = 'superadmin-mock-registry-v2';
+const STORAGE_KEY = 'superadmin-mock-registry-v4';
 
 /** Элемент начального наполнения: [сегмент ключа, системное название, коммерческое название, вложенные опции] */
 type SeedOption = [string, string, string, SeedOption[]?];
@@ -106,11 +107,30 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
     options: [['builder_basic', 'builder_basic', 'Конструктор отчетов (базовый функционал генерации)']],
   },
   {
-    key: 'lms_content_elements',
-    displayName: 'Элементы контента (Конструктор курсов)',
-    versions: ['1.0.0', '1.1.0', '1.2.0', '2.0.0'],
-    options: CONTENT_ELEMENTS.map(([key, name]) => [key, key, name, CRUD] as SeedOption),
+    key: 'lms_chat',
+    displayName: 'Сообщения',
+    versions: ['1.0.0'],
+    options: [
+      ['view', 'view', 'Просмотр'],
+      ['send', 'send', 'Отправка сообщений'],
+    ],
   },
+  {
+    key: 'lms_certificates',
+    displayName: 'Сертификаты',
+    versions: ['1.0.0'],
+    options: [
+      ['view', 'view', 'Просмотр'],
+      ['issue', 'issue', 'Выдача сертификатов'],
+    ],
+  },
+  // Каждый элемент контента — отдельный модуль реестра со своими опциями
+  ...CONTENT_ELEMENTS.map(([key, name]) => ({
+    key: elementModuleKey(key),
+    displayName: `Модуль: ${name}`,
+    versions: ['1.0.0'],
+    options: CRUD,
+  })),
   {
     key: 'lms_learner_cabinet',
     displayName: 'ЛК Слушателя',

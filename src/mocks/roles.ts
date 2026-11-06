@@ -8,7 +8,7 @@ import { loadRegistry } from './registry';
 
 export type GlobalRoleRecord = Omit<GlobalRole, 'usersCount'>;
 
-const STORAGE_KEY = 'superadmin-mock-roles-v1';
+const STORAGE_KEY = 'superadmin-mock-roles-v3';
 
 export const SYSTEM_ROLE_CODE: Record<SystemRole, string> = {
   SUPERADMIN: 'superadmin',
@@ -24,7 +24,8 @@ function pick(all: string[], prefixes: string[]): string[] {
 
 function seed(): GlobalRoleRecord[] {
   const all = allLeafKeys(loadRegistry());
-  const contentView = all.filter((k) => /^lms_content_elements\.[a-z_]+\.view$/.test(k));
+  const elements = all.filter((k) => k.startsWith('lms_element_'));
+  const contentView = elements.filter((k) => k.endsWith('.view'));
   const at = new Date().toISOString();
   const system = (systemRole: SystemRole, name: string, description: string, matrix: string[]): GlobalRoleRecord => ({
     id: `role-${SYSTEM_ROLE_CODE[systemRole]}`,
@@ -41,11 +42,12 @@ function seed(): GlobalRoleRecord[] {
     system('ORGANIZATION_ADMIN', 'Администратор организации', 'Полное управление кабинетом своей организации', all),
     // Пример из ТЗ: учебные программы — только просмотр, ЛК Тренера — все опции
     system('TRAINER', 'Тренер', 'Ведёт курсы и группы, проверяет задания', [
-      ...pick(all, ['lms_prog_core.view', 'lms_trainer_cabinet', 'lms_content_elements', 'lms_groups.view', 'lms_report_builder']),
+      ...pick(all, ['lms_prog_core.view', 'lms_trainer_cabinet', 'lms_groups.view', 'lms_report_builder', 'lms_chat', 'lms_certificates']),
+      ...elements,
       ...pick(all, ['lms_course_showcase.catalog_view']),
     ]),
     system('LEARNER', 'Слушатель', 'Проходит курсы, оставляет заявки на витрине', [
-      ...pick(all, ['lms_learner_cabinet', 'lms_course_showcase']),
+      ...pick(all, ['lms_learner_cabinet', 'lms_course_showcase', 'lms_chat', 'lms_certificates.view']),
       ...contentView,
     ]),
     {
@@ -54,16 +56,10 @@ function seed(): GlobalRoleRecord[] {
       name: 'Старший методист',
       description: 'Разрабатывает учебные программы и контент курсов',
       isSystem: false,
-      matrix: pick(all, [
-        'lms_prog_core',
-        'lms_content_elements',
-        'lms_groups',
-        'lms_report_builder',
-        'lms_users',
-        'lms_departments',
-        'lms_course_showcase',
-        'lms_trainer_cabinet',
-      ]),
+      matrix: [
+        ...pick(all, ['lms_prog_core', 'lms_groups', 'lms_report_builder', 'lms_users', 'lms_departments', 'lms_course_showcase', 'lms_trainer_cabinet', 'lms_chat', 'lms_certificates']),
+        ...elements,
+      ],
       updatedAt: at,
     },
     {
@@ -72,7 +68,7 @@ function seed(): GlobalRoleRecord[] {
       name: 'Куратор группы',
       description: 'Сопровождает учебные группы',
       isSystem: false,
-      matrix: pick(all, ['lms_groups', 'lms_users.list_view']),
+      matrix: pick(all, ['lms_groups', 'lms_users.list_view', 'lms_chat']),
       updatedAt: at,
     },
   ];

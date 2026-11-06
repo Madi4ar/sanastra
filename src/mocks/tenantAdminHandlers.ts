@@ -23,12 +23,13 @@ import type {
   TenantRole,
   TenantRolePayload,
 } from '@/api/types';
-import { finalPrice } from '@/shared/pricing';
+import { finalPrice, planAmount } from '@/shared/pricing';
 import { computeStatus, effectiveLimitValues, effectiveModules, load, MODULES, save, type OrgRecord } from './db';
 import { courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
 import { removeCourseContent } from './courseBuilder';
 import { err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
 import { addAudit, loadStructure, roleHolders, saveStructure, syncMembers, type LocalRole, type Member } from './orgStructure';
+import { canContinue, currentMonths, markPaid, newSchedule, planFor, scheduleEndDate } from './paymentSchedule';
 import { loadRegistry } from './registry';
 import { loadRoles, SYSTEM_ROLE_CODE } from './roles';
 import { accessFor, fullNameOf, hashPassword, loadUsers, saveUsers, type UserRecord } from './users';
@@ -124,6 +125,7 @@ function toBilling(org: OrgRecord): BillingInfo {
     discount: org.discount,
     finalPrice: finalPrice(org.annualPrice, org.discount),
     history: org.history,
+    months: currentMonths(org),
     // Переход возможен на текущий или более дорогой тариф; понижение выполняет суперадминистратор
     tariffs: db.tariffs
       .filter((t) => t.id === current.id || t.annualPrice > current.annualPrice)
@@ -139,6 +141,7 @@ function toBilling(org: OrgRecord): BillingInfo {
           monthlyPrice: Math.round(final / 12),
           modules: MODULES.filter((m) => t.modules[m.code]).map((m) => m.name),
           isCurrent: t.id === current.id,
+          plan: planFor(org, t.id, final, Math.round(final / 12)),
         };
       }),
   };
@@ -367,10 +370,15 @@ export const tenantAdminHandlers = () => [
     const ctx = adminContext(request);
     if (ctx instanceof Response) return ctx;
     if (computeStatus(ctx.org) === 'BLOCKED') return err(403, 'TENANT_BLOCKED');
-    const body = (await request.json().catch(() => ({}))) as { tariffPlanId?: string; period?: PaymentPeriod };
+    const body = (await request.json().catch(() => ({}))) as { tariffPlanId?: string; period?: PaymentPeriod; months?: number[] };
     const offer = toBilling(ctx.org).tariffs.find((t) => t.id === body.tariffPlanId);
     if (!offer) return err(400, 'VALIDATION_ERROR', 'Этот тариф недоступен для оплаты.');
     if (body.period !== 'YEAR' && body.period !== 'MONTH') return err(400, 'VALIDATION_ERROR', 'Выберите период оплаты.');
+    const unpaid = offer.plan.months.filter((m) => !m.paid).map((m) => m.index);
+    // За год — все неоплаченные месяцы; помесячно — выбранные
+    const months = body.period === 'YEAR' ? unpaid : [...new Set(body.months ?? [])].sort((a, b) => a - b);
+    if (!months.length) return err(400, 'VALIDATION_ERROR', 'Выберите хотя бы один месяц.');
+    if (months.some((i) => !unpaid.includes(i))) return err(400, 'VALIDATION_ERROR', 'Выбранный месяц уже оплачен или не входит в период.');
     const store = loadStructure();
     const order = {
       id: crypto.randomUUID(),
@@ -378,7 +386,10 @@ export const tenantAdminHandlers = () => [
       tariffPlanId: offer.id,
       tariffName: offer.name,
       period: body.period,
-      amount: body.period === 'YEAR' ? offer.finalPrice : offer.monthlyPrice,
+      months,
+      amount: planAmount(offer.plan, months.length),
+      annualAmount: offer.plan.annualAmount,
+      monthlyAmount: offer.plan.monthlyAmount,
       status: 'PENDING' as const,
     };
     store.payments.push(order);
@@ -404,19 +415,44 @@ export const tenantAdminHandlers = () => [
     const db = load();
     const org = db.organizations.find((o) => o.tenantId === ctx.org.tenantId)!;
     const before = structuredClone(org);
-    const today = dayjs().format('YYYY-MM-DD');
-    const upgrade = order.tariffPlanId !== org.tariffPlanId;
-    const expired = org.subscriptionEndDate < today;
-    const from = upgrade || expired ? dayjs() : dayjs(org.subscriptionEndDate);
-    if (upgrade || expired) org.subscriptionStartDate = today;
+    // Продолжение графика или новый годовой период
+    if (!canContinue(org, order.tariffPlanId)) {
+      const plan = toBilling(org).tariffs.find((t) => t.id === order.tariffPlanId)!.plan;
+      org.paymentSchedule = newSchedule(order.tariffPlanId, plan.startDate, order.annualAmount, order.monthlyAmount);
+      if (plan.startDate <= dayjs().format('YYYY-MM-DD')) org.subscriptionStartDate = plan.startDate;
+    }
+    markPaid(org.paymentSchedule!, order.months, order.amount);
     org.tariffPlanId = order.tariffPlanId;
     org.subscriptionEnabled = true;
-    org.subscriptionEndDate = from.add(1, order.period === 'YEAR' ? 'year' : 'month').format('YYYY-MM-DD');
+    org.subscriptionEndDate = scheduleEndDate(org.paymentSchedule!);
     org.updatedAt = new Date().toISOString();
     org.updatedBy = 'SYSTEM_PAYMENT';
     org.version += 1;
+    const lastEntry = org.history[0]?.id;
     recordSubscriptionChange(before, org, 'SYSTEM_PAYMENT');
-    org.history[0]!.payment = { period: order.period, amount: order.amount };
+    const payment = { months: order.months.length, amount: order.amount };
+    if (org.history[0]?.id !== lastEntry) org.history[0]!.payment = payment;
+    else {
+      // Срок не сдвинулся (оплачены более поздние месяцы), но платёж всё равно попадает в историю
+      const tariff = db.tariffs.find((t) => t.id === org.tariffPlanId)!;
+      org.history = [
+        {
+          id: crypto.randomUUID(),
+          operation: 'PAYMENT',
+          operationAt: new Date().toISOString(),
+          tariffName: tariff.name,
+          periodStart: org.subscriptionStartDate,
+          periodEnd: org.subscriptionEndDate,
+          basePrice: org.annualPrice,
+          discount: org.discount,
+          finalPrice: finalPrice(org.annualPrice, org.discount),
+          status: 'ACTIVE',
+          source: 'SYSTEM_PAYMENT',
+          payment,
+        },
+        ...org.history.map((h) => ({ ...h, status: 'COMPLETED' as const })),
+      ];
+    }
     save(db);
     order.status = 'PAID';
     saveStructure(store);

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Input, Modal, Radio, Result, Select, Skeleton } from 'antd';
+import { Alert, App, Button, Checkbox, Input, Modal, Radio, Result, Select, Skeleton } from 'antd';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ru';
 import { CreditCard } from 'lucide-react';
 import { useState } from 'react';
 import { isApiError } from '@/api/client';
@@ -9,7 +11,7 @@ import type { PaymentPeriod } from '@/api/types';
 import { Field } from '@/shared/FormField';
 import { formatDate } from '@/shared/format';
 import { ErrorState } from '@/shared/PageState';
-import { formatKzt } from '@/shared/pricing';
+import { formatKzt, planAmount } from '@/shared/pricing';
 
 /** Тестовый номер, на котором эквайринг отклоняет платёж */
 const DECLINED_CARD = '4000000000000002';
@@ -42,11 +44,14 @@ function expiryValid(v: string): boolean {
 export function PaymentModal({
   clientSlug,
   initialTariffId,
+  initialMonths,
   onClose,
 }: {
   clientSlug: string;
   /** Тариф, выбранный в промо-окне демо-модуля */
   initialTariffId?: string;
+  /** Месяцы, выбранные на странице оплаты */
+  initialMonths?: number[];
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -54,7 +59,9 @@ export function PaymentModal({
   const admin = api.tenantAdmin(clientSlug);
   const billing = useQuery({ queryKey: queryKeys.tenantBilling(clientSlug), queryFn: admin.billing });
   const [tariffId, setTariffId] = useState(initialTariffId);
-  const [period, setPeriod] = useState<PaymentPeriod>('YEAR');
+  const [period, setPeriod] = useState<PaymentPeriod>(initialMonths?.length ? 'MONTH' : 'YEAR');
+  /** Выбор пользователя; пока его нет, отмечен первый неоплаченный месяц */
+  const [picked, setPicked] = useState<number[] | null>(initialMonths ?? null);
   const [step, setStep] = useState<'choose' | 'card'>('choose');
   const [card, setCard] = useState({ number: '', holder: '', expiry: '', cvc: '' });
   const [tried, setTried] = useState(false);
@@ -62,7 +69,13 @@ export function PaymentModal({
 
   const tariffs = billing.data?.tariffs ?? [];
   const tariff = tariffs.find((t) => t.id === tariffId) ?? tariffs.find((t) => t.isCurrent);
-  const amount = tariff ? (period === 'YEAR' ? tariff.finalPrice : tariff.monthlyPrice) : 0;
+  const plan = tariff?.plan;
+  const unpaid = plan?.months.filter((m) => !m.paid) ?? [];
+  const selected = picked ?? unpaid.slice(0, 1).map((m) => m.index);
+  const count = period === 'YEAR' ? unpaid.length : selected.length;
+  const amount = plan ? planAmount(plan, count) : 0;
+  // Оплачен более поздний месяц, а более ранний пропущен: доступа в пропущенный месяц не будет
+  const skipsMonth = period === 'MONTH' && selected.length > 0 && unpaid.some((m) => m.index < Math.max(...selected) && !selected.includes(m.index));
 
   const digits = card.number.replace(/\D/g, '');
   const cardErrors = {
@@ -74,7 +87,7 @@ export function PaymentModal({
 
   const pay = useMutation({
     mutationFn: async () => {
-      const order = await admin.createPayment(tariff!.id, period);
+      const order = await admin.createPayment(tariff!.id, period, selected);
       return admin.completePayment(order.id, digits === DECLINED_CARD ? 'DECLINED' : 'SUCCESS');
     },
     onSuccess: (data) => {
@@ -112,7 +125,7 @@ export function PaymentModal({
           <Button key="cancel" onClick={onClose}>
             Отмена
           </Button>,
-          <Button key="next" type="primary" disabled={!tariff} onClick={() => setStep('card')}>
+          <Button key="next" type="primary" disabled={!tariff || count === 0} onClick={() => setStep('card')}>
             Перейти к оплате
           </Button>,
         ]
@@ -135,7 +148,11 @@ export function PaymentModal({
         <Result
           status="success"
           title="Оплата прошла успешно"
-          subTitle={`Тариф «${billing.data.tariffName}» действует до ${formatDate(paidUntil)}. Доступ к модулям уже обновлён.`}
+          subTitle={
+            billing.data.status === 'ACTIVE'
+              ? `Тариф «${billing.data.tariffName}» оплачен до ${formatDate(paidUntil)}. Доступ к модулям уже обновлён.`
+              : 'Платёж принят. Текущий месяц не оплачен, доступ откроется с начала первого оплаченного месяца.'
+          }
         />
       ) : step === 'choose' ? (
         <div className="flex flex-col gap-4 pt-2">
@@ -146,7 +163,10 @@ export function PaymentModal({
               className="w-full"
               style={{ width: '100%' }}
               value={tariff?.id}
-              onChange={setTariffId}
+              onChange={(id) => {
+                setTariffId(id);
+                setPicked(null);
+              }}
               options={tariffs.map((t) => ({ value: t.id, label: t.isCurrent ? `${t.name} (текущий)` : `Перейти на «${t.name}»` }))}
             />
           </Field>
@@ -165,13 +185,46 @@ export function PaymentModal({
             onChange={(e) => setPeriod(e.target.value as PaymentPeriod)}
           >
             <Radio value="YEAR" data-testid="period-year">
-              <span className="font-medium">Оплата за 1 год сразу</span> — {tariff && formatKzt(tariff.finalPrice)}
+              <span className="font-medium">{plan?.continuing ? `Все оставшиеся месяцы (${unpaid.length})` : 'Оплата за 1 год сразу'}</span>
+              {' — '}
+              {plan && formatKzt(planAmount(plan, unpaid.length))}
             </Radio>
             <Radio value="MONTH" data-testid="period-month">
-              <span className="font-medium">Помесячная оплата</span> — {tariff && formatKzt(tariff.monthlyPrice)} в месяц
-              <span className="block text-xs text-muted">Годовая цена / 12. Подписка продлевается на 1 месяц.</span>
+              <span className="font-medium">Выбрать месяцы</span> — {plan && formatKzt(plan.monthlyAmount)} в месяц
+              <span className="block text-xs text-muted">Подписка на 1 год, оплата за выбранные месяцы (годовая цена / 12).</span>
             </Radio>
           </Radio.Group>
+          {period === 'MONTH' && plan && (
+            <div data-testid="month-picker">
+              <p className="m-0 mb-2 text-sm font-medium">Какие месяцы оплатить</p>
+              <Checkbox.Group
+                aria-label="Месяцы для оплаты"
+                className="grid gap-2 sm:grid-cols-2"
+                value={selected}
+                onChange={(v) => setPicked(v as number[])}
+                options={plan.months.map((m) => {
+                  const d = dayjs(m.from).locale('ru');
+                  return {
+                    value: m.index,
+                    disabled: m.paid,
+                    label: `${d.format('MMMM YYYY')}${m.paid ? ' · оплачен' : ''}${m.current ? ' · текущий' : ''}`,
+                  };
+                })}
+              />
+              {skipsMonth && (
+                <Alert
+                  className="mt-3"
+                  type="warning"
+                  showIcon
+                  title="Вы пропускаете более ранний месяц"
+                  description="В неоплаченный месяц доступа не будет. Он откроется с начала следующего оплаченного месяца."
+                />
+              )}
+              <p className="m-0 mt-3 text-sm" data-testid="payment-total">
+                К оплате за {count} мес.: <span className="font-semibold">{formatKzt(amount)}</span>
+              </p>
+            </div>
+          )}
           {tariff && tariff.annualPrice !== tariff.finalPrice && (
             <p className="m-0 text-xs text-muted">
               Базовая годовая цена {formatKzt(tariff.annualPrice)}, в расчёте учтена индивидуальная скидка.

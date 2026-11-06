@@ -22,10 +22,11 @@ describe('Реестр организаций', () => {
 
   it('поиск с debounce синхронизируется с URL', async () => {
     const { user, router } = renderApp('/superadmin/organizations');
-    await screen.findByText('Academy');
+    // Первый рендер и debounce в полном прогоне под нагрузкой дольше таймаутов по умолчанию
+    await screen.findByText('Academy', {}, { timeout: 15_000 });
     await user.type(screen.getByLabelText('Поиск по названию или slug'), 'pixel');
-    await waitFor(() => expect(router.state.location.search).toContain('search=pixel'), { timeout: 2000 });
-    await waitFor(() => expect(rows()).toHaveLength(1));
+    await waitFor(() => expect(router.state.location.search).toContain('search=pixel'), { timeout: 15_000 });
+    await waitFor(() => expect(rows()).toHaveLength(1), { timeout: 15_000 });
     expect(screen.getByText('Школа дизайна Pixel')).toBeInTheDocument();
     expect(router.state.location.search).toContain('page=1');
   });

@@ -16,6 +16,8 @@ const TARIFF_MODULE_LABEL: Record<string, string> = {
   COURSES: 'Курсы',
   USERS: 'Пользователи',
   REPORTS: 'Отчёты',
+  CHAT: 'Сообщения',
+  CERTIFICATES: 'Сертификаты',
 };
 
 interface MatrixRow {

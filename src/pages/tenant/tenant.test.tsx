@@ -48,7 +48,7 @@ describe('Кабинет: навигация и права', () => {
     loginAs('LEARNER');
     renderApp('/learn');
     await waitFor(() => expect(menuItem('Курсы')).toBeInTheDocument());
-    expect(menuItem('Вебинары')).toBeInTheDocument(); // модуль включён + есть право
+    expect(menuItem('Вебинары')).not.toBeInTheDocument(); // страница временно скрыта
     expect(menuItem('Сообщения')).not.toBeInTheDocument(); // право есть, модуль отключён тарифом
     expect(menuItem('Пользователи')).not.toBeInTheDocument(); // модуль включён, права нет
     expect(menuItem('Отчёты')).not.toBeInTheDocument(); // нет ни того, ни другого
@@ -117,11 +117,11 @@ describe('Кабинет: real-time обновления', () => {
 
   it('отключение модуля убирает его из меню и dashboard', async () => {
     renderApp('/academy/admin');
-    await screen.findByTestId('module-card-WEBINARS');
+    await screen.findByTestId('module-card-COURSES');
     await connected();
-    serverUpdate({ moduleOverrides: { WEBINARS: null } });
-    await waitFor(() => expect(screen.queryByTestId('module-card-WEBINARS')).not.toBeInTheDocument());
-    expect(menuItem('Вебинары')).not.toBeInTheDocument();
+    serverUpdate({ moduleOverrides: { COURSES: false } });
+    await waitFor(() => expect(screen.queryByTestId('module-card-COURSES')).not.toBeInTheDocument());
+    expect(menuItem('Учебные программы')).not.toBeInTheDocument();
   });
 
   it('отключение открытого модуля: уведомление и переход на dashboard', async () => {

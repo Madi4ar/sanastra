@@ -11,6 +11,9 @@ import { LockedModulePage, useModuleCatalog } from '@/features/tenant-admin/Upgr
 
 export const ORGANIZATION_MANAGE = 'organization.manage';
 
+/** Страницы временно скрыты: их нет в меню, на главной и в разделе «Модули» */
+export const HIDDEN_PAGES = ['SCHEDULE', 'WEBINARS'];
+
 /**
  * Функция доступна только при одновременном выполнении условий:
  * право роли пользователя И модуль включён в конфигурации организации (раздел 19.3).
@@ -43,6 +46,8 @@ export function useTenantContext() {
     access: access.data,
     /** Модули, доступные одновременно организации и роли */
     availableModules: available,
+    /** Модули, которые показываются в кабинете */
+    visibleModules: available.filter((m) => !HIDDEN_PAGES.includes(m.code)),
     isAdmin: canManageOrganization(user.data),
     isLoading: user.isPending || access.isPending || (access.data?.subscriptionStatus === 'ACTIVE' && modules.isPending),
   };

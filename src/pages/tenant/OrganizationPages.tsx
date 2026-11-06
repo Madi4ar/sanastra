@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Descriptions, Empty, Skeleton, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Descriptions, Empty, Progress, Skeleton, Table, Tag, Typography } from 'antd';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ru';
 import { CalendarDays, Clock3, CreditCard, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -10,7 +12,7 @@ import { PaymentModal } from '@/features/tenant-admin/PaymentModal';
 import { DemoBadge, UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
 import { ModuleIcon } from '@/shared/ModuleIcon';
 import { formatDiscount, formatKzt, OPERATION_LABEL } from '@/shared/pricing';
-import { useTenantContext } from '@/features/tenant/access';
+import { HIDDEN_PAGES, useTenantContext } from '@/features/tenant/access';
 import { CardGrid, ModuleCard } from '@/features/tenant/ModuleCard';
 import { StatCard, StatGrid } from '@/features/tenant/StatCard';
 import { useSubscriptionSummary, useTenantUsage } from '@/features/tenant/queries';
@@ -68,8 +70,7 @@ function SubscriptionHistory({ history }: { history: SubscriptionHistoryEntry[] 
             title: 'Оплачено',
             key: 'paid',
             align: 'right',
-            render: (_, h) =>
-              h.payment ? `${formatKzt(h.payment.amount)} (${h.payment.period === 'YEAR' ? 'за год' : 'за месяц'})` : '—',
+            render: (_, h) => (h.payment ? `${formatKzt(h.payment.amount)} (за ${h.payment.months} мес.)` : '—'),
           },
           {
             title: 'Статус',
@@ -79,6 +80,77 @@ function SubscriptionHistory({ history }: { history: SubscriptionHistoryEntry[] 
           },
         ]}
       />
+    </Card>
+  );
+}
+
+const monthTitle = (from: string) => {
+  const d = dayjs(from).locale('ru');
+  return `${d.format('MMMM')} ${d.format('YYYY')}`;
+};
+
+/** Какие месяцы подписки оплачены, а какие ещё нет; клик по неоплаченному месяцу открывает оплату */
+function PaymentMonths({ billing, onPay }: { billing: BillingInfo; onPay: (months: number[]) => void }) {
+  const { months } = billing;
+  const paid = months.filter((m) => m.paid).length;
+  const unpaid = months.filter((m) => !m.paid).map((m) => m.index);
+  return (
+    <Card
+      title="Оплата по месяцам"
+      extra={
+        unpaid.length > 0 && (
+          <Button type="primary" onClick={() => onPay([unpaid[0]!])}>
+            Оплатить месяцы
+          </Button>
+        )
+      }
+      data-testid="payment-months"
+    >
+      <div className="mb-4">
+        <div className="mb-1 flex flex-wrap justify-between gap-2 text-sm">
+          <span data-testid="paid-months-count">
+            Оплачено месяцев: <span className="font-semibold">{paid}</span> из {months.length}
+          </span>
+          {unpaid.length > 0 && <span className="text-muted">Не оплачено: {unpaid.length}</span>}
+        </div>
+        <Progress percent={Math.round((paid / months.length) * 100)} showInfo={false} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {months.map((m) => {
+          const body = (
+            <>
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted">Месяц {m.index + 1}</span>
+                {m.paid ? <Tag color="green" className="m-0">Оплачен</Tag> : <Tag color="orange" className="m-0">Не оплачен</Tag>}
+              </span>
+              <span className="mt-1 block font-semibold first-letter:uppercase">{monthTitle(m.from)}</span>
+              <span className="block text-xs text-muted">
+                {formatDate(m.from)} – {formatDate(m.to)}
+              </span>
+              <span className="mt-1 block text-xs text-muted">
+                {m.current ? 'Текущий месяц · ' : ''}
+                {m.paid ? (m.amount ? formatKzt(m.amount) : 'Оплачен в составе периода') : 'Нажмите, чтобы оплатить'}
+              </span>
+            </>
+          );
+          const frame = `block w-full rounded-lg border p-3 text-left ${m.current ? 'border-primary' : 'border-border'}`;
+          return m.paid ? (
+            <div key={m.index} className={frame} data-testid={`month-${m.index}`}>
+              {body}
+            </div>
+          ) : (
+            <button
+              key={m.index}
+              type="button"
+              className={`${frame} cursor-pointer bg-transparent hover:bg-subtle`}
+              data-testid={`month-${m.index}`}
+              onClick={() => onPay([m.index])}
+            >
+              {body}
+            </button>
+          );
+        })}
+      </div>
     </Card>
   );
 }
@@ -107,9 +179,9 @@ export function SubscriptionPage() {
   });
   const [params, setParams] = useSearchParams();
   const upgrade = params.get('upgrade') ?? undefined;
-  const [paying, setPaying] = useState(false);
+  const [paying, setPaying] = useState<{ months?: number[] } | null>(null);
   const closePayment = () => {
-    setPaying(false);
+    setPaying(null);
     if (upgrade) setParams({}, { replace: true });
   };
 
@@ -120,13 +192,15 @@ export function SubscriptionPage() {
         subtitle="Текущий тариф, история подписок, продление и переход на другой тариф."
         extra={
           isAdmin && (
-            <Button type="primary" icon={<CreditCard size={16} />} onClick={() => setPaying(true)}>
+            <Button type="primary" icon={<CreditCard size={16} />} onClick={() => setPaying({})}>
               Оплатить / Продлить
             </Button>
           )
         }
       />
-      {isAdmin && (paying || upgrade) && <PaymentModal clientSlug={clientSlug} initialTariffId={upgrade} onClose={closePayment} />}
+      {isAdmin && (paying || upgrade) && (
+        <PaymentModal clientSlug={clientSlug} initialTariffId={upgrade} initialMonths={paying?.months} onClose={closePayment} />
+      )}
       {summary.isPending ? (
         <Card>
           <Skeleton active paragraph={{ rows: 5 }} />
@@ -204,6 +278,7 @@ export function SubscriptionPage() {
               ]}
             />
           </Card>
+          {billing.data && <PaymentMonths billing={billing.data} onPay={(months) => setPaying({ months })} />}
           {billing.data && <SubscriptionHistory history={billing.data.history} />}
         </Sections>
       )}
@@ -212,10 +287,10 @@ export function SubscriptionPage() {
 }
 
 export function ModulesPage() {
-  const { availableModules, clientSlug, isAdmin } = useTenantContext();
+  const { visibleModules: availableModules, clientSlug, isAdmin } = useTenantContext();
   const catalog = useModuleCatalog(clientSlug, isAdmin);
   const [promo, setPromo] = useState<CatalogModule | null>(null);
-  const locked = (catalog.data ?? []).filter((m) => !m.enabled);
+  const locked = (catalog.data ?? []).filter((m) => !m.enabled && !HIDDEN_PAGES.includes(m.code));
   return (
     <>
       <PageHeader title="Модули" subtitle="Модули вашего тарифа и модули, доступные при переходе на другой тариф." />

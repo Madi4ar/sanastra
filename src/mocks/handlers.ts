@@ -69,6 +69,7 @@ import {
   type UserRecord,
 } from './users';
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
+import { scheduleEndDate } from './paymentSchedule';
 import { isDeactivated, loadStructure, removeStructure, roleHolders, syncMembers } from './orgStructure';
 import { tenantAdminHandlers } from './tenantAdminHandlers';
 import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
@@ -228,6 +229,16 @@ export function recordSubscriptionChange(before: OrgRecord | null, next: OrgReco
 export function runModuleExpirations(now = Date.now()) {
   const db = load();
   let changed = false;
+  // Срок доступа по графику оплаты меняется с наступлением каждого месяца
+  db.organizations.forEach((org, idx) => {
+    if (!org.paymentSchedule) return;
+    const end = scheduleEndDate(org.paymentSchedule);
+    if (end === org.subscriptionEndDate) return;
+    const next = { ...org, subscriptionEndDate: end, version: org.version + 1, updatedAt: new Date(now).toISOString(), updatedBy: 'SYSTEM_SCHEDULER' as const };
+    db.organizations[idx] = next;
+    changed = true;
+    queueMicrotask(() => publishChanges(org, next));
+  });
   db.organizations.forEach((org, idx) => {
     const expired = Object.entries(org.moduleExpirations ?? {}).filter(([, at]) => at && Date.parse(at) <= now);
     if (!expired.length) return;
@@ -1014,6 +1025,13 @@ export const handlers: HttpHandler[] = [
       updatedBy: 'SUPERADMIN',
       version: current.version + 1,
     };
+    // Суперадминистратор задал срок или тариф вручную: период считается оплаченным, график сбрасывается
+    if (
+      next.tariffPlanId !== current.tariffPlanId ||
+      next.subscriptionStartDate !== current.subscriptionStartDate ||
+      next.subscriptionEndDate !== current.subscriptionEndDate
+    )
+      next.paymentSchedule = null;
     recordSubscriptionChange(current, next, 'SUPERADMIN');
     db.organizations[idx] = next;
     save(db);
@@ -1616,6 +1634,7 @@ export const handlers: HttpHandler[] = [
     const before = structuredClone(org);
     const base = dayjs(org.subscriptionEndDate).isAfter(dayjs()) ? dayjs(org.subscriptionEndDate) : dayjs();
     org.subscriptionEnabled = true;
+    org.paymentSchedule = null;
     org.subscriptionEndDate = base.add(1, 'year').format('YYYY-MM-DD');
     // Подписка истекла — новый период начинается с даты оплаты
     if (before.subscriptionEndDate < dayjs().format('YYYY-MM-DD')) org.subscriptionStartDate = dayjs().format('YYYY-MM-DD');
