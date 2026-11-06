@@ -9,6 +9,7 @@ export const TENANT_EVENT_TYPES: TenantEventType[] = [
   'subscription.expired',
   'module.disabled',
   'limits.updated',
+  'permissions.updated',
 ];
 
 interface Options {

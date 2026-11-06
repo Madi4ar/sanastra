@@ -68,9 +68,13 @@ function codeFromStatus(status: number, body: ApiErrorBody): ApiErrorCode {
   return 'SERVER_ERROR';
 }
 
-/** Сообщение из backend показывается только для 400 и блокировки входа (оно предназначено пользователю). Сырые исключения 5xx скрываются. */
+/** Бизнес-ошибки, текст которых предназначен пользователю (например, запрет удаления роли) */
+const USER_FACING_CODES = ['ROLE_IN_USE', 'SYSTEM_ROLE'];
+
+/** Сообщение из backend показывается для 400, блокировки входа и бизнес-ошибок из USER_FACING_CODES. Сырые исключения 5xx скрываются. */
 function messageFor(code: ApiErrorCode, body: ApiErrorBody): string {
   if ((code === 'VALIDATION_ERROR' || code === 'ACCOUNT_LOCKED') && body.message) return body.message;
+  if (body.code && USER_FACING_CODES.includes(body.code) && body.message) return body.message;
   return DEFAULT_MESSAGES[code];
 }
 

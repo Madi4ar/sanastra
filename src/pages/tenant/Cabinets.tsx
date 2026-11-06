@@ -22,8 +22,8 @@ export function AdminCabinet() {
   );
 }
 
-/** Интерфейс Слушателя (/learn) или Тренера (/trainer) в организации активной роли. */
-export function RoleCabinet({ base }: { base: '/learn' | '/trainer' }) {
+/** Интерфейс Слушателя (/learn), Тренера (/trainer) или кастомной роли (/workspace) в организации активной роли. */
+export function RoleCabinet({ base }: { base: '/learn' | '/trainer' | '/workspace' }) {
   const { data: user } = useCurrentUser();
   const clientSlug = user?.clientSlug;
   const value = useMemo(() => ({ clientSlug: clientSlug ?? '', base }), [clientSlug, base]);

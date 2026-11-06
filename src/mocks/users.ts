@@ -4,6 +4,10 @@
  * здесь для демонстрации используется упрощённый хэш.
  */
 import type { CurrentUser, Region, Role, RoleAssignment } from '@/api/types';
+import { derivePermissions, effectiveAccess } from '@/shared/access';
+import { effectiveModules, load } from './db';
+import { localMatrixOf } from './orgStructure';
+import { matrixOf } from './roles';
 
 export interface UserRecord {
   id: string;
@@ -15,7 +19,11 @@ export interface UserRecord {
   phone: string;
   email: string;
   passwordHash: string;
-  roles: { role: Role; clientSlug?: string }[];
+  roles: { role: Role; customRole?: string; clientSlug?: string }[];
+  /** Аватар (data URL) */
+  avatar?: string;
+  /** false — пользователь ещё не подтвердил профиль при первом входе */
+  profileCompleted?: boolean;
   /** Неверные вводы пароля подряд */
   failedAttempts: number;
   /** Временная блокировка входа (ISO) */
@@ -49,28 +57,8 @@ export const REGIONS: Region[] = [
   'г. Шымкент',
 ].map((name, i) => ({ code: `KZ-${String(i + 1).padStart(2, '0')}`, name }));
 
-/** Права ролей (не зависят от тарифа). */
-const LEARNER_PERMISSIONS = ['courses.view', 'schedule.view', 'chat.view', 'webinars.view'];
-const TRAINER_PERMISSIONS = [...LEARNER_PERMISSIONS, 'courses.manage', 'reports.view'];
-const ALL_PERMISSIONS = [
-  'users.manage',
-  'courses.view',
-  'schedule.view',
-  'reports.view',
-  'chat.view',
-  'webinars.view',
-  'certificates.manage',
-  'courses.manage',
-];
-export const ROLE_PERMISSIONS: Record<Role, string[]> = {
-  SUPERADMIN: ALL_PERMISSIONS,
-  ORGANIZATION_ADMIN: [...ALL_PERMISSIONS, 'organization.manage'],
-  TRAINER: TRAINER_PERMISSIONS,
-  LEARNER: LEARNER_PERMISSIONS,
-};
-
 /** Приоритет при входе: Суперадмин > Админ клиента > Тренер > Слушатель. */
-export const ROLE_PRIORITY: Role[] = ['SUPERADMIN', 'ORGANIZATION_ADMIN', 'TRAINER', 'LEARNER'];
+export const ROLE_PRIORITY: Role[] = ['SUPERADMIN', 'ORGANIZATION_ADMIN', 'TRAINER', 'CUSTOM', 'LEARNER'];
 
 /** Упрощённый детерминированный хэш (FNV-1a) — только для мок-сервера. */
 export function hashPassword(password: string): string {
@@ -129,10 +117,21 @@ function seedUsers(): UserRecord[] {
       email: 'trainer@academy.kz',
       roles: [{ role: 'TRAINER', clientSlug: 'academy' }, { role: 'LEARNER' }],
     },
+    {
+      ...base,
+      id: 'u-5',
+      iin: '900214400513',
+      lastName: 'Жумабекова',
+      firstName: 'Сауле',
+      phone: '7015678901',
+      email: 'methodist@academy.kz',
+      // Кастомная глобальная роль «Старший методист»
+      roles: [{ role: 'CUSTOM', customRole: 'senior_methodist', clientSlug: 'academy' }, { role: 'LEARNER' }],
+    },
   ];
 }
 
-const STORAGE_KEY = 'superadmin-mock-users-v1';
+const STORAGE_KEY = 'superadmin-mock-users-v2';
 let memory: UserRecord[] | null = null;
 
 const storage = () => (typeof localStorage === 'undefined' ? null : localStorage);
@@ -170,25 +169,55 @@ export function resetUsers() {
 export const fullNameOf = (u: Pick<UserRecord, 'lastName' | 'firstName' | 'middleName'>) =>
   [u.lastName, u.firstName, u.middleName].filter(Boolean).join(' ');
 
-export const sameAssignment = (a: Pick<RoleAssignment, 'role' | 'clientSlug'>, b: Pick<RoleAssignment, 'role' | 'clientSlug'>) =>
-  a.role === b.role && (a.clientSlug ?? null) === (b.clientSlug ?? null);
+type AssignmentKey = Pick<RoleAssignment, 'role' | 'clientSlug' | 'customRole'>;
+
+export const sameAssignment = (a: AssignmentKey, b: AssignmentKey) =>
+  a.role === b.role &&
+  (a.clientSlug ?? null) === (b.clientSlug ?? null) &&
+  (a.role !== 'CUSTOM' || (a.customRole ?? null) === (b.customRole ?? null));
+
+/**
+ * Итоговый доступ в рабочем контексте: матрица глобальной роли ∩ модули тарифа организации.
+ * Вне организации (суперадмин, личный кабинет) тарифа нет — действует только матрица.
+ */
+export function accessFor(active: AssignmentKey, userId?: string): string[] {
+  const own = matrixOf(active.role, active.customRole);
+  if (!active.clientSlug) return own;
+  // Локальные роли компании добавляют только то, что разрешено глобальной ролью администратора
+  const delegable = new Set(matrixOf('ORGANIZATION_ADMIN'));
+  const local = userId ? localMatrixOf(userId, active.clientSlug).filter((k) => delegable.has(k)) : [];
+  const matrix = [...new Set([...own, ...local])];
+  const org = load().organizations.find((o) => o.clientSlug === active.clientSlug);
+  return org ? effectiveAccess(matrix, effectiveModules(org)) : [];
+}
 
 /** Представление пользователя для клиента в выбранном рабочем контексте. */
 export function toCurrentUser(
   u: UserRecord,
-  active: Pick<RoleAssignment, 'role' | 'clientSlug'>,
+  active: Pick<RoleAssignment, 'role' | 'clientSlug' | 'customRole' | 'roleName'>,
   roles: RoleAssignment[] = u.roles,
 ): CurrentUser {
+  const access = accessFor(active, u.id);
+  const local = active.clientSlug ? localMatrixOf(u.id, active.clientSlug) : [];
+  const matrix = [...new Set([...matrixOf(active.role, active.customRole), ...local.filter((k) => access.includes(k))])];
   return {
     id: u.id,
     fullName: fullNameOf(u),
+    lastName: u.lastName,
+    firstName: u.firstName,
+    middleName: u.middleName,
+    avatar: u.avatar,
+    onboardingRequired: u.profileCompleted === false,
     email: u.email,
     iin: u.iin,
     phone: u.phone,
     region: u.region,
     role: active.role,
+    ...(active.role === 'CUSTOM' ? { customRole: active.customRole, roleName: active.roleName } : {}),
     clientSlug: active.clientSlug,
-    permissions: ROLE_PERMISSIONS[active.role],
+    // Права пересчитываются из текущей матрицы роли при каждом запросе — изменения действуют сразу
+    permissions: derivePermissions(active.role, matrix),
+    access,
     roles,
   };
 }
@@ -206,5 +235,13 @@ export const DEMO_USERS = {
   },
   get TRAINER() {
     return toCurrentUser(seedUsers()[3]!, { role: 'TRAINER', clientSlug: 'academy' });
+  },
+  get METHODIST() {
+    return toCurrentUser(seedUsers()[4]!, {
+      role: 'CUSTOM',
+      customRole: 'senior_methodist',
+      roleName: 'Старший методист',
+      clientSlug: 'academy',
+    });
   },
 };

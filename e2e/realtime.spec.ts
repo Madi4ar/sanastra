@@ -98,16 +98,16 @@ test('обычный пользователь видит только досту
   await signIn(page, IIN.learner);
   await expect(page.getByRole('menuitem', { name: 'Курсы' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Пользователи' })).toHaveCount(0);
-  await expect(page.getByRole('menuitem', { name: 'Тариф и подписка' })).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Тарифные планы и оплата' })).toHaveCount(0);
   await expect(page.getByText('Использование лимитов')).toHaveCount(0);
 });
 
 test('мобильный экран: меню в Drawer', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page, IIN.admin);
-  await expect(page.getByRole('menuitem', { name: 'Курсы' })).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Учебные программы' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Открыть меню' }).click();
-  await page.getByRole('menuitem', { name: 'Курсы' }).click();
+  await page.getByRole('menuitem', { name: 'Учебные программы' }).click();
   await expect(page).toHaveURL(/\/academy\/admin\/m\/COURSES$/);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);

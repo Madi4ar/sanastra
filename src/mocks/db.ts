@@ -5,7 +5,9 @@
 import dayjs from 'dayjs';
 import { resetContent } from './content';
 import { resetCourseContent } from './courseBuilder';
+import { resetOrgStructure } from './orgStructure';
 import { resetRegistry } from './registry';
+import { resetRoles } from './roles';
 import { resetUsers } from './users';
 import type {
   ChangeSource,
@@ -307,6 +309,8 @@ export function resetDb() {
   resetUsers();
   resetRegistry();
   resetCourseContent();
+  resetRoles();
+  resetOrgStructure();
 }
 
 export const findTariff = (id: string) => load().tariffs.find((t) => t.id === id);

@@ -1,6 +1,22 @@
 import { request, toQueryString } from './client';
 import type {
   Course,
+  BillingInfo,
+  CatalogModule,
+  OrgDepartment,
+  OrgDepartmentPayload,
+  OrgGroup,
+  OrgGroupPayload,
+  OrgMember,
+  OrgMemberPayload,
+  PaymentOrder,
+  PaymentPeriod,
+  ProfilePayload,
+  ReportResult,
+  ReportType,
+  TenantRole,
+  TenantRolePayload,
+  TenantRolesData,
   CourseContent,
   CourseElement,
   ElementPayload,
@@ -20,6 +36,12 @@ import type {
   Region,
   RegisterPayload,
   RegistryModule,
+  GlobalRole,
+  GlobalRolePayload,
+  RoleEffectiveAccess,
+  LocalRoleRow,
+  OrganizationStructure,
+  AuditEntry,
   RegistryPublishPayload,
   RegistryRenamePayload,
   RoleAssignment,
@@ -56,15 +78,22 @@ export const api = {
       request<CurrentUser>('/api/auth/login', { method: 'POST', body: JSON.stringify({ iin, password }) }),
     register: (payload: RegisterPayload) =>
       request<CurrentUser>('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
-    switchRole: (target: Pick<RoleAssignment, 'role' | 'clientSlug'>) =>
+    switchRole: (target: Pick<RoleAssignment, 'role' | 'clientSlug' | 'customRole'>) =>
       request<CurrentUser>('/api/auth/switch-role', { method: 'POST', body: JSON.stringify(target) }),
     logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
+    updateProfile: (payload: ProfilePayload) =>
+      request<CurrentUser>('/api/auth/profile', { method: 'PUT', body: JSON.stringify(payload) }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<void>('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   },
   dictionaries: {
     regions: () => request<Region[]>('/api/dictionaries/regions'),
   },
   organizationUsers: {
     list: (clientSlug: string) => request<OrganizationUser[]>(`/api/organizations/${encodeURIComponent(clientSlug)}/users`),
+    /** Роли, которые можно назначить в организации: системные и кастомные глобальные */
+    assignableRoles: (clientSlug: string) =>
+      request<{ value: AssignableRole; label: string }[]>(`/api/organizations/${encodeURIComponent(clientSlug)}/assignable-roles`),
     assignRole: (clientSlug: string, iin: string, role: AssignableRole) =>
       request<OrganizationUser>(`/api/organizations/${encodeURIComponent(clientSlug)}/users/roles`, {
         method: 'POST',
@@ -122,6 +151,32 @@ export const api = {
         body: JSON.stringify(payload),
       }),
   },
+  /** Глобальные роли платформы и их матрицы доступов */
+  roles: {
+    list: () => request<GlobalRole[]>('/api/superadmin/roles'),
+    create: (payload: GlobalRolePayload) =>
+      request<GlobalRole>('/api/superadmin/roles', { method: 'POST', body: JSON.stringify(payload) }),
+    update: (id: string, payload: GlobalRolePayload) =>
+      request<GlobalRole>(`/api/superadmin/roles/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+    saveMatrix: (id: string, matrix: string[]) =>
+      request<GlobalRole>(`/api/superadmin/roles/${encodeURIComponent(id)}/matrix`, {
+        method: 'PUT',
+        body: JSON.stringify({ matrix }),
+      }),
+    remove: (id: string) => request<void>(`/api/superadmin/roles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    /** Итоговый доступ ролей в организации (матрица ∩ тариф) */
+    effectiveIn: (tenantId: string) =>
+      request<RoleEffectiveAccess[]>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}/role-access`),
+  },
+  /** Мониторинг внутренней структуры компаний: только чтение */
+  localRoles: {
+    list: (f: { search: string; page: number; pageSize: number }) =>
+      request<Paginated<LocalRoleRow>>(`/api/superadmin/local-roles${toQueryString(f)}`),
+    audit: (f: { page: number; pageSize: number }) =>
+      request<Paginated<AuditEntry>>(`/api/superadmin/local-roles/audit${toQueryString(f)}`),
+    structure: (tenantId: string) =>
+      request<OrganizationStructure>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}/structure`),
+  },
   moduleRegistry: {
     list: () => request<RegistryModule[]>('/api/superadmin/module-registry'),
     /** Только переименование отображаемого названия — удаление и выключение в реестре отсутствуют */
@@ -135,6 +190,45 @@ export const api = {
   system: {
     publishModule: (payload: RegistryPublishPayload) =>
       request<RegistryModule>('/api/system/module-registry', { method: 'POST', body: JSON.stringify(payload) }),
+  },
+  /** Кабинет администратора организации */
+  tenantAdmin: (clientSlug: string) => {
+    const q = toQueryString({ clientSlug });
+    const send = <T>(path: string, method: string, body?: unknown) =>
+      request<T>(`/api/tenant${path}${q}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+    return {
+      catalog: () => send<CatalogModule[]>('/module-catalog', 'GET'),
+      billing: () => send<BillingInfo>('/billing', 'GET'),
+      createPayment: (tariffPlanId: string, period: PaymentPeriod) =>
+        send<PaymentOrder>('/payments', 'POST', { tariffPlanId, period }),
+      /** Результат эквайринга (вебхук). Данные карты на сервер не передаются. */
+      completePayment: (id: string, outcome: 'SUCCESS' | 'DECLINED') =>
+        send<BillingInfo>(`/payments/${encodeURIComponent(id)}/webhook`, 'POST', { outcome }),
+      members: () => send<OrgMember[]>('/members', 'GET'),
+      createMember: (payload: OrgMemberPayload) => send<OrgMember>('/members', 'POST', payload),
+      updateMember: (id: string, payload: OrgMemberPayload) => send<OrgMember>(`/members/${id}`, 'PUT', payload),
+      setMemberActive: (id: string, active: boolean) => send<OrgMember>(`/members/${id}/active`, 'PUT', { active }),
+      departments: () => send<OrgDepartment[]>('/departments', 'GET'),
+      createDepartment: (payload: OrgDepartmentPayload) => send<OrgDepartment>('/departments', 'POST', payload),
+      updateDepartment: (id: string, payload: OrgDepartmentPayload) => send<OrgDepartment>(`/departments/${id}`, 'PUT', payload),
+      removeDepartment: (id: string) => send<void>(`/departments/${id}`, 'DELETE'),
+      bindMembers: (id: string, memberIds: string[]) => send<void>(`/departments/${id}/members`, 'POST', { memberIds }),
+      roles: () => send<TenantRolesData>('/local-roles', 'GET'),
+      createRole: (payload: TenantRolePayload) => send<TenantRole>('/local-roles', 'POST', payload),
+      updateRole: (id: string, payload: TenantRolePayload) => send<TenantRole>(`/local-roles/${id}`, 'PUT', payload),
+      removeRole: (id: string) => send<void>(`/local-roles/${id}`, 'DELETE'),
+      groups: () => send<OrgGroup[]>('/groups', 'GET'),
+      createGroup: (payload: OrgGroupPayload) => send<OrgGroup>('/groups', 'POST', payload),
+      updateGroup: (id: string, payload: OrgGroupPayload) => send<OrgGroup>(`/groups/${id}`, 'PUT', payload),
+      removeGroup: (id: string) => send<void>(`/groups/${id}`, 'DELETE'),
+      addListeners: (id: string, memberIds: string[]) => send<OrgGroup>(`/groups/${id}/listeners`, 'POST', { memberIds }),
+      removeListener: (id: string, memberId: string) => send<OrgGroup>(`/groups/${id}/listeners/${memberId}`, 'DELETE'),
+      report: (type: ReportType, f: { groupId?: string; courseId?: string }) =>
+        request<ReportResult>(`/api/tenant/reports/${type}${toQueryString({ clientSlug, ...f })}`),
+      updateCourse: (id: string, payload: { title: string; category: string }) =>
+        send<Course>(`/courses/${encodeURIComponent(id)}`, 'PATCH', payload),
+      removeCourse: (id: string) => send<void>(`/courses/${encodeURIComponent(id)}`, 'DELETE'),
+    };
   },
   /** Конструктор курса: модули → дни → элементы контента */
   courseBuilder: (clientSlug: string, courseId: string) => {

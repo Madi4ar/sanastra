@@ -58,7 +58,7 @@ describe('Кабинет: навигация и права', () => {
   it('администратор организации видит раздел «Организация» и лимиты', async () => {
     loginAs('ORGANIZATION_ADMIN');
     renderApp('/academy/admin');
-    await waitFor(() => expect(menuItem('Тариф и подписка')).toBeInTheDocument());
+    await waitFor(() => expect(menuItem('Тарифные планы и оплата')).toBeInTheDocument());
     expect(menuItem('Пользователи')).toBeInTheDocument();
     expect(await screen.findByTestId('usage-USERS_COUNT')).toHaveTextContent('82 из 150 пользователей');
   });

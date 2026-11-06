@@ -7,6 +7,7 @@ import type { CurrentUser, TenantAccess, TenantModule } from '@/api/types';
 import { useCurrentUser } from '@/auth/auth';
 import { useCabinet } from './cabinet';
 import { useTenantAccess, useTenantModules } from './queries';
+import { LockedModulePage, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
 
 export const ORGANIZATION_MANAGE = 'organization.manage';
 
@@ -73,15 +74,28 @@ function RevokedRedirect({ code }: { code: string }) {
 
 /** Route guard модуля. До загрузки конфигурации показывает skeleton — запрещённый контент не мелькает. */
 export function FeatureGuard({ code, children }: { code: string; children: ReactNode }) {
-  const { base } = useCabinet();
+  const { base, clientSlug } = useCabinet();
   const { enabled, isLoading } = useFeature(code);
+  const isAdmin = canManageOrganization(useCurrentUser().data);
+  const catalog = useModuleCatalog(clientSlug, isAdmin);
   const [wasEnabled, setWasEnabled] = useState(false);
   if (enabled && !wasEnabled) setWasEnabled(true);
 
-  if (isLoading) return <Skeleton active paragraph={{ rows: 4 }} />;
+  if (isLoading || (isAdmin && catalog.isPending)) return <Skeleton active paragraph={{ rows: 4 }} />;
   if (enabled) return <>{children}</>;
   if (wasEnabled) return <RevokedRedirect code={code} />;
+  const locked = catalog.data?.find((m) => m.code === code && !m.enabled);
+  if (isAdmin && locked) return <LockedModulePage module={locked} />;
   return <Navigate to={`${base}/feature-unavailable`} replace />;
+}
+
+/** Раздел кабинета: опция есть в итоговом доступе (матрица роли ∩ тариф). */
+export function RequireOption({ option, children }: { option: string; children: ReactNode }) {
+  const { base } = useCabinet();
+  const { data: user, isPending } = useCurrentUser();
+  if (isPending) return <Skeleton active />;
+  if (!user?.access.includes(option)) return <Navigate to={`${base}/feature-unavailable`} replace />;
+  return <>{children}</>;
 }
 
 /** Страницы управления организацией — только для администратора организации. */

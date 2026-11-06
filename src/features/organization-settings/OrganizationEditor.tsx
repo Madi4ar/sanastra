@@ -29,6 +29,7 @@ import { LimitsSection } from './LimitsSection';
 import { ModulesSection } from './ModulesSection';
 import { OrganizationHeader } from './OrganizationHeader';
 import { SubscriptionSection } from './SubscriptionSection';
+import { RoleAccessSection } from './RoleAccessSection';
 import { UsageSection } from './UsageSection';
 import { TariffChangeModal } from './TariffChangeModal';
 
@@ -286,6 +287,7 @@ export function OrganizationEditor({ org, onReloadLatest }: Props) {
 
         <HistorySection history={org.history} />
         <UsageSection usage={org.usage} />
+        <RoleAccessSection tenantId={org.tenantId} version={org.version} />
       </div>
 
       {/* Закреплённая панель сохранения */}

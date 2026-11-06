@@ -1,10 +1,10 @@
 import { Avatar, Breadcrumb, Button, Layout, Menu, Tooltip, Typography } from 'antd';
-import { Blocks, Building2, LogOut, Package, PanelLeftClose, PanelLeftOpen, UserRound, Users } from 'lucide-react';
+import { Blocks, Building2, ShieldCheck, LogOut, Package, PanelLeftClose, PanelLeftOpen, UserRound, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 import { tokens } from '@/app/theme';
 import { useCurrentUser, useLogout } from '@/auth/auth';
-import { ROLE_LABEL, RoleSwitcher } from '@/features/auth/roles';
+import { roleLabel, RoleSwitcher } from '@/features/auth/roles';
 
 export interface CrumbHandle {
   crumb: (params: Record<string, string | undefined>) => ReactNode;
@@ -47,7 +47,7 @@ export function AppLayout() {
       return { key: m.id, title: last ? node : <Link to={m.pathname}>{node}</Link> };
     });
 
-  const selected = ['organizations', 'tariffs', 'modules', 'users'].filter((k) => location.pathname.startsWith(`/superadmin/${k}`));
+  const selected = ['profile', 'organizations', 'tariffs', 'modules', 'roles', 'users'].filter((k) => location.pathname.startsWith(`/superadmin/${k}`));
 
   return (
     <Layout style={{ minHeight: '100vh', minWidth: 1024 }}>
@@ -68,6 +68,7 @@ export function AppLayout() {
           mode="inline"
           selectedKeys={selected}
           items={[
+            { key: 'profile', icon: <UserRound size={16} />, label: 'Профиль', onClick: () => navigate('/superadmin/profile') },
             {
               key: 'organizations',
               icon: <Building2 size={16} />,
@@ -81,6 +82,7 @@ export function AppLayout() {
               onClick: () => navigate('/superadmin/tariffs'),
             },
             { key: 'modules', icon: <Blocks size={16} />, label: 'Модули', onClick: () => navigate('/superadmin/modules') },
+            { key: 'roles', icon: <ShieldCheck size={16} />, label: 'Роли и доступы', onClick: () => navigate('/superadmin/roles') },
             { key: 'users', icon: <Users size={16} />, label: 'Пользователи', onClick: () => navigate('/superadmin/users') },
           ]}
         />
@@ -98,11 +100,11 @@ export function AppLayout() {
           {user && (
             <div className="flex items-center gap-3" data-testid="current-user">
               <RoleSwitcher />
-              <Avatar size={32} icon={<UserRound size={16} />} style={{ background: tokens.colorPrimary }} />
+              <Avatar size={32} src={user.avatar} icon={<UserRound size={16} />} style={{ background: tokens.colorPrimary }} />
               <div className="flex flex-col leading-tight">
                 <Typography.Text strong>{user.fullName}</Typography.Text>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {ROLE_LABEL[user.role]} · {user.email}
+                  {roleLabel(user)} · {user.email}
                 </Typography.Text>
               </div>
               <Tooltip title="Выйти">

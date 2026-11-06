@@ -1,7 +1,11 @@
 export type SubscriptionStatus = 'ACTIVE' | 'BLOCKED' | 'EXPIRED';
 export type ChangeSource = 'SUPERADMIN' | 'SYSTEM_PAYMENT' | 'SYSTEM_SCHEDULER';
 /** Роли (ТЗ «Регистрация, авторизация и ролевая модель»): Суперадминистратор, Администратор клиента, Тренер, Слушатель */
-export type Role = 'SUPERADMIN' | 'ORGANIZATION_ADMIN' | 'TRAINER' | 'LEARNER';
+/** Системные роли и кастомная глобальная роль (CUSTOM + код роли в назначении) */
+export type Role = 'SUPERADMIN' | 'ORGANIZATION_ADMIN' | 'TRAINER' | 'LEARNER' | 'CUSTOM';
+
+/** Предопределённые системные роли (is_system = true) */
+export type SystemRole = Exclude<Role, 'CUSTOM'>;
 
 export interface TariffPlanRef {
   id: string;
@@ -51,6 +55,8 @@ export interface SubscriptionHistoryEntry {
   finalPrice: number;
   status: 'ACTIVE' | 'COMPLETED';
   source: ChangeSource;
+  /** Онлайн-оплата: выбранный период и списанная сумма */
+  payment?: { period: PaymentPeriod; amount: number };
 }
 
 export interface TariffModuleDefault {
@@ -227,9 +233,10 @@ export type TenantEventType =
   | 'subscription.blocked'
   | 'subscription.expired'
   | 'module.disabled'
-  | 'limits.updated';
+  | 'limits.updated'
+  | 'permissions.updated';
 
-export type ChangedArea = 'tariff' | 'subscription' | 'modules' | 'limits';
+export type ChangedArea = 'tariff' | 'subscription' | 'modules' | 'limits' | 'permissions';
 
 export interface TenantEvent {
   type: TenantEventType;
@@ -243,6 +250,10 @@ export interface TenantEvent {
 /** Роль пользователя; для клиентских ролей указана организация */
 export interface RoleAssignment {
   role: Role;
+  /** Код кастомной глобальной роли (для role = CUSTOM) */
+  customRole?: string;
+  /** Название кастомной роли — для отображения */
+  roleName?: string;
   clientSlug?: string;
   organizationName?: string;
 }
@@ -250,15 +261,30 @@ export interface RoleAssignment {
 export interface CurrentUser {
   id: string;
   fullName: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
   email: string;
   iin: string;
   phone: string;
   region: string;
+  /** Аватар (data URL) */
+  avatar?: string;
+  /** Первый вход: нужно заполнить или подтвердить данные профиля */
+  onboardingRequired: boolean;
   /** Активная роль (рабочий контекст) */
   role: Role;
+  /** Код и название кастомной роли, если активна кастомная роль */
+  customRole?: string;
+  roleName?: string;
   clientSlug?: string;
   /** Права активной роли (не зависят от тарифа) */
   permissions: string[];
+  /**
+   * Итоговый доступ: опции Реестра модулей, включённые в матрице роли и входящие в тариф организации
+   * (Матрица глобальной роли ∩ Состав модулей тарифа)
+   */
+  access: string[];
   /** Все активные роли пользователя — для переключения в шапке профиля */
   roles: RoleAssignment[];
 }
@@ -286,9 +312,12 @@ export interface OrganizationUser {
   iin: string;
   email: string;
   roles: Role[];
+  /** Названия кастомных ролей пользователя в организации */
+  customRoles?: string[];
 }
 
-export type AssignableRole = 'ORGANIZATION_ADMIN' | 'TRAINER';
+/** Назначаемая роль: системная или кастомная глобальная (`custom:<код>`) */
+export type AssignableRole = 'ORGANIZATION_ADMIN' | 'TRAINER' | `custom:${string}`;
 
 /** Пользователь платформы (раздел «Пользователи» суперадмина) */
 export interface PlatformUser {
@@ -472,9 +501,269 @@ export interface CourseContent {
   course: Course;
   /** Право редактировать структуру и элементы (courses.manage) */
   canEdit: boolean;
+  /** Право удалить программу */
+  canDeleteCourse: boolean;
+  /** Разрешённые действия по типам элементов (итоговый доступ роли) */
+  elementAccess: Partial<Record<ElementType, ElementAction[]>>;
   modules: CourseModule[];
 }
+
+export type ElementAction = 'create' | 'edit' | 'delete' | 'view';
 
 export type ElementPayload = Pick<CourseElement, 'titleRu' | 'titleKz' | 'required' | 'hidden' | 'settings' | 'files'>;
 
 export type StructureMove = 'up' | 'down';
+
+/** Глобальная роль платформы с матрицей доступов */
+export interface GlobalRole {
+  id: string;
+  /** Системный код / slug — уникальный идентификатор */
+  code: string;
+  name: string;
+  description: string;
+  /** Базовая системная роль — защищена от удаления */
+  isSystem: boolean;
+  /** Для системной роли — соответствующая роль платформы */
+  systemRole?: SystemRole;
+  /** Включённые опции Реестра модулей (полные ключи листьев); новая роль — пустая матрица */
+  matrix: string[];
+  /** Активные пользователи с этой ролью во всех организациях */
+  usersCount: number;
+  updatedAt: string;
+}
+
+export interface GlobalRolePayload {
+  name: string;
+  code: string;
+  description: string;
+}
+
+/** Итоговый доступ роли в организации (раздел 4 ТЗ «Роли и доступы») */
+export interface RoleEffectiveAccess {
+  roleId: string;
+  roleName: string;
+  /** Модули Реестра, включённые в матрице роли */
+  matrixModules: string[];
+  /** Из них доступны по тарифу организации */
+  availableModules: string[];
+  /** Скрыты и заблокированы (403): нет в тарифе */
+  blockedModules: string[];
+}
+
+/** Строка таблицы «Пользовательские роли компаний» (только чтение) */
+export interface LocalRoleRow {
+  id: string;
+  tenantId: string;
+  organizationName: string;
+  roleName: string;
+  departmentName: string | null;
+  /** Пользователи, у которых активирована локальная роль */
+  employeesCount: number;
+  createdAt: string;
+}
+
+/** Отделы, сотрудники и локальные роли компании для детального просмотра */
+export interface OrganizationStructure {
+  tenantId: string;
+  organizationName: string;
+  departments: { id: string; parentId: string | null; name: string }[];
+  members: { id: string; fullName: string; email: string; departmentId: string | null; active: boolean; roles: string[] }[];
+  /** optionsEffective — опции матрицы, разрешённые тарифом и глобальной ролью администратора */
+  roles: { id: string; name: string; optionsTotal: number; optionsEffective: number }[];
+}
+
+export type AuditEvent = 'ROLE_CREATED' | 'ROLE_DELETED' | 'ROLE_MATRIX_CHANGED' | 'USER_BOUND_TO_DEPARTMENT';
+
+export interface AuditChange {
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+}
+
+/** Запись журнала аудита; название организации зафиксировано на момент действия */
+export interface AuditEntry {
+  id: string;
+  at: string;
+  tenantId: string;
+  organizationName: string;
+  adminId: string;
+  event: AuditEvent;
+  /** Роль или сотрудник, к которым относится действие */
+  target: string;
+  changes: AuditChange[];
+}
+
+// ---------- Кабинет администратора организации ----------
+
+export type PaymentPeriod = 'YEAR' | 'MONTH';
+
+export interface ProfilePayload {
+  lastName: string;
+  firstName: string;
+  middleName?: string;
+  phone: string;
+  email: string;
+  region?: string;
+  /** data URL; null — удалить аватар; не передан — не менять */
+  avatar?: string | null;
+}
+
+export interface BillingTariff {
+  id: string;
+  name: string;
+  description: string;
+  annualPrice: number;
+  /** Годовая цена с индивидуальной скидкой организации */
+  finalPrice: number;
+  /** Ежемесячный платёж = Годовая цена со скидкой / 12 */
+  monthlyPrice: number;
+  modules: string[];
+  isCurrent: boolean;
+}
+
+export interface BillingInfo {
+  status: SubscriptionStatus;
+  tariffName: string;
+  tariffDescription: string;
+  subscriptionStartDate: string;
+  subscriptionEndDate: string;
+  /** Зафиксированные суперадминистратором цена и скидка текущего периода */
+  basePrice: number;
+  discount: Discount;
+  finalPrice: number;
+  history: SubscriptionHistoryEntry[];
+  /** Текущий тариф и тарифы для перехода */
+  tariffs: BillingTariff[];
+}
+
+export interface PaymentOrder {
+  id: string;
+  tariffPlanId: string;
+  tariffName: string;
+  period: PaymentPeriod;
+  amount: number;
+}
+
+/** Модуль платформы в кабинете администратора: рабочий или демо с предложением апгрейда */
+export interface CatalogModule {
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  enabled: boolean;
+  /** Ближайший тариф, в который входит закрытый модуль */
+  upgradeTariff: { id: string; name: string } | null;
+}
+
+export type SystemOrgRole = 'ORGANIZATION_ADMIN' | 'TRAINER' | 'LEARNER';
+
+export interface OrgMember {
+  id: string;
+  fullName: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
+  iin: string;
+  email: string;
+  phone: string;
+  region: string;
+  active: boolean;
+  /** Основная роль в организации */
+  role: SystemOrgRole | null;
+  departmentId: string | null;
+  departmentName: string | null;
+  localRoleIds: string[];
+  localRoleNames: string[];
+  isSelf: boolean;
+}
+
+export interface OrgMemberPayload {
+  iin: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
+  email: string;
+  phone: string;
+  region: string;
+  /** При редактировании необязателен */
+  password?: string;
+  role: SystemOrgRole;
+  departmentId: string | null;
+  localRoleIds: string[];
+}
+
+export type DepartmentKind = 'DEPARTMENT' | 'MANAGEMENT' | 'BRANCH' | 'UNIT';
+
+export interface OrgDepartment {
+  id: string;
+  parentId: string | null;
+  name: string;
+  kind: DepartmentKind;
+  headMemberId: string | null;
+  headName: string | null;
+  membersCount: number;
+}
+
+export interface OrgDepartmentPayload {
+  name: string;
+  kind: DepartmentKind;
+  parentId: string | null;
+  headMemberId: string | null;
+}
+
+export interface TenantRole {
+  id: string;
+  nameRu: string;
+  nameKz: string;
+  description: string;
+  isSystem: boolean;
+  /** Опции, действующие в организации (в пределах тарифа) */
+  matrix: string[];
+  scope: 'DEPARTMENT' | 'MEMBERS' | null;
+  departmentId: string | null;
+  memberIds: string[];
+  employeesCount: number;
+}
+
+export interface TenantRolesData {
+  roles: TenantRole[];
+  /** Модули и опции, разрешённые тарифом: только из них собирается матрица */
+  catalog: RegistryModule[];
+}
+
+export interface TenantRolePayload {
+  nameRu: string;
+  nameKz: string;
+  description: string;
+  scope: 'DEPARTMENT' | 'MEMBERS';
+  departmentId: string | null;
+  memberIds: string[];
+  matrix: string[];
+}
+
+export interface OrgGroup {
+  id: string;
+  name: string;
+  courseId: string | null;
+  courseTitle: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  /** Дни занятий: 0 — понедельник … 6 — воскресенье */
+  days: number[];
+  timeFrom: string | null;
+  timeTo: string | null;
+  listenerIds: string[];
+  createdAt: string;
+}
+
+export type OrgGroupPayload = Pick<OrgGroup, 'name' | 'courseId' | 'startDate' | 'endDate' | 'days' | 'timeFrom' | 'timeTo'>;
+
+export type ReportType = 'PERFORMANCE' | 'COMPLETION' | 'ATTENDANCE' | 'ACTIVITY';
+
+export interface ReportResult {
+  type: ReportType;
+  title: string;
+  columns: { key: string; title: string }[];
+  rows: Record<string, string | number>[];
+  generatedAt: string;
+}

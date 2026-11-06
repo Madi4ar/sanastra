@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { App, Button, Card, Dropdown, Empty, Input, Skeleton, Tag, Tooltip } from 'antd';
+import { App, Button, Card, Dropdown, Empty, Input, Modal, Skeleton, Tag, Tooltip } from 'antd';
 import { ArrowDown, ArrowLeft, ArrowUp, Eye, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { CourseContent, CourseDay, CourseElement, CourseModule } from '@/api/types';
+import type { CourseContent, CourseDay, CourseElement, CourseModule, ElementAction, ElementType } from '@/api/types';
 import { useCabinet } from '@/features/tenant/cabinet';
 import { AddElementModal, ElementEditor, ElementIcon } from '@/features/course-builder/ElementEditor';
 import { ElementPreview } from '@/features/course-builder/ElementPreview';
-import { ELEMENT_LABEL, readinessIssues } from '@/features/course-builder/elementTypes';
+import { ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
 import { FeatureGuard } from '@/features/tenant/access';
 import { IconButton } from '@/shared/IconButton';
 import { ErrorState } from '@/shared/PageState';
@@ -76,6 +76,8 @@ function ElementRow({
   index,
   total,
   canEdit,
+  canChange,
+  canDelete,
   onOpen,
   onEdit,
   onMove,
@@ -85,6 +87,10 @@ function ElementRow({
   index: number;
   total: number;
   canEdit: boolean;
+  /** Право «Редактирование» для типа элемента */
+  canChange: boolean;
+  /** Право «Удаление» для типа элемента */
+  canDelete: boolean;
   onOpen: () => void;
   onEdit: () => void;
   onMove: (d: 'up' | 'down') => void;
@@ -116,17 +122,17 @@ function ElementRow({
         )}
       </span>
       <IconButton type="text" label={`Просмотр «${title}»`} icon={<Eye size={16} />} onClick={onOpen} />
-      {canEdit && (
+      {canChange && <IconButton type="text" label={`Настроить «${title}»`} icon={<Pencil size={16} />} onClick={onEdit} />}
+      {(canEdit || canDelete) && (
         <>
-          <IconButton type="text" label={`Настроить «${title}»`} icon={<Pencil size={16} />} onClick={onEdit} />
           <Dropdown
             trigger={['click']}
             menu={{
               items: [
-                { key: 'up', label: 'Выше', icon: <ArrowUp size={14} />, disabled: index === 0 },
-                { key: 'down', label: 'Ниже', icon: <ArrowDown size={14} />, disabled: index === total - 1 },
+                { key: 'up', label: 'Выше', icon: <ArrowUp size={14} />, disabled: !canEdit || index === 0 },
+                { key: 'down', label: 'Ниже', icon: <ArrowDown size={14} />, disabled: !canEdit || index === total - 1 },
                 { type: 'divider' },
-                { key: 'remove', label: 'Удалить', icon: <Trash2 size={14} />, danger: true },
+                { key: 'remove', label: 'Удалить', icon: <Trash2 size={14} />, danger: true, disabled: !canDelete },
               ],
               onClick: ({ key }) => (key === 'remove' ? onRemove() : onMove(key as 'up' | 'down')),
             }}
@@ -150,6 +156,29 @@ function CourseBuilder({ courseId }: { courseId: string }) {
   const [adding, setAdding] = useState<string | null>(null);
   const [editing, setEditing] = useState<CourseElement | null>(null);
   const [viewing, setViewing] = useState<CourseElement | null>(null);
+  const [courseForm, setCourseForm] = useState<{ title: string; category: string } | null>(null);
+  const navigate = useNavigate();
+  const admin = api.tenantAdmin(clientSlug);
+  const saveCourse = useMutation({
+    mutationFn: (v: { title: string; category: string }) => admin.updateCourse(courseId, v),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: queryKeys.tenantModuleData(clientSlug, 'COURSES') });
+      message.success('Программа сохранена');
+      setCourseForm(null);
+    },
+    onError: (e) => message.error(e.message),
+  });
+  const removeCourse = useMutation({
+    mutationFn: () => admin.removeCourse(courseId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.tenantModuleData(clientSlug, 'COURSES') });
+      void qc.invalidateQueries({ queryKey: queryKeys.tenantUsage(clientSlug) });
+      message.success('Программа удалена');
+      navigate(`${base}/m/COURSES`, { replace: true });
+    },
+    onError: (e) => message.error(e.message),
+  });
 
   const change = useMutation({
     mutationFn: (fn: () => Promise<CourseContent>) => fn(),
@@ -174,7 +203,10 @@ function CourseBuilder({ courseId }: { courseId: string }) {
 
   if (q.isPending) return <Skeleton active paragraph={{ rows: 8 }} />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
-  const { course, canEdit, modules } = q.data;
+  const { course, canEdit, canDeleteCourse, modules, elementAccess } = q.data;
+  // Итоговый доступ роли к элементам контента: какие типы можно создавать, править, удалять
+  const allowed = (type: ElementType, action: ElementAction) => elementAccess[type]?.includes(action) ?? false;
+  const creatable = ELEMENT_TYPES.filter((t) => allowed(t, 'create'));
   const total = modules.reduce((n, m) => n + m.days.reduce((k, d) => k + d.elements.length, 0), 0);
 
   const renderDay = (m: CourseModule, d: CourseDay, di: number) => (
@@ -214,6 +246,8 @@ function CourseBuilder({ courseId }: { courseId: string }) {
               index={i}
               total={d.elements.length}
               canEdit={canEdit}
+              canChange={allowed(el.type, 'edit')}
+              canDelete={allowed(el.type, 'delete')}
               onOpen={() => setViewing(el)}
               onEdit={() => setEditing(el)}
               onMove={(dir) => run(() => builder.moveElement(el.id, dir))}
@@ -231,7 +265,7 @@ function CourseBuilder({ courseId }: { courseId: string }) {
       ) : (
         <p className="m-0 py-2 text-sm text-muted">В этом дне пока нет элементов.</p>
       )}
-      {canEdit && (
+      {canEdit && creatable.length > 0 && (
         <Button className="mt-2" type="dashed" block icon={<Plus size={16} />} onClick={() => setAdding(d.id)}>
           Добавить элемент
         </Button>
@@ -254,11 +288,36 @@ function CourseBuilder({ courseId }: { courseId: string }) {
             : `${modules.length} модулей · ${total} элементов`
         }
         extra={
-          canEdit && (
-            <Button type="primary" icon={<Plus size={16} />} loading={change.isPending} onClick={() => run(() => builder.addModule(''), 'Модуль добавлен')}>
-              Добавить модуль
-            </Button>
-          )
+          <>
+            {canEdit && (
+              <Button icon={<Pencil size={16} />} onClick={() => setCourseForm({ title: course.title, category: course.category })}>
+                Редактировать программу
+              </Button>
+            )}
+            {canDeleteCourse && (
+              <Button
+                danger
+                icon={<Trash2 size={16} />}
+                onClick={() =>
+                  modal.confirm({
+                    title: `Удалить программу «${course.title}»?`,
+                    content: 'Будут удалены модули, дни и элементы контента. Группы останутся без программы.',
+                    okText: 'Удалить',
+                    cancelText: 'Отмена',
+                    okButtonProps: { danger: true },
+                    onOk: () => removeCourse.mutate(),
+                  })
+                }
+              >
+                Удалить
+              </Button>
+            )}
+            {canEdit && (
+              <Button type="primary" icon={<Plus size={16} />} loading={change.isPending} onClick={() => run(() => builder.addModule(''), 'Модуль добавлен')}>
+                Добавить модуль
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -324,6 +383,7 @@ function CourseBuilder({ courseId }: { courseId: string }) {
           clientSlug={clientSlug}
           courseId={courseId}
           dayId={adding}
+          types={creatable}
           onClose={() => setAdding(null)}
           onCreated={(el) => {
             setAdding(null);
@@ -333,6 +393,24 @@ function CourseBuilder({ courseId }: { courseId: string }) {
       )}
       {editing && <ElementEditor key={editing.id} clientSlug={clientSlug} courseId={courseId} element={editing} onClose={() => setEditing(null)} />}
       {viewing && <ElementPreview element={viewing} onClose={() => setViewing(null)} />}
+      {courseForm && (
+        <Modal
+          open
+          title="Редактирование программы"
+          okText="Сохранить"
+          cancelText="Отмена"
+          confirmLoading={saveCourse.isPending}
+          okButtonProps={{ disabled: courseForm.title.trim().length < 3 }}
+          onOk={() => saveCourse.mutate(courseForm)}
+          onCancel={() => setCourseForm(null)}
+          destroyOnHidden
+        >
+          <div className="flex flex-col gap-3 pt-2">
+            <Input aria-label="Название программы" placeholder="Название" maxLength={120} value={courseForm.title} onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })} />
+            <Input aria-label="Категория" placeholder="Категория" maxLength={60} value={courseForm.category} onChange={(e) => setCourseForm({ ...courseForm, category: e.target.value })} />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

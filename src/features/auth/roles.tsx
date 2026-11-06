@@ -13,13 +13,20 @@ export const ROLE_LABEL: Record<Role, string> = {
   ORGANIZATION_ADMIN: 'Администратор организации',
   TRAINER: 'Тренер',
   LEARNER: 'Слушатель',
+  CUSTOM: 'Кастомная роль',
 };
 
+/** Название роли назначения: для кастомной — её собственное название */
+export const roleLabel = (r: Pick<RoleAssignment, 'role' | 'roleName'>) =>
+  r.role === 'CUSTOM' ? (r.roleName ?? ROLE_LABEL.CUSTOM) : ROLE_LABEL[r.role];
+
 export const assignmentLabel = (r: RoleAssignment) =>
-  r.organizationName ? `${ROLE_LABEL[r.role]} · ${r.organizationName}` : ROLE_LABEL[r.role];
+  r.organizationName ? `${roleLabel(r)} · ${r.organizationName}` : roleLabel(r);
 
 const isActive = (user: CurrentUser, r: RoleAssignment) =>
-  user.role === r.role && (user.clientSlug ?? null) === (r.clientSlug ?? null);
+  user.role === r.role &&
+  (user.clientSlug ?? null) === (r.clientSlug ?? null) &&
+  (r.role !== 'CUSTOM' || user.customRole === r.customRole);
 
 /** Переключение рабочего контекста (роли) — пункты для меню профиля в шапке. */
 export function useRoleSwitchItems(): MenuProps['items'] {
@@ -45,11 +52,11 @@ export function useRoleSwitchItems(): MenuProps['items'] {
       children: user.roles.map((r) => {
         const active = isActive(user, r);
         return {
-          key: `role:${r.role}:${r.clientSlug ?? ''}`,
+          key: `role:${r.role}:${r.customRole ?? ''}:${r.clientSlug ?? ''}`,
           icon: active ? <Check size={16} /> : <span className="inline-block w-4" />,
           label: assignmentLabel(r),
           disabled: active || switchRole.isPending,
-          onClick: () => switchRole.mutate({ role: r.role, clientSlug: r.clientSlug }),
+          onClick: () => switchRole.mutate({ role: r.role, clientSlug: r.clientSlug, customRole: r.customRole }),
         };
       }),
     },

@@ -17,6 +17,7 @@ import {
   Tooltip,
   type MenuProps,
   type ThemeConfig,
+  Tag,
 } from 'antd';
 import {
   Bell,
@@ -32,16 +33,22 @@ import {
   Menu as MenuIcon,
   Search,
   UserRound,
+  Lock,
+  Network,
+  ShieldCheck,
+  UsersRound,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 import { tokens } from '@/app/theme';
 import { isApiError } from '@/api/client';
 import { useLogout } from '@/auth/auth';
-import { ROLE_LABEL, useRoleSwitchItems } from '@/features/auth/roles';
+import { roleLabel, useRoleSwitchItems } from '@/features/auth/roles';
 import { useTenantContext } from '@/features/tenant/access';
 import { useTenantAccess } from '@/features/tenant/queries';
 import type { CrumbHandle } from '@/layout/AppLayout';
+import { demoBadgeText, UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
+import type { CatalogModule } from '@/api/types';
 import { formatDate, formatDateTime } from '@/shared/format';
 import { ModuleIcon } from '@/shared/ModuleIcon';
 import { noticeStore, useNotices } from '@/shared/notices';
@@ -72,6 +79,9 @@ const navTheme: ThemeConfig = {
   },
 };
 
+/** Названия разделов в кабинете администратора */
+const ADMIN_MODULE_LABEL: Record<string, string> = { COURSES: 'Учебные программы', REPORTS: 'Конструктор отчётов' };
+
 interface NavItem {
   key: string;
   label: string;
@@ -79,28 +89,50 @@ interface NavItem {
   to: string;
   /** Активен только при точном совпадении пути */
   exact?: boolean;
+  /** Закрытый модуль: клик открывает промо-окно с предложением апгрейда */
+  demo?: CatalogModule;
 }
 
 function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boolean } {
-  const { base, availableModules, isAdmin, isLoading } = useTenantContext();
+  const { base, clientSlug, availableModules, isAdmin, isLoading, user } = useTenantContext();
+  const catalog = useModuleCatalog(clientSlug, isAdmin);
+  const access = user?.access ?? [];
+  const moduleItem = (m: { code: string; name: string; icon?: string }): NavItem => ({
+    key: `m/${m.code}`,
+    label: isAdmin ? (ADMIN_MODULE_LABEL[m.code] ?? m.name) : m.name,
+    icon: <ModuleIcon name={m.icon} />,
+    to: `${base}/m/${m.code}`,
+  });
+  const available = (code: string) => availableModules.filter((m) => m.code === code).map(moduleItem);
+  const section = (option: string, key: string, label: string, icon: ReactNode): NavItem[] =>
+    access.includes(option) ? [{ key, label, icon, to: `${base}/${key}` }] : [];
+  const SECTION_MODULES = ['USERS', 'COURSES', 'REPORTS'];
   const main: NavItem[] = [
+    { key: 'profile', label: 'Профиль', icon: <UserRound size={16} />, to: `${base}/profile` },
     { key: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={16} />, to: base, exact: true },
-    ...availableModules.map((m) => ({
-      key: `m/${m.code}`,
-      label: m.name,
-      icon: <ModuleIcon name={m.icon} />,
-      to: `${base}/m/${m.code}`,
-    })),
+    ...(isAdmin
+      ? [
+          {
+            key: 'organization/subscription',
+            label: 'Тарифные планы и оплата',
+            icon: <CreditCard size={16} />,
+            to: `${base}/organization/subscription`,
+          },
+        ]
+      : []),
+    ...available('USERS'),
+    ...section('lms_departments.view', 'departments', 'Отделы', <Network size={16} />),
+    ...section('lms_roles.view', 'roles', 'Роли и доступы', <ShieldCheck size={16} />),
+    ...available('COURSES'),
+    ...section('lms_groups.view', 'groups', 'Группы', <UsersRound size={16} />),
+    ...available('REPORTS'),
+    ...availableModules.filter((m) => !SECTION_MODULES.includes(m.code)).map(moduleItem),
+    // Администратор видит все модули платформы; закрытые — в демо-режиме
+    ...(isAdmin ? (catalog.data ?? []).filter((m) => !m.enabled).map((m) => ({ ...moduleItem(m), demo: m })) : []),
   ];
   const organization: NavItem[] = isAdmin
     ? [
         { key: 'organization', label: 'Общая информация', icon: <Building2 size={16} />, to: `${base}/organization` },
-        {
-          key: 'organization/subscription',
-          label: 'Тариф и подписка',
-          icon: <CreditCard size={16} />,
-          to: `${base}/organization/subscription`,
-        },
         { key: 'organization/modules', label: 'Модули', icon: <LayoutGrid size={16} />, to: `${base}/organization/modules` },
         { key: 'organization/usage', label: 'Лимиты и использование', icon: <Gauge size={16} />, to: `${base}/organization/usage` },
       ]
@@ -110,6 +142,7 @@ function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boo
 
 function NavMenu({ onNavigate }: { onNavigate?: () => void }) {
   const { main, organization, ready } = useNavigation();
+  const [promo, setPromo] = useState<CatalogModule | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   // До получения access показываем skeleton навигации — запрещённые пункты не мелькают
@@ -127,8 +160,23 @@ function NavMenu({ onNavigate }: { onNavigate?: () => void }) {
   const toItem = (i: NavItem) => ({
     key: i.key,
     icon: i.icon,
-    label: i.label,
+    label: i.demo ? (
+      <Tooltip title={demoBadgeText(i.demo)} placement="right">
+        <span className="flex items-center justify-between gap-2">
+          <span className="truncate">{i.label}</span>
+          <Tag color="gold" className="m-0 px-1 text-xs leading-4" icon={<Lock size={10} className="mr-0.5 inline" aria-hidden />}>
+            Демо
+          </Tag>
+        </span>
+      </Tooltip>
+    ) : (
+      i.label
+    ),
     onClick: () => {
+      if (i.demo) {
+        setPromo(i.demo);
+        return;
+      }
       navigate(i.to);
       onNavigate?.();
     },
@@ -149,6 +197,7 @@ function NavMenu({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <ConfigProvider theme={navTheme}>
       <Menu mode="inline" inlineIndent={12} selectedKeys={selected ? [selected] : []} items={items} style={{ borderInlineEnd: 0 }} />
+      {promo && <UpgradePromoModal module={promo} onClose={() => setPromo(null)} />}
     </ConfigProvider>
   );
 }
@@ -182,7 +231,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="flex-1 overflow-y-auto px-2 pt-4">
         {user && (
           <p className="m-0 mb-2 px-3 text-xs font-semibold tracking-wide text-muted uppercase">
-            {user.role === 'LEARNER' ? 'Личный кабинет' : ROLE_LABEL[user.role]}
+            {user.role === 'LEARNER' ? 'Личный кабинет' : roleLabel(user)}
           </p>
         )}
         <NavMenu onNavigate={onNavigate} />
@@ -297,10 +346,10 @@ function ProfileMenu() {
       }}
     >
       <Button aria-label="Меню профиля" className="flex items-center gap-2" style={{ height: 44, paddingInline: 8 }}>
-        <Avatar size={28} icon={<UserRound size={14} />} style={{ background: tokens.colorPrimary }} />
+        <Avatar size={28} src={user.avatar} icon={<UserRound size={14} />} style={{ background: tokens.colorPrimary }} />
         <span className="hidden min-w-0 text-left sm:block">
           <span className="block max-w-36 truncate text-sm leading-tight font-medium">{user.fullName}</span>
-          <span className="block text-xs leading-tight text-muted">{ROLE_LABEL[user.role]}</span>
+          <span className="block text-xs leading-tight text-muted">{roleLabel(user)}</span>
         </span>
         <ChevronDown size={16} aria-hidden className="text-muted" />
       </Button>

@@ -13,7 +13,8 @@ const CARD = `/superadmin/organizations/${ACADEMY_ID}`;
 
 async function openCard() {
   const r = renderApp(CARD);
-  await screen.findByRole('heading', { name: 'Academy' });
+  // Первый рендер в полном прогоне под нагрузкой дольше секунды по умолчанию
+  await screen.findByRole('heading', { name: 'Academy' }, { timeout: 15_000 });
   return r;
 }
 

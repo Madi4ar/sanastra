@@ -8,7 +8,7 @@ import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { PlatformUser, RoleAssignment } from '@/api/types';
-import { ROLE_LABEL } from '@/features/auth/roles';
+import { roleLabel } from '@/features/auth/roles';
 import {
   formatPhone,
   isValidPassword,
@@ -213,7 +213,7 @@ export function UserFormModal({ user, onClose }: { user: PlatformUser | null; on
                       setRoles((list) => list.filter((x) => roleKey(x) !== roleKey(r)));
                     }}
                   >
-                    {ROLE_LABEL[r.role]}
+                    {roleLabel(r)}
                     {r.organizationName ? ` · ${r.organizationName}` : ''}
                   </Tag>
                 ))

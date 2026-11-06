@@ -54,6 +54,12 @@ export function resetCourseContent() {
   }
 }
 
+export function removeCourseContent(courseId: string) {
+  const all = loadAll();
+  delete all[courseId];
+  saveAll(all);
+}
+
 export function removeCourseContentOf(courseIdPrefix: string) {
   const all = loadAll();
   for (const id of Object.keys(all)) if (id.startsWith(courseIdPrefix)) delete all[id];

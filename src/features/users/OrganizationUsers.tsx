@@ -1,19 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { App, Button, Card, Input, Modal, Select, Table, Tag } from 'antd';
-import { UserPlus } from 'lucide-react';
+import { App, Input, Modal, Select } from 'antd';
 import { useState } from 'react';
 import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { AssignableRole, OrganizationUser } from '@/api/types';
-import { ROLE_LABEL } from '@/features/auth/roles';
+import type { AssignableRole } from '@/api/types';
 import { Field } from '@/shared/FormField';
-import { ErrorState } from '@/shared/PageState';
-
-const ASSIGNABLE: { value: AssignableRole; label: string }[] = [
-  { value: 'ORGANIZATION_ADMIN', label: ROLE_LABEL.ORGANIZATION_ADMIN },
-  { value: 'TRAINER', label: ROLE_LABEL.TRAINER },
-];
 
 /**
  * Назначение дополнительной роли зарегистрированному пользователю (по ИИН).
@@ -42,11 +34,18 @@ export function AssignRoleModal({
     queryFn: () => api.organizations.list({ search: '', status: '', tariffPlanId: '', page: 1, pageSize: 100 }),
     enabled: open && !clientSlug,
   });
+  // Системные роли и кастомные глобальные роли, созданные суперадминистратором
+  const assignable = useQuery({
+    queryKey: queryKeys.assignableRoles(slug ?? ''),
+    queryFn: () => api.organizationUsers.assignableRoles(slug!),
+    enabled: open && Boolean(slug),
+  });
   const assign = useMutation({
     mutationFn: () => api.organizationUsers.assignRole(slug!, iin, role!),
     onSuccess: (u) => {
       message.success(`Роль назначена: ${u.fullName}`);
       void qc.invalidateQueries({ queryKey: queryKeys.organizationUsers(slug!) });
+      void qc.invalidateQueries({ queryKey: ['tenant-admin', slug!] });
       void qc.invalidateQueries({ queryKey: queryKeys.platformUsersAll });
       close();
     },
@@ -110,8 +109,10 @@ export function AssignRoleModal({
           <Select
             id="assign-role"
             className="w-full"
-            placeholder="Выберите роль"
-            options={ASSIGNABLE}
+            placeholder={slug ? 'Выберите роль' : 'Сначала выберите организацию'}
+            disabled={!slug}
+            loading={assignable.isPending && Boolean(slug)}
+            options={assignable.data ?? []}
             value={role}
             status={fe.role ? 'error' : undefined}
             onChange={(v) => {
@@ -123,60 +124,5 @@ export function AssignRoleModal({
         {other && <p className="m-0 text-sm text-error">{other}</p>}
       </div>
     </Modal>
-  );
-}
-
-/** Раздел «Пользователи» организации: список и назначение ролей Администратор / Тренер. */
-export function OrganizationUsers({ clientSlug }: { clientSlug: string }) {
-  const [open, setOpen] = useState(false);
-  const users = useQuery({
-    queryKey: queryKeys.organizationUsers(clientSlug),
-    queryFn: () => api.organizationUsers.list(clientSlug),
-  });
-
-  return (
-    <Card
-      title="Пользователи"
-      extra={
-        <Button type="primary" icon={<UserPlus size={16} />} onClick={() => setOpen(true)}>
-          Назначить роль
-        </Button>
-      }
-      styles={{ body: { padding: 0 } }}
-      data-testid="organization-users"
-    >
-      {users.isError ? (
-        <div className="p-6">
-          <ErrorState error={users.error} onRetry={() => void users.refetch()} />
-        </div>
-      ) : (
-        <Table<OrganizationUser>
-          rowKey="id"
-          loading={users.isPending}
-          dataSource={users.data}
-          pagination={false}
-          scroll={{ x: 640 }}
-          columns={[
-            { title: 'ФИО', dataIndex: 'fullName', key: 'fullName' },
-            { title: 'ИИН', dataIndex: 'iin', key: 'iin', render: (v: string) => <span className="mono">{v}</span> },
-            { title: 'Email', dataIndex: 'email', key: 'email' },
-            {
-              title: 'Роли',
-              key: 'roles',
-              render: (_, u) => (
-                <span className="flex flex-wrap gap-1">
-                  {u.roles.map((r) => (
-                    <Tag key={r} color={r === 'ORGANIZATION_ADMIN' ? 'blue' : r === 'TRAINER' ? 'purple' : 'default'}>
-                      {ROLE_LABEL[r]}
-                    </Tag>
-                  ))}
-                </span>
-              ),
-            },
-          ]}
-        />
-      )}
-      <AssignRoleModal clientSlug={clientSlug} open={open} onClose={() => setOpen(false)} />
-    </Card>
   );
 }

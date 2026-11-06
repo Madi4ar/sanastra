@@ -13,7 +13,13 @@ export function invalidateTenant(
   changed: Iterable<ChangedArea> | 'all',
   { access = true }: { access?: boolean } = {},
 ) {
-  const areas = new Set(changed === 'all' ? (['tariff', 'subscription', 'modules', 'limits'] as ChangedArea[]) : changed);
+  const areas = new Set(changed === 'all' ? (['tariff', 'subscription', 'modules', 'limits', 'permissions'] as ChangedArea[]) : changed);
+  // Итоговый доступ = матрица роли ∩ тариф: при изменении любой из частей пересчитываются профиль и содержимое курсов
+  if (areas.has('permissions') || areas.has('modules') || areas.has('tariff')) {
+    void qc.invalidateQueries({ queryKey: queryKeys.me });
+    void qc.invalidateQueries({ queryKey: queryKeys.tenantModules(clientSlug) });
+    void qc.invalidateQueries({ queryKey: ['course-content', clientSlug] });
+  }
   if (access) void qc.invalidateQueries({ queryKey: queryKeys.tenantAccess(clientSlug) });
   if (areas.has('tariff') || areas.has('subscription'))
     void qc.invalidateQueries({ queryKey: queryKeys.subscriptionSummary(clientSlug) });

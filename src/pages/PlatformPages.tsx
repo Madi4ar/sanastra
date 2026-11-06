@@ -6,7 +6,7 @@ import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { PlatformUser } from '@/api/types';
 import { useCurrentUser } from '@/auth/auth';
-import { ROLE_LABEL } from '@/features/auth/roles';
+import { roleLabel } from '@/features/auth/roles';
 import { AssignRoleModal } from '@/features/users/OrganizationUsers';
 import { UserFormModal } from '@/features/users/UserFormModal';
 import { IconButton } from '@/shared/IconButton';
@@ -103,7 +103,7 @@ export function UsersPage() {
                         key={`${r.role}:${r.clientSlug ?? ''}`}
                         color={r.role === 'SUPERADMIN' ? 'red' : r.role === 'ORGANIZATION_ADMIN' ? 'blue' : r.role === 'TRAINER' ? 'purple' : 'default'}
                       >
-                        {ROLE_LABEL[r.role]}
+                        {roleLabel(r)}
                         {r.organizationName ? ` · ${r.organizationName}` : ''}
                       </Tag>
                     ))}

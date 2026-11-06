@@ -1,52 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Avatar, Button, Card, Descriptions, Input, List, Modal, Result, Skeleton } from 'antd';
-import { ArrowLeft, Ban, LogOut, Plus, UserRound } from 'lucide-react';
+import { Alert, App, Button, Card, Input, List, Modal, Result, Skeleton } from 'antd';
+import { ArrowLeft, Ban, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { tokens } from '@/app/theme';
 import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { CurrentUser } from '@/api/types';
-import { useLogout } from '@/auth/auth';
-import { ROLE_LABEL } from '@/features/auth/roles';
-import { formatPhone } from '@/features/auth/validation';
 import { FeatureGuard, useTenantContext } from '@/features/tenant/access';
 import { useCabinet } from '@/features/tenant/cabinet';
 import { CoursesView } from '@/features/tenant/content/CoursesView';
-import { OrganizationUsers } from '@/features/users/OrganizationUsers';
+import { ProfileCard } from '@/features/profile/ProfileCard';
+import { MembersSection } from '@/features/tenant-admin/MembersSection';
+import { ReportsPage } from './ReportsPage';
 import { WebinarsView } from '@/features/tenant/content/WebinarsView';
 import { ErrorState } from '@/shared/PageState';
 import { PageHeader } from './PageHeader';
 
-/** Карточка профиля: данные регистрации и активная роль. */
-export function ProfileCard({ user, organizationName }: { user: CurrentUser; organizationName?: string }) {
-  const logout = useLogout();
-  return (
-    <Card>
-      <div className="mb-6 flex items-center gap-4">
-        <Avatar size={56} icon={<UserRound size={24} />} style={{ background: tokens.colorPrimary }} />
-        <div className="min-w-0">
-          <div className="text-lg font-semibold">{user.fullName}</div>
-          <div className="text-muted">{ROLE_LABEL[user.role]}</div>
-        </div>
-      </div>
-      <Descriptions
-        column={1}
-        items={[
-          { key: 'iin', label: 'ИИН', children: user.iin },
-          { key: 'region', label: 'Область', children: user.region },
-          { key: 'phone', label: 'Телефон', children: formatPhone(user.phone) },
-          { key: 'email', label: 'Email', children: user.email },
-          ...(organizationName ? [{ key: 'org', label: 'Организация', children: organizationName }] : []),
-        ]}
-      />
-      <Button className="mt-6" icon={<LogOut size={16} />} onClick={() => logout.mutate()}>
-        Выйти
-      </Button>
-    </Card>
-  );
-}
+export { ProfileCard };
 
 export function ProfilePage() {
   const { user, access } = useTenantContext();
@@ -152,7 +122,7 @@ function UsersModule() {
   return (
     <>
       <PageHeader title="Пользователи" />
-      <OrganizationUsers clientSlug={clientSlug} />
+      <MembersSection clientSlug={clientSlug} />
     </>
   );
 }
@@ -161,7 +131,7 @@ export function ModulePage() {
   const { moduleCode = '' } = useParams();
   return (
     <FeatureGuard code={moduleCode}>
-      {moduleCode === 'USERS' ? <UsersModule /> : <ModuleContent code={moduleCode} />}
+      {moduleCode === 'USERS' ? <UsersModule /> : moduleCode === 'REPORTS' ? <ReportsPage /> : <ModuleContent code={moduleCode} />}
     </FeatureGuard>
   );
 }

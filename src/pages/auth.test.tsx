@@ -137,8 +137,10 @@ describe('Назначение ролей в разделе «Пользоват
     await user.click(screen.getByLabelText(/^Роль/));
     await user.click(await screen.findByTitle('Тренер'));
     await user.click(screen.getByRole('button', { name: 'Назначить' }));
-    expect(await within(section).findByText('Касымов Нурлан')).toBeInTheDocument();
-    expect(loadUsers().find((u) => u.iin === '850315300128')!.roles).toContainEqual({ role: 'TRAINER', clientSlug: 'academy' });
+    await waitFor(() => expect(loadUsers().find((u) => u.iin === '850315300128')!.roles).toContainEqual({ role: 'TRAINER', clientSlug: 'academy' }));
+    // Суперадминистраторы платформы в списке пользователей организации не отображаются
+    await within(section).findByText('Ахметов Данияр');
+    expect(within(section).queryByText('Касымов Нурлан')).not.toBeInTheDocument();
   });
 });
 

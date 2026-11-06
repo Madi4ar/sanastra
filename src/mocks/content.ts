@@ -205,3 +205,20 @@ export function touchCourse(org: OrgRecord, courseId: string, patch: Partial<Pic
   Object.assign(course, patch, { updatedAt: new Date().toISOString() });
   saveAll(all);
 }
+
+export function updateCourse(org: OrgRecord, courseId: string, patch: Pick<Course, 'title' | 'category'>): Course | null {
+  const { all, content } = contentFor(org);
+  const course = content.courses.find((c) => c.id === courseId);
+  if (!course) return null;
+  Object.assign(course, patch, { updatedAt: new Date().toISOString() });
+  saveAll(all);
+  return course;
+}
+
+export function removeCourse(org: OrgRecord, courseId: string): boolean {
+  const { all, content } = contentFor(org);
+  const before = content.courses.length;
+  content.courses = content.courses.filter((c) => c.id !== courseId);
+  saveAll(all);
+  return content.courses.length < before;
+}

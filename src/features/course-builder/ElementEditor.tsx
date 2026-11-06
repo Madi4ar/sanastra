@@ -56,12 +56,15 @@ export function AddElementModal({
   clientSlug,
   courseId,
   dayId,
+  types = ELEMENT_TYPES,
   onClose,
   onCreated,
 }: {
   clientSlug: string;
   courseId: string;
   dayId: string;
+  /** Типы, на создание которых у роли есть право */
+  types?: readonly ElementType[];
   onClose: () => void;
   onCreated: (el: CourseElement) => void;
 }) {
@@ -115,7 +118,7 @@ export function AddElementModal({
         <>
           <p className="m-0 mb-4 text-sm text-muted">Выберите тип — дальше откроются его настройки</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" data-testid="element-type-picker">
-            {ELEMENT_TYPES.map((t) => (
+            {types.map((t) => (
               <button
                 key={t}
                 type="button"

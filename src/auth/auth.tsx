@@ -6,6 +6,7 @@ import { api } from '@/api/endpoints';
 import { isApiError } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import type { CurrentUser, Role } from '@/api/types';
+import { OnboardingProfile } from '@/features/profile/ProfileCard';
 
 /** Текущий пользователь. `null` — не авторизован (401). */
 export function useCurrentUser() {
@@ -37,7 +38,7 @@ export function useLogout() {
   });
 }
 
-/** Интерфейс активной роли: Слушатель → /learn, Тренер → /trainer, Админ организации → /{client_slug}/admin, Суперадминистратор → /superadmin. */
+/** Интерфейс активной роли: Слушатель → /learn, Тренер → /trainer, кастомная роль → /workspace, Админ организации → /{client_slug}/admin, Суперадминистратор → /superadmin. */
 export function homeFor(user: Pick<CurrentUser, 'role' | 'clientSlug'>): string {
   switch (user.role) {
     case 'SUPERADMIN':
@@ -48,6 +49,8 @@ export function homeFor(user: Pick<CurrentUser, 'role' | 'clientSlug'>): string 
       return '/trainer';
     case 'LEARNER':
       return '/learn';
+    case 'CUSTOM':
+      return '/workspace';
   }
 }
 
@@ -71,6 +74,7 @@ export function RequireAuth({ role, children }: { role?: Role; children: ReactNo
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
   if (role && user.role !== role) return <Navigate to="/403" replace />;
+  if (user.onboardingRequired) return <OnboardingProfile user={user} />;
   return <>{children}</>;
 }
 

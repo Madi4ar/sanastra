@@ -1,6 +1,15 @@
-import { Alert, Card, Descriptions, Empty, Skeleton, Table, Tag, Typography } from 'antd';
+import { useQuery } from '@tanstack/react-query';
+import { Alert, Button, Card, Descriptions, Empty, Skeleton, Table, Tag, Typography } from 'antd';
 import { CalendarDays, Clock3, CreditCard, ShieldCheck } from 'lucide-react';
-import type { UsageItem } from '@/api/types';
+import { useState } from 'react';
+import { useSearchParams } from 'react-router';
+import { api } from '@/api/endpoints';
+import { queryKeys } from '@/api/queryKeys';
+import type { BillingInfo, CatalogModule, SubscriptionHistoryEntry, UsageItem } from '@/api/types';
+import { PaymentModal } from '@/features/tenant-admin/PaymentModal';
+import { DemoBadge, UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
+import { ModuleIcon } from '@/shared/ModuleIcon';
+import { formatDiscount, formatKzt, OPERATION_LABEL } from '@/shared/pricing';
 import { useTenantContext } from '@/features/tenant/access';
 import { CardGrid, ModuleCard } from '@/features/tenant/ModuleCard';
 import { StatCard, StatGrid } from '@/features/tenant/StatCard';
@@ -40,13 +49,84 @@ export function OrganizationInfoPage() {
   );
 }
 
+/** Блок «История подписок»: прошлые и текущие платёжные периоды */
+function SubscriptionHistory({ history }: { history: SubscriptionHistoryEntry[] }) {
+  return (
+    <Card title="История подписок" styles={{ body: { padding: 0 } }} data-testid="billing-history">
+      <Table<SubscriptionHistoryEntry>
+        rowKey="id"
+        dataSource={history}
+        pagination={false}
+        scroll={{ x: 860 }}
+        columns={[
+          { title: 'Дата операции', key: 'at', width: 160, render: (_, h) => formatDateTime(h.operationAt) },
+          { title: 'Операция', key: 'operation', render: (_, h) => OPERATION_LABEL[h.operation] },
+          { title: 'Тариф', dataIndex: 'tariffName', key: 'tariff' },
+          { title: 'Период', key: 'period', render: (_, h) => `${formatDate(h.periodStart)} – ${formatDate(h.periodEnd)}` },
+          { title: 'Годовая цена', key: 'final', align: 'right', render: (_, h) => formatKzt(h.finalPrice) },
+          {
+            title: 'Оплачено',
+            key: 'paid',
+            align: 'right',
+            render: (_, h) =>
+              h.payment ? `${formatKzt(h.payment.amount)} (${h.payment.period === 'YEAR' ? 'за год' : 'за месяц'})` : '—',
+          },
+          {
+            title: 'Статус',
+            key: 'status',
+            width: 110,
+            render: (_, h) => (h.status === 'ACTIVE' ? <Tag color="green">Активен</Tag> : <Tag>Завершён</Tag>),
+          },
+        ]}
+      />
+    </Card>
+  );
+}
+
+function PriceDetails({ billing }: { billing: BillingInfo }) {
+  return (
+    <Descriptions
+      className="mt-4"
+      column={{ xs: 1, md: 3 }}
+      items={[
+        { key: 'base', label: 'Базовая годовая цена', children: formatKzt(billing.basePrice) },
+        { key: 'discount', label: 'Индивидуальная скидка', children: formatDiscount(billing.discount) },
+        { key: 'final', label: 'Итоговая годовая цена', children: <span className="font-semibold">{formatKzt(billing.finalPrice)}</span> },
+      ]}
+    />
+  );
+}
+
 export function SubscriptionPage() {
-  const { clientSlug } = useTenantContext();
+  const { clientSlug, isAdmin } = useTenantContext();
   const summary = useSubscriptionSummary(clientSlug);
+  const billing = useQuery({
+    queryKey: queryKeys.tenantBilling(clientSlug),
+    queryFn: () => api.tenantAdmin(clientSlug).billing(),
+    enabled: isAdmin,
+  });
+  const [params, setParams] = useSearchParams();
+  const upgrade = params.get('upgrade') ?? undefined;
+  const [paying, setPaying] = useState(false);
+  const closePayment = () => {
+    setPaying(false);
+    if (upgrade) setParams({}, { replace: true });
+  };
 
   return (
     <>
-      <PageHeader title="Тариф и подписка" subtitle="Тариф, модули и лимиты настраивает администратор Sanastra." />
+      <PageHeader
+        title="Тарифные планы и оплата"
+        subtitle="Текущий тариф, история подписок, продление и переход на другой тариф."
+        extra={
+          isAdmin && (
+            <Button type="primary" icon={<CreditCard size={16} />} onClick={() => setPaying(true)}>
+              Оплатить / Продлить
+            </Button>
+          )
+        }
+      />
+      {isAdmin && (paying || upgrade) && <PaymentModal clientSlug={clientSlug} initialTariffId={upgrade} onClose={closePayment} />}
       {summary.isPending ? (
         <Card>
           <Skeleton active paragraph={{ rows: 5 }} />
@@ -93,6 +173,7 @@ export function SubscriptionPage() {
               <Tag color={STATUS_TEXT[summary.data.status]?.color}>{STATUS_TEXT[summary.data.status]?.label}</Tag>
             </div>
             <Typography.Paragraph type="secondary">{summary.data.tariff.description}</Typography.Paragraph>
+            {billing.data && <PriceDetails billing={billing.data} />}
             <Descriptions
               column={{ xs: 1, md: 2 }}
               items={[
@@ -123,6 +204,7 @@ export function SubscriptionPage() {
               ]}
             />
           </Card>
+          {billing.data && <SubscriptionHistory history={billing.data.history} />}
         </Sections>
       )}
     </>
@@ -130,10 +212,14 @@ export function SubscriptionPage() {
 }
 
 export function ModulesPage() {
-  const { availableModules } = useTenantContext();
+  const { availableModules, clientSlug, isAdmin } = useTenantContext();
+  const catalog = useModuleCatalog(clientSlug, isAdmin);
+  const [promo, setPromo] = useState<CatalogModule | null>(null);
+  const locked = (catalog.data ?? []).filter((m) => !m.enabled);
   return (
     <>
-      <PageHeader title="Модули" subtitle="Возможности, доступные в текущей конфигурации организации." />
+      <PageHeader title="Модули" subtitle="Модули вашего тарифа и модули, доступные при переходе на другой тариф." />
+      {promo && <UpgradePromoModal module={promo} onClose={() => setPromo(null)} />}
       {availableModules.length ? (
         <CardGrid testId="modules-grid">
           {availableModules.map((m, i) => (
@@ -144,6 +230,23 @@ export function ModulesPage() {
         <Card>
           <Empty description="Нет доступных модулей" />
         </Card>
+      )}
+      {locked.length > 0 && (
+        <div className="mt-6">
+          <h2 className="m-0 mb-3 text-lg font-semibold text-text">Доступно в других тарифах</h2>
+          <CardGrid testId="demo-modules-grid">
+            {locked.map((m) => (
+              <Card key={m.code} hoverable className="h-full" onClick={() => setPromo(m)} data-testid={`demo-module-${m.code}`}>
+                <div className="flex flex-col items-start gap-2">
+                  <ModuleIcon name={m.icon} />
+                  <span className="font-semibold">{m.name}</span>
+                  <span className="text-sm text-muted">{m.description}</span>
+                  <DemoBadge module={m} />
+                </div>
+              </Card>
+            ))}
+          </CardGrid>
+        </div>
       )}
     </>
   );
