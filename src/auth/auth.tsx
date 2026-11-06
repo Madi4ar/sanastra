@@ -73,6 +73,8 @@ export function RequireAuth({ role, children }: { role?: Role; children: ReactNo
     const redirect = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
+  // Деактивированный тренер остаётся пользователем: возвращаем его в личный кабинет
+  if (role === 'TRAINER' && user.role === 'LEARNER') return <Navigate to={homeFor(user)} replace />;
   if (role && user.role !== role) return <Navigate to="/403" replace />;
   if (user.onboardingRequired) return <OnboardingProfile user={user} />;
   return <>{children}</>;

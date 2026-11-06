@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 import type { RegistryModule, RegistryOption, RegistryPublishOption, RegistryPublishPayload } from '@/api/types';
 import { elementModuleKey } from '@/shared/access';
 
-const STORAGE_KEY = 'superadmin-mock-registry-v4';
+const STORAGE_KEY = 'superadmin-mock-registry-v5';
 
 /** Элемент начального наполнения: [сегмент ключа, системное название, коммерческое название, вложенные опции] */
 type SeedOption = [string, string, string, SeedOption[]?];
@@ -74,6 +74,17 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
       ['list_view', 'list_view', 'Просмотр списка пользователей'],
       ['assign_roles', 'assign_roles', 'Присвоение ролей к пользователям'],
       ['deactivate', 'deactivate', 'Деактивация пользователя'],
+    ],
+  },
+  {
+    key: 'lms_trainers',
+    displayName: 'Тренерский состав',
+    versions: ['1.0.0'],
+    options: [
+      ['create', 'create', 'Создание (добавление из БД)'],
+      ['edit', 'edit', 'Редактирование'],
+      ['deactivate', 'deactivate', 'Деактивация'],
+      ['list_view', 'list_view', 'Просмотр списка'],
     ],
   },
   {

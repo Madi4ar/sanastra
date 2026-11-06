@@ -2,6 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
 import { useEffect, useRef } from 'react';
 import { Outlet } from 'react-router';
+import { ApiError } from '@/api/client';
+import { queryKeys } from '@/api/queryKeys';
 import { useTenantRealtime, invalidateTenant } from '@/features/realtime/useTenantRealtime';
 import { useCabinet } from '@/features/tenant/cabinet';
 import { useTenantAccess } from '@/features/tenant/queries';
@@ -37,6 +39,11 @@ export function TenantShell() {
       noticeStore.push(CONFIG_UPDATED_TEXT);
     }
   }, [version, status, clientSlug, qc, message]);
+
+  const denied = access.error instanceof ApiError && access.error.code === 'FORBIDDEN';
+  useEffect(() => {
+    if (denied) void qc.invalidateQueries({ queryKey: queryKeys.me });
+  }, [denied, qc]);
 
   useEffect(() => () => noticeStore.clear(), [clientSlug]);
 

@@ -8,7 +8,7 @@ import { loadRegistry } from './registry';
 
 export type GlobalRoleRecord = Omit<GlobalRole, 'usersCount'>;
 
-const STORAGE_KEY = 'superadmin-mock-roles-v3';
+const STORAGE_KEY = 'superadmin-mock-roles-v4';
 
 export const SYSTEM_ROLE_CODE: Record<SystemRole, string> = {
   SUPERADMIN: 'superadmin',

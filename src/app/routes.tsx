@@ -19,6 +19,7 @@ import { SuperadminProfilePage } from '@/features/profile/ProfileCard';
 import { DepartmentsPage } from '@/pages/tenant/DepartmentsPage';
 import { GroupsPage } from '@/pages/tenant/GroupsPage';
 import { TenantRolesPage } from '@/pages/tenant/TenantRolesPage';
+import { TrainersPage } from '@/pages/tenant/TrainersPage';
 import { DashboardPage } from '@/pages/tenant/DashboardPage';
 import { FeatureUnavailablePage, ModulePage, ProfilePage } from '@/pages/tenant/MiscPages';
 import { ModulesPage, OrganizationInfoPage, SubscriptionPage, UsagePage } from '@/pages/tenant/OrganizationPages';
@@ -68,6 +69,14 @@ function cabinetRoutes(): RouteObject[] {
           ],
         },
         { path: 'profile', element: <ProfilePage /> },
+        {
+          path: 'trainers',
+          element: (
+            <RequireOption option="lms_trainers.list_view">
+              <TrainersPage />
+            </RequireOption>
+          ),
+        },
         {
           path: 'departments',
           element: (

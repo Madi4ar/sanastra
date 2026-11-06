@@ -46,10 +46,21 @@ export interface LocalRole {
   createdAt: string;
 }
 
+export interface TrainerEntry {
+  id: string;
+  tenantId: string;
+  userId: string;
+  active: boolean;
+  assignedAt: string;
+  specialization: string;
+}
+
 interface Store {
   departments: Department[];
   members: Member[];
   roles: LocalRole[];
+  /** Пул тренеров организации */
+  trainers: TrainerEntry[];
   groups: (OrgGroup & { tenantId: string })[];
   /** Заказы на оплату: одна оплата продлевает подписку один раз */
   payments: (PaymentOrder & { tenantId: string; status: 'PENDING' | 'PAID' | 'DECLINED'; annualAmount: number; monthlyAmount: number })[];
@@ -57,7 +68,7 @@ interface Store {
   audit: AuditEntry[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-org-structure-v3';
+const STORAGE_KEY = 'superadmin-mock-org-structure-v4';
 
 const EMPLOYEES = [
   'Ержанова Динара',
@@ -98,7 +109,7 @@ const entry = (
 
 /** Начальные данные: каждая вторая организация уже настроила структуру (Academy — всегда) */
 function seed(): Store {
-  const store: Store = { departments: [], members: [], roles: [], groups: [], payments: [], audit: [] };
+  const store: Store = { departments: [], members: [], roles: [], trainers: [], groups: [], payments: [], audit: [] };
   const options = allLeafKeys(loadRegistry());
   const orgs = [...load().organizations].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const now = dayjs();
@@ -240,6 +251,7 @@ export function removeStructure(tenantId: string) {
   store.departments = store.departments.filter((d) => d.tenantId !== tenantId);
   store.members = store.members.filter((m) => m.tenantId !== tenantId);
   store.roles = store.roles.filter((r) => r.tenantId !== tenantId);
+  store.trainers = store.trainers.filter((t) => t.tenantId !== tenantId);
   store.groups = store.groups.filter((g) => g.tenantId !== tenantId);
   store.payments = store.payments.filter((p) => p.tenantId !== tenantId);
   saveStructure(store);
@@ -263,6 +275,13 @@ export function localMatrixOf(userId: string, clientSlug: string): string[] {
   const member = store.members.find((m) => m.tenantId === org.tenantId && m.userId === userId);
   if (!member) return [];
   return store.roles.filter((r) => r.tenantId === org.tenantId && roleHolders(store, r).includes(member)).flatMap((r) => r.matrix);
+}
+
+/** Тренер деактивирован в пуле организации: закрыт только интерфейс тренера */
+export function isTrainerDeactivated(userId: string, clientSlug: string): boolean {
+  const org = load().organizations.find((o) => o.clientSlug === clientSlug);
+  if (!org) return false;
+  return loadStructure().trainers.some((t) => t.tenantId === org.tenantId && t.userId === userId && !t.active);
 }
 
 /** Сотрудник деактивирован в организации: роли этой организации не действуют */
@@ -312,6 +331,20 @@ export function syncMembers(org: OrgRecord, materialize = false): Store {
         localRoleIds: [],
         active: true,
       });
+  }
+  // Пул тренеров следует за ролью «Тренер» в организации
+  const isTrainer = (u: (typeof users)[number]) => inOrg(u) && u.roles.some((r) => r.role === 'TRAINER' && r.clientSlug === org.clientSlug);
+  store.trainers = store.trainers.filter((t) => t.tenantId !== org.tenantId || users.some((u) => u.id === t.userId && isTrainer(u)));
+  for (const u of users.filter(isTrainer)) {
+    if (store.trainers.some((t) => t.tenantId === org.tenantId && t.userId === u.id)) continue;
+    store.trainers.push({
+      id: crypto.randomUUID(),
+      tenantId: org.tenantId,
+      userId: u.id,
+      active: true,
+      assignedAt: new Date().toISOString(),
+      specialization: '',
+    });
   }
   if (materialize) {
     const taken = new Set(users.map((u) => u.iin));

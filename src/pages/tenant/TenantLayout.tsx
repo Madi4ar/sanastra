@@ -35,6 +35,7 @@ import {
   UserRound,
   Lock,
   Network,
+  Presentation,
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
@@ -126,6 +127,7 @@ function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boo
         ]
       : []),
     ...available('USERS'),
+    ...section('lms_trainers.list_view', 'trainers', 'Тренерский состав', <Presentation size={16} />),
     ...section('lms_departments.view', 'departments', 'Отделы', <Network size={16} />),
     ...section('lms_roles.view', 'roles', 'Роли и доступы', <ShieldCheck size={16} />),
     ...available('COURSES'),

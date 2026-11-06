@@ -70,7 +70,7 @@ import {
 } from './users';
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
 import { scheduleEndDate } from './paymentSchedule';
-import { isDeactivated, loadStructure, removeStructure, roleHolders, syncMembers } from './orgStructure';
+import { isDeactivated, isTrainerDeactivated, loadStructure, removeStructure, roleHolders, syncMembers } from './orgStructure';
 import { tenantAdminHandlers } from './tenantAdminHandlers';
 import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
 import { findCustomRole, loadRoles, saveRoles, type GlobalRoleRecord } from './roles';
@@ -304,6 +304,7 @@ export function tenantContext(request: Request): { org: OrgRecord; user: Current
   const record = loadUsers().find((u) => u.id === session.id);
   const user = record ? toCurrentUser(record, session, session.roles) : session;
   if (user.clientSlug && isDeactivated(user.id, user.clientSlug)) return err(403, 'FORBIDDEN', 'Учётная запись деактивирована.');
+  if (user.role === 'TRAINER' && user.clientSlug && isTrainerDeactivated(user.id, user.clientSlug)) return err(403, 'FORBIDDEN');
   const slug = new URL(request.url).searchParams.get('clientSlug');
   if (user.role !== 'SUPERADMIN' && user.clientSlug !== slug) return err(403, 'FORBIDDEN');
   const org = load().organizations.find((o) => o.clientSlug === slug);
@@ -457,6 +458,8 @@ function activeRoles(user: UserRecord): RoleAssignment[] {
     if (!r.clientSlug) return [withRoleName(r)];
     const org = orgs.find((o) => o.clientSlug === r.clientSlug);
     if (!org || isDeactivated(user.id, org.clientSlug)) return [];
+    // Деактивированный тренер теряет только интерфейс тренера в этой организации
+    if (r.role === 'TRAINER' && isTrainerDeactivated(user.id, org.clientSlug)) return [];
     // Администратор входит и при истёкшей подписке — чтобы её оплатить
     const status = computeStatus(org);
     const allowed = status === 'ACTIVE' || (status === 'EXPIRED' && r.role === 'ORGANIZATION_ADMIN');
@@ -558,7 +561,15 @@ export const handlers: HttpHandler[] = [
     const session = getSession();
     const record = session && loadUsers().find((u) => u.id === session.id);
     if (!session || !record) return err(401, 'UNAUTHORIZED');
-    return HttpResponse.json(toCurrentUser(record, session, activeRoles(record)));
+    const roles = activeRoles(record);
+    // Тренера деактивировали во время работы: рабочий контекст переходит на его личный кабинет
+    if (session.role === 'TRAINER' && session.clientSlug && isTrainerDeactivated(record.id, session.clientSlug) && roles.length) {
+      const fallback = [...roles].sort((x, y) => ROLE_PRIORITY.indexOf(x.role) - ROLE_PRIORITY.indexOf(y.role))[0]!;
+      const current = toCurrentUser(record, fallback, roles);
+      setSession(current);
+      return HttpResponse.json(current);
+    }
+    return HttpResponse.json(toCurrentUser(record, session, roles));
   }),
   http.get('/api/dictionaries/regions', async () => {
     await latency();

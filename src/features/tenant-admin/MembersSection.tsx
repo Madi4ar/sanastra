@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Button, Card, Input, Modal, Select, Table, Tag } from 'antd';
 import { Pencil, Power, PowerOff, Search, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
@@ -31,7 +32,7 @@ export function useMembers(clientSlug: string, enabled = true) {
 export const memberOptions = (members: OrgMember[]) =>
   members.map((m) => ({ value: m.id, label: `${m.fullName} · ${m.iin} · ${m.email}` }));
 
-function MemberModal({ clientSlug, member, onClose }: { clientSlug: string; member: OrgMember | null; onClose: () => void }) {
+function MemberModal({ clientSlug, member, preset, onClose }: { clientSlug: string; member: OrgMember | null; preset?: { iin: string; role: SystemOrgRole }; onClose: () => void }) {
   const qc = useQueryClient();
   const { message } = App.useApp();
   const admin = api.tenantAdmin(clientSlug);
@@ -39,7 +40,7 @@ function MemberModal({ clientSlug, member, onClose }: { clientSlug: string; memb
   const departments = useQuery({ queryKey: queryKeys.tenantAdmin(clientSlug, 'departments'), queryFn: admin.departments });
   const roles = useQuery({ queryKey: queryKeys.tenantAdmin(clientSlug, 'roles'), queryFn: admin.roles });
   const [values, setValues] = useState<OrgMemberPayload>({
-    iin: member?.iin ?? '',
+    iin: member?.iin ?? preset?.iin ?? '',
     lastName: member?.lastName ?? '',
     firstName: member?.firstName ?? '',
     middleName: member?.middleName ?? '',
@@ -47,7 +48,7 @@ function MemberModal({ clientSlug, member, onClose }: { clientSlug: string; memb
     phone: member ? formatPhone(member.phone) : '',
     region: member?.region ?? '',
     password: '',
-    role: member?.role ?? 'LEARNER',
+    role: member?.role ?? preset?.role ?? 'LEARNER',
     departmentId: member?.departmentId ?? null,
     localRoleIds: member?.localRoleIds ?? [],
   });
@@ -163,7 +164,11 @@ export function MembersSection({ clientSlug }: { clientSlug: string }) {
   });
   const usersLimit = usage.data?.items.find((i) => i.code === 'USERS_COUNT');
   const limitReached = usersLimit ? usersLimit.used >= usersLimit.limit : false;
-  const [editing, setEditing] = useState<OrgMember | 'new' | null>(null);
+  // Переход из «Тренерского состава»: пользователя нет в базе, форма создания открыта с ролью «Тренер»
+  const [params, setParams] = useSearchParams();
+  const registerTrainer = params.get('register') === 'trainer' && access.includes('lms_users.create');
+  const [editing, setEditing] = useState<OrgMember | 'new' | null>(registerTrainer ? 'new' : null);
+  const preset = registerTrainer ? { iin: params.get('iin') ?? '', role: 'TRAINER' as const } : undefined;
   const [assigning, setAssigning] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -293,7 +298,17 @@ export function MembersSection({ clientSlug }: { clientSlug: string }) {
           ]}
         />
       )}
-      {editing && <MemberModal clientSlug={clientSlug} member={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <MemberModal
+          clientSlug={clientSlug}
+          member={editing === 'new' ? null : editing}
+          preset={editing === 'new' ? preset : undefined}
+          onClose={() => {
+            setEditing(null);
+            if (registerTrainer) setParams({}, { replace: true });
+          }}
+        />
+      )}
       <AssignRoleModal clientSlug={clientSlug} open={assigning} onClose={() => setAssigning(false)} />
     </Card>
   );

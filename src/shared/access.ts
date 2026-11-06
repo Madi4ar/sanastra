@@ -35,6 +35,7 @@ export const TARIFF_MODULE_OF: Record<string, string | null> = {
   lms_groups: 'COURSES',
   lms_course_showcase: 'COURSES',
   lms_users: 'USERS',
+  lms_trainers: 'USERS',
   lms_roles: 'USERS',
   lms_departments: 'USERS',
   lms_report_builder: 'REPORTS',

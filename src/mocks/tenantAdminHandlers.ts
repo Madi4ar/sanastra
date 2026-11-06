@@ -14,6 +14,8 @@ import type {
   OrgGroupPayload,
   OrgMember,
   OrgMemberPayload,
+  OrgTrainer,
+  TrainerCandidate,
   PaymentPeriod,
   RegistryModule,
   RegistryOption,
@@ -29,8 +31,9 @@ import { computeStatus, effectiveLimitValues, effectiveModules, load, MODULES, s
 import { courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
 import { removeCourseContent } from './courseBuilder';
 import { err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
-import { addAudit, loadStructure, localMatrixOf, roleHolders, saveStructure, syncMembers, type LocalRole, type Member } from './orgStructure';
+import { addAudit, loadStructure, localMatrixOf, roleHolders, saveStructure, syncMembers, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
 import { canContinue, currentMonths, markPaid, newSchedule, planFor, scheduleEndDate } from './paymentSchedule';
+import { publish } from './eventBus';
 import { loadRegistry } from './registry';
 import { loadRoles, matrixOf, SYSTEM_ROLE_CODE } from './roles';
 import { accessFor, fullNameOf, hashPassword, loadUsers, saveUsers, type UserRecord } from './users';
@@ -581,6 +584,101 @@ export const tenantAdminHandlers = () => [
     return HttpResponse.json(toMember(member, ctx.org, loadUsers(), ctx.user.id));
   }),
 
+  // ---------- Тренерский состав ----------
+  http.get('/api/tenant/trainers', async ({ request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_trainers.list_view');
+    if (ctx instanceof Response) return ctx;
+    const store = syncMembers(ctx.org);
+    return HttpResponse.json(
+      store.trainers
+        .filter((t) => t.tenantId === ctx.org.tenantId)
+        .map((t) => toTrainer(t, loadUsers()))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru')),
+    );
+  }),
+
+  // Поиск по общей базе платформы: без контактов, ИИН виден только при точном совпадении с запросом
+  http.get('/api/tenant/trainers/search', async ({ request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_trainers.create');
+    if (ctx instanceof Response) return ctx;
+    const q = (new URL(request.url).searchParams.get('q') ?? '').trim().toLowerCase();
+    if (q.length < 3) return HttpResponse.json([]);
+    const trainers = syncMembers(ctx.org).trainers.filter((t) => t.tenantId === ctx.org.tenantId);
+    const result: TrainerCandidate[] = loadUsers()
+      .filter((u) => !u.roles.some((r) => r.role === 'SUPERADMIN'))
+      .filter((u) => u.iin === q || fullNameOf(u).toLowerCase().includes(q))
+      .slice(0, 10)
+      .map((u) => ({
+        userId: u.id,
+        fullName: fullNameOf(u),
+        iin: u.iin === q ? u.iin : `••••••••${u.iin.slice(-4)}`,
+        alreadyTrainer: trainers.some((t) => t.userId === u.id),
+      }));
+    return HttpResponse.json(result);
+  }),
+
+  // Назначение не создаёт пользователя: существующая учётная запись получает привязку к организации
+  http.post('/api/tenant/trainers', async ({ request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_trainers.create');
+    if (ctx instanceof Response) return ctx;
+    const { userId } = (await request.json().catch(() => ({}))) as { userId?: string };
+    const users = loadUsers();
+    const user = users.find((u) => u.id === userId && !u.roles.some((r) => r.role === 'SUPERADMIN'));
+    if (!user) return err(404, 'NOT_FOUND', 'Пользователь не найден.');
+    const slug = ctx.org.clientSlug;
+    if (user.roles.some((r) => r.role === 'TRAINER' && r.clientSlug === slug))
+      return err(400, 'VALIDATION_ERROR', 'Этот пользователь уже в тренерском составе организации.');
+    const isNewMember = !user.roles.some((r) => r.clientSlug === slug);
+    if (isNewMember && usersLimitReached(ctx.org)) return limitError();
+    user.roles.push({ role: 'TRAINER', clientSlug: slug });
+    // Личный кабинет Слушателя у сотрудника сохраняется
+    if (!user.roles.some((r) => r.role === 'LEARNER')) user.roles.push({ role: 'LEARNER' });
+    saveUsers(users);
+    const store = syncMembers(ctx.org);
+    if (isNewMember) changeUsersUsage(ctx.org.tenantId, 1);
+    const trainer = store.trainers.find((t) => t.tenantId === ctx.org.tenantId && t.userId === user.id)!;
+    return HttpResponse.json(toTrainer(trainer, users), { status: 201 });
+  }),
+
+  http.put('/api/tenant/trainers/:id', async ({ params, request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_trainers.edit');
+    if (ctx instanceof Response) return ctx;
+    const store = syncMembers(ctx.org);
+    const trainer = store.trainers.find((t) => t.id === params.id && t.tenantId === ctx.org.tenantId);
+    if (!trainer) return err(404, 'NOT_FOUND');
+    const { specialization } = (await request.json().catch(() => ({}))) as { specialization?: string };
+    if ((specialization ?? '').length > 200)
+      return err(400, 'VALIDATION_ERROR', 'Проверьте данные.', { specialization: 'Не более 200 символов' });
+    trainer.specialization = (specialization ?? '').trim();
+    saveStructure(store);
+    return HttpResponse.json(toTrainer(trainer, loadUsers()));
+  }),
+
+  // Деактивация сразу закрывает интерфейс тренера; учётная запись и личный кабинет сохраняются
+  http.put('/api/tenant/trainers/:id/status', async ({ params, request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_trainers.deactivate');
+    if (ctx instanceof Response) return ctx;
+    const store = syncMembers(ctx.org);
+    const trainer = store.trainers.find((t) => t.id === params.id && t.tenantId === ctx.org.tenantId);
+    if (!trainer) return err(404, 'NOT_FOUND');
+    const { active } = (await request.json().catch(() => ({}))) as { active?: boolean };
+    trainer.active = Boolean(active);
+    saveStructure(store);
+    publish({
+      type: 'permissions.updated',
+      tenantId: ctx.org.tenantId,
+      version: ctx.org.version,
+      changed: ['permissions'],
+      occurredAt: new Date().toISOString(),
+    });
+    return HttpResponse.json(toTrainer(trainer, loadUsers()));
+  }),
+
   // ---------- Отделы ----------
   http.get('/api/tenant/departments', async ({ request }) => {
     await latency();
@@ -891,6 +989,20 @@ export const tenantAdminHandlers = () => [
     return new HttpResponse(null, { status: 204 });
   }),
 ];
+
+function toTrainer(t: TrainerEntry, users: UserRecord[]): OrgTrainer {
+  const u = users.find((x) => x.id === t.userId);
+  return {
+    id: t.id,
+    fullName: u ? fullNameOf(u) : '',
+    iin: u?.iin ?? '',
+    email: u?.email ?? '',
+    phone: u?.phone ?? '',
+    active: t.active,
+    assignedAt: t.assignedAt,
+    specialization: t.specialization,
+  };
+}
 
 function toDepartment(id: string, store: ReturnType<typeof loadStructure>) {
   const d = store.departments.find((x) => x.id === id)!;

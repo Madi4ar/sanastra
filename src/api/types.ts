@@ -800,3 +800,24 @@ export interface ReportResult {
   rows: Record<string, string | number>[];
   generatedAt: string;
 }
+
+/** Тренер в пуле организации: привязка существующего пользователя платформы */
+export interface OrgTrainer {
+  id: string;
+  fullName: string;
+  iin: string;
+  email: string;
+  phone: string;
+  /** Активен / Деактивирован только в этой организации */
+  active: boolean;
+  assignedAt: string;
+  specialization: string;
+}
+
+/** Результат поиска по общей базе. ИИН скрыт, кроме случая точного совпадения с запросом. */
+export interface TrainerCandidate {
+  userId: string;
+  fullName: string;
+  iin: string;
+  alreadyTrainer: boolean;
+}
