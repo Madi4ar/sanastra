@@ -17,6 +17,8 @@ import type {
   SubscriptionOperation,
   SubscriptionSettingsPayload,
   TariffPlanPayload,
+  RegistryPublishPayload,
+  RegistryRenamePayload,
   TenantEvent,
 } from '@/api/types';
 import { finalPrice, NO_DISCOUNT } from '@/shared/pricing';
@@ -58,6 +60,7 @@ import {
   type UserRecord,
 } from './users';
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
+import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
 import { addCourse, COURSE_CATEGORIES, courseCount, listCourses, listWebinars, removeContent, toggleWebinarRegistration } from './content';
 
 const latency = () => {
@@ -774,6 +777,45 @@ export const handlers = [
     save(db);
     publishChanges(current, next);
     return HttpResponse.json(toDetail(next));
+  }),
+
+  // Реестр модулей: только просмотр и переименование отображаемых названий
+  http.get('/api/superadmin/module-registry', async () => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    return HttpResponse.json(loadRegistry());
+  }),
+
+  http.patch('/api/superadmin/module-registry/display-name', async ({ request }) => {
+    await latency();
+    const denied = requireRole('SUPERADMIN');
+    if (denied) return denied;
+    const body = (await request.json()) as Partial<RegistryRenamePayload>;
+    if (typeof body.key !== 'string') return err(400, 'VALIDATION_ERROR', 'Не указан ключ элемента реестра.');
+    let displayName: string | null = null;
+    if (body.displayName !== null && body.displayName !== undefined) {
+      if (typeof body.displayName !== 'string') return err(400, 'VALIDATION_ERROR', 'Некорректное название.');
+      const trimmed = body.displayName.trim().replace(/\s+/g, ' ');
+      if (trimmed.length > 120)
+        return err(400, 'VALIDATION_ERROR', 'Проверьте название.', { displayName: 'Не более 120 символов' });
+      displayName = trimmed || null;
+    }
+    const module = renameNode(body.key, displayName);
+    if (!module) return err(404, 'NOT_FOUND', 'Элемент реестра не найден.');
+    return HttpResponse.json(module);
+  }),
+
+  // Системный API разработки (CI/CD): публикация или обновление модуля с версией и перечнем опций
+  http.post('/api/system/module-registry', async ({ request }) => {
+    await latency();
+    const body = (await request.json()) as Partial<RegistryPublishPayload>;
+    const fe = validatePublish(body);
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Некорректное описание модуля.', fe);
+    const source = request.headers.get('X-Publish-Source') === 'CI_CD' ? 'CI_CD' : 'SYSTEM_API';
+    const result = publishModule(body as RegistryPublishPayload, source);
+    if ('conflict' in result) return err(409, 'VERSION_CONFLICT', result.conflict);
+    return HttpResponse.json(result.module, { status: result.created ? 201 : 200 });
   }),
 
   http.get('/api/superadmin/tariff-plans', async () => {

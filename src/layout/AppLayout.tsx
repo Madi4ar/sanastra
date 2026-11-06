@@ -1,5 +1,5 @@
 import { Avatar, Breadcrumb, Button, Layout, Menu, Tooltip, Typography } from 'antd';
-import { Building2, LogOut, Package, PanelLeftClose, PanelLeftOpen, UserRound, Users } from 'lucide-react';
+import { Blocks, Building2, LogOut, Package, PanelLeftClose, PanelLeftOpen, UserRound, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 import { tokens } from '@/app/theme';
@@ -47,7 +47,7 @@ export function AppLayout() {
       return { key: m.id, title: last ? node : <Link to={m.pathname}>{node}</Link> };
     });
 
-  const selected = ['organizations', 'tariffs', 'users'].filter((k) => location.pathname.startsWith(`/superadmin/${k}`));
+  const selected = ['organizations', 'tariffs', 'modules', 'users'].filter((k) => location.pathname.startsWith(`/superadmin/${k}`));
 
   return (
     <Layout style={{ minHeight: '100vh', minWidth: 1024 }}>
@@ -80,6 +80,7 @@ export function AppLayout() {
               label: 'Тарифные планы',
               onClick: () => navigate('/superadmin/tariffs'),
             },
+            { key: 'modules', icon: <Blocks size={16} />, label: 'Модули', onClick: () => navigate('/superadmin/modules') },
             { key: 'users', icon: <Users size={16} />, label: 'Пользователи', onClick: () => navigate('/superadmin/users') },
           ]}
         />

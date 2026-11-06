@@ -6,6 +6,7 @@ import { HomeRedirect, RequireAuth } from '@/auth/auth';
 import { AppLayout, type CrumbHandle } from '@/layout/AppLayout';
 import { LandingPage } from '@/pages/landing/LandingPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { ModuleRegistryPage } from '@/pages/ModuleRegistryPage';
 import { OrganizationDetailPage } from '@/pages/OrganizationDetailPage';
 import { OrganizationsPage } from '@/pages/OrganizationsPage';
 import { UsersPage } from '@/pages/PlatformPages';
@@ -93,6 +94,7 @@ export const routes: RouteObject[] = [
         ],
       },
       { path: 'tariffs', element: <TariffPlansPage />, handle: crumb('Тарифные планы') },
+      { path: 'modules', element: <ModuleRegistryPage />, handle: crumb('Модули') },
       { path: 'users', element: <UsersPage />, handle: crumb('Пользователи') },
       { path: '*', element: <NotFoundPage /> },
     ],

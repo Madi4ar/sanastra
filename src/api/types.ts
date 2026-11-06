@@ -355,3 +355,56 @@ export interface CreateOrganizationPayload {
   subscriptionStartDate: string;
   subscriptionEndDate: string;
 }
+
+/** Опция модуля в реестре: атомарная функция (может содержать вложенные опции) */
+export interface RegistryOption {
+  /** Полный системный ключ: `lms_prog_core.create` */
+  key: string;
+  /** Системное название, переданное разработкой */
+  systemName: string;
+  /** Коммерческое название, заданное суперадминистратором (null — показывается системное) */
+  displayName: string | null;
+  options?: RegistryOption[];
+}
+
+export interface RegistryVersion {
+  version: string;
+  publishedAt: string;
+  /** Канал публикации: CI/CD-пайплайн или системный API */
+  publishedBy: 'CI_CD' | 'SYSTEM_API';
+}
+
+/** Модуль реестра — отражает технологический срез кода; удаление и выключение недоступны */
+export interface RegistryModule {
+  key: string;
+  systemName: string;
+  displayName: string | null;
+  /** Текущая версия */
+  version: string;
+  updatedAt: string;
+  /** История версий, новые сверху */
+  versions: RegistryVersion[];
+  options: RegistryOption[];
+}
+
+/** Публикация/обновление модуля разработкой (CI/CD или системный API) */
+export interface RegistryPublishPayload {
+  key: string;
+  systemName: string;
+  /** Семантическая версия: 1.2.0 */
+  version: string;
+  options: RegistryPublishOption[];
+}
+
+/** Опция в публикации: ключ — сегмент внутри родителя (`create`), полный ключ собирает сервер */
+export interface RegistryPublishOption {
+  key: string;
+  systemName: string;
+  options?: RegistryPublishOption[];
+}
+
+/** Переименование элемента реестра (модуля или опции); null — вернуть системное название */
+export interface RegistryRenamePayload {
+  key: string;
+  displayName: string | null;
+}

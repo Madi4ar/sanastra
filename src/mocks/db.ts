@@ -4,6 +4,7 @@
  */
 import dayjs from 'dayjs';
 import { resetContent } from './content';
+import { resetRegistry } from './registry';
 import { resetUsers } from './users';
 import type {
   ChangeSource,
@@ -303,6 +304,7 @@ export function resetDb() {
   setSession(null);
   resetContent();
   resetUsers();
+  resetRegistry();
 }
 
 export const findTariff = (id: string) => load().tariffs.find((t) => t.id === id);

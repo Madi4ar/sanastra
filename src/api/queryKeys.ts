@@ -10,6 +10,7 @@ export const queryKeys = {
   organizationsAll: ['organizations'] as const,
   organization: (tenantId: string) => ['organization', tenantId] as const,
   tariffPlans: ['tariff-plans'] as const,
+  moduleRegistry: ['module-registry'] as const,
   tariffPlan: (tariffPlanId: string) => ['tariff-plan', tariffPlanId] as const,
   tenantAccess: (clientSlug: string) => ['tenant-access', clientSlug] as const,
   tenantAccessAll: ['tenant-access'] as const,

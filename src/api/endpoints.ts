@@ -14,6 +14,9 @@ import type {
   PlatformUserPayload,
   Region,
   RegisterPayload,
+  RegistryModule,
+  RegistryPublishPayload,
+  RegistryRenamePayload,
   RoleAssignment,
   SubscriptionSettingsPayload,
   TariffPlanDetail,
@@ -113,6 +116,20 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(payload),
       }),
+  },
+  moduleRegistry: {
+    list: () => request<RegistryModule[]>('/api/superadmin/module-registry'),
+    /** Только переименование отображаемого названия — удаление и выключение в реестре отсутствуют */
+    rename: (payload: RegistryRenamePayload) =>
+      request<RegistryModule>('/api/superadmin/module-registry/display-name', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+  },
+  /** Системный API для разработки (CI/CD): публикация или обновление модуля в реестре */
+  system: {
+    publishModule: (payload: RegistryPublishPayload) =>
+      request<RegistryModule>('/api/system/module-registry', { method: 'POST', body: JSON.stringify(payload) }),
   },
   tenant: {
     access: (clientSlug: string) => request<TenantAccess>(`/api/tenant/access${toQueryString({ clientSlug })}`),
