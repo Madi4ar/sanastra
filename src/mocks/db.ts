@@ -4,6 +4,7 @@
  */
 import dayjs from 'dayjs';
 import { resetContent } from './content';
+import { resetCourseContent } from './courseBuilder';
 import { resetRegistry } from './registry';
 import { resetUsers } from './users';
 import type {
@@ -305,6 +306,7 @@ export function resetDb() {
   resetContent();
   resetUsers();
   resetRegistry();
+  resetCourseContent();
 }
 
 export const findTariff = (id: string) => load().tariffs.find((t) => t.id === id);

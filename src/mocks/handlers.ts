@@ -18,6 +18,9 @@ import type {
   SubscriptionSettingsPayload,
   TariffPlanPayload,
   RegistryPublishPayload,
+  ElementPayload,
+  ElementType,
+  StructureMove,
   RegistryRenamePayload,
   TenantEvent,
 } from '@/api/types';
@@ -61,7 +64,27 @@ import {
 } from './users';
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
 import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
-import { addCourse, COURSE_CATEGORIES, courseCount, listCourses, listWebinars, removeContent, toggleWebinarRegistration } from './content';
+import {
+  addCourse,
+  COURSE_CATEGORIES,
+  courseCount,
+  findCourse,
+  listCourses,
+  listWebinars,
+  removeContent,
+  toggleWebinarRegistration,
+  touchCourse,
+} from './content';
+import {
+  applyElement,
+  findDay,
+  findElement,
+  getStructure,
+  move,
+  mutate,
+  newElement,
+  removeCourseContentOf,
+} from './courseBuilder';
 
 const latency = () => {
   // Отложенные задачи планировщика выполняются до обработки запроса (плюс интервал в browser.ts)
@@ -271,6 +294,44 @@ function subscriptionGuard(org: OrgRecord): Response | null {
 
 const canManageOrganization = (u: CurrentUser) =>
   u.role === 'SUPERADMIN' || u.permissions.includes('organization.manage');
+
+
+/** Контекст конструктора курса: модуль «Курсы» включён, право на просмотр; редактирование — courses.manage */
+function courseContext(request: Request, courseId: string, edit = false) {
+  const ctx = tenantContext(request);
+  if (ctx instanceof Response) return ctx;
+  const blocked = subscriptionGuard(ctx.org);
+  if (blocked) return blocked;
+  if (!effectiveModules(ctx.org).includes('COURSES')) return err(403, 'MODULE_DISABLED');
+  if (!ctx.user.permissions.includes('courses.view')) return err(403, 'FORBIDDEN');
+  const course = findCourse(ctx.org, courseId);
+  if (!course) return err(404, 'NOT_FOUND', 'Курс не найден.');
+  const canEdit = ctx.user.permissions.includes('courses.manage');
+  if (edit && !canEdit) return err(403, 'FORBIDDEN', 'Недостаточно прав для изменения курса.');
+  return { ...ctx, course, canEdit };
+}
+
+type CourseCtx = Exclude<ReturnType<typeof courseContext>, Response>;
+
+function courseContent(ctx: CourseCtx) {
+  const modules = getStructure(ctx.course.id);
+  // Слушатель не видит скрытые элементы
+  const visible = ctx.canEdit
+    ? modules
+    : modules.map((m) => ({ ...m, days: m.days.map((d) => ({ ...d, elements: d.elements.filter((e) => !e.hidden) })) }));
+  return { course: findCourse(ctx.org, ctx.course.id)!, canEdit: ctx.canEdit, modules: visible };
+}
+
+/** После изменения структуры: курс помечается обновлённым */
+function afterStructureChange(ctx: CourseCtx) {
+  touchCourse(ctx.org, ctx.course.id, {});
+  return HttpResponse.json(courseContent(ctx));
+}
+
+const titleOf = (v: unknown, fallback: string) => {
+  const t = typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
+  return t ? t.slice(0, 255) : fallback;
+};
 
 /** Действия создания, ограниченные лимитом. */
 const CREATE_ACTIONS: Record<string, { label: string; limitCode: string; permission: string }> = {
@@ -724,6 +785,7 @@ export const handlers = [
     users.forEach((u) => (u.roles = u.roles.filter((r) => r.clientSlug !== org.clientSlug)));
     saveUsers(users);
     removeContent(org.tenantId);
+    removeCourseContentOf(`${org.tenantId}-`);
     // Открытые кабинеты организации сразу теряют доступ
     publish({
       type: 'subscription.blocked',
@@ -905,6 +967,170 @@ export const handlers = [
     if (ctx instanceof Response) return ctx;
     if (!canManageOrganization(ctx.user)) return err(403, 'FORBIDDEN');
     return subscriptionGuard(ctx.org) ?? HttpResponse.json(toUsage(ctx.org));
+  }),
+
+  // Конструктор курса: модули → дни → элементы контента
+  http.get('/api/tenant/courses/:courseId/content', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId));
+    if (ctx instanceof Response) return ctx;
+    return HttpResponse.json(courseContent(ctx));
+  }),
+
+  http.post('/api/tenant/courses/:courseId/modules', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as { title?: unknown };
+    mutate(ctx.course.id, (modules) => {
+      modules.push({
+        id: crypto.randomUUID(),
+        title: titleOf(body.title, `Модуль ${modules.length + 1}`),
+        days: [{ id: crypto.randomUUID(), title: 'День 1', elements: [] }],
+      });
+    });
+    return afterStructureChange(ctx);
+  }),
+
+  http.patch('/api/tenant/courses/:courseId/modules/:id', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as { title?: unknown };
+    const ok = mutate(ctx.course.id, (modules) => {
+      const m = modules.find((x) => x.id === params.id);
+      if (m) m.title = titleOf(body.title, m.title);
+      return Boolean(m);
+    });
+    return ok ? afterStructureChange(ctx) : err(404, 'NOT_FOUND');
+  }),
+
+  http.delete('/api/tenant/courses/:courseId/modules/:id', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const ok = mutate(ctx.course.id, (modules) => {
+      const i = modules.findIndex((x) => x.id === params.id);
+      if (i >= 0) modules.splice(i, 1);
+      return i >= 0;
+    });
+    return ok ? afterStructureChange(ctx) : err(404, 'NOT_FOUND');
+  }),
+
+  http.post('/api/tenant/courses/:courseId/modules/:id/move', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as { direction?: StructureMove };
+    mutate(ctx.course.id, (modules) => move(modules, String(params.id), body.direction === 'up' ? 'up' : 'down'));
+    return afterStructureChange(ctx);
+  }),
+
+  http.post('/api/tenant/courses/:courseId/modules/:id/days', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as { title?: unknown };
+    const ok = mutate(ctx.course.id, (modules) => {
+      const m = modules.find((x) => x.id === params.id);
+      m?.days.push({ id: crypto.randomUUID(), title: titleOf(body.title, `День ${m.days.length + 1}`), elements: [] });
+      return Boolean(m);
+    });
+    return ok ? afterStructureChange(ctx) : err(404, 'NOT_FOUND');
+  }),
+
+  http.patch('/api/tenant/courses/:courseId/days/:id', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as { title?: unknown };
+    const ok = mutate(ctx.course.id, (modules) => {
+      const d = findDay(modules, String(params.id));
+      if (d) d.title = titleOf(body.title, d.title);
+      return Boolean(d);
+    });
+    return ok ? afterStructureChange(ctx) : err(404, 'NOT_FOUND');
+  }),
+
+  http.delete('/api/tenant/courses/:courseId/days/:id', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const ok = mutate(ctx.course.id, (modules) => {
+      for (const m of modules) {
+        const i = m.days.findIndex((d) => d.id === params.id);
+        if (i >= 0) {
+          m.days.splice(i, 1);
+          return true;
+        }
+      }
+      return false;
+    });
+    return ok ? afterStructureChange(ctx) : err(404, 'NOT_FOUND');
+  }),
+
+  http.post('/api/tenant/courses/:courseId/days/:id/elements', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as { type?: ElementType; titleRu?: unknown; titleKz?: unknown };
+    const titleRu = typeof body.titleRu === 'string' ? body.titleRu.trim() : '';
+    const titleKz = typeof body.titleKz === 'string' ? body.titleKz.trim() : '';
+    if (!titleRu && !titleKz)
+      return err(400, 'VALIDATION_ERROR', 'Укажите название элемента.', { titleRu: 'Укажите название хотя бы на одном языке' });
+    if (titleRu.length > 255 || titleKz.length > 255)
+      return err(400, 'VALIDATION_ERROR', 'Название — не более 255 символов.', { titleRu: 'Не более 255 символов' });
+    const el = newElement(body.type as ElementType, titleRu, titleKz);
+    if (!el) return err(400, 'VALIDATION_ERROR', 'Неизвестный тип элемента.');
+    const ok = mutate(ctx.course.id, (modules) => {
+      const d = findDay(modules, String(params.id));
+      d?.elements.push(el);
+      return Boolean(d);
+    });
+    if (!ok) return err(404, 'NOT_FOUND');
+    touchCourse(ctx.org, ctx.course.id, {});
+    return HttpResponse.json(el, { status: 201 });
+  }),
+
+  http.put('/api/tenant/courses/:courseId/elements/:id', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as Partial<ElementPayload>;
+    const result = mutate(ctx.course.id, (modules) => {
+      const found = findElement(modules, String(params.id));
+      if (!found) return null;
+      const errors = applyElement(found.element, body);
+      return errors ? { errors } : { element: structuredClone(found.element) };
+    });
+    if (!result) return err(404, 'NOT_FOUND', 'Элемент не найден.');
+    if ('errors' in result) return err(400, 'VALIDATION_ERROR', 'Проверьте настройки элемента.', result.errors);
+    touchCourse(ctx.org, ctx.course.id, {});
+    return HttpResponse.json(result.element);
+  }),
+
+  http.delete('/api/tenant/courses/:courseId/elements/:id', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const ok = mutate(ctx.course.id, (modules) => {
+      const found = findElement(modules, String(params.id));
+      if (found) found.day.elements = found.day.elements.filter((e) => e.id !== params.id);
+      return Boolean(found);
+    });
+    return ok ? afterStructureChange(ctx) : err(404, 'NOT_FOUND');
+  }),
+
+  http.post('/api/tenant/courses/:courseId/elements/:id/move', async ({ params, request }) => {
+    await latency();
+    const ctx = courseContext(request, String(params.courseId), true);
+    if (ctx instanceof Response) return ctx;
+    const body = (await request.json().catch(() => ({}))) as { direction?: StructureMove };
+    mutate(ctx.course.id, (modules) => {
+      const found = findElement(modules, String(params.id));
+      if (found) move(found.day.elements, String(params.id), body.direction === 'up' ? 'up' : 'down');
+    });
+    return afterStructureChange(ctx);
   }),
 
   http.get('/api/tenant/modules/:code/data', async ({ params, request }) => {

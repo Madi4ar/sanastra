@@ -192,3 +192,16 @@ export function toggleWebinarRegistration(org: OrgRecord, webinarId: string, use
   saveAll(all);
   return !registered;
 }
+
+export function findCourse(org: OrgRecord, courseId: string): Course | undefined {
+  return contentFor(org).content.courses.find((c) => c.id === courseId);
+}
+
+/** Изменение курса из конструктора: дата обновления */
+export function touchCourse(org: OrgRecord, courseId: string, patch: Partial<Pick<Course, 'lessonsCount'>>) {
+  const { all, content } = contentFor(org);
+  const course = content.courses.find((c) => c.id === courseId);
+  if (!course) return;
+  Object.assign(course, patch, { updatedAt: new Date().toISOString() });
+  saveAll(all);
+}

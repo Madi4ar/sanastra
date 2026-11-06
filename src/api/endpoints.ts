@@ -1,6 +1,11 @@
 import { request, toQueryString } from './client';
 import type {
   Course,
+  CourseContent,
+  CourseElement,
+  ElementPayload,
+  ElementType,
+  StructureMove,
   CreateOrganizationPayload,
   CurrentUser,
   OrganizationDetail,
@@ -130,6 +135,28 @@ export const api = {
   system: {
     publishModule: (payload: RegistryPublishPayload) =>
       request<RegistryModule>('/api/system/module-registry', { method: 'POST', body: JSON.stringify(payload) }),
+  },
+  /** Конструктор курса: модули → дни → элементы контента */
+  courseBuilder: (clientSlug: string, courseId: string) => {
+    const base = `/api/tenant/courses/${encodeURIComponent(courseId)}`;
+    const q = toQueryString({ clientSlug });
+    const send = <T>(path: string, method: string, body?: unknown) =>
+      request<T>(`${base}${path}${q}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+    return {
+      get: () => request<CourseContent>(`${base}/content${q}`),
+      addModule: (title: string) => send<CourseContent>('/modules', 'POST', { title }),
+      renameModule: (id: string, title: string) => send<CourseContent>(`/modules/${id}`, 'PATCH', { title }),
+      removeModule: (id: string) => send<CourseContent>(`/modules/${id}`, 'DELETE'),
+      moveModule: (id: string, direction: StructureMove) => send<CourseContent>(`/modules/${id}/move`, 'POST', { direction }),
+      addDay: (moduleId: string, title: string) => send<CourseContent>(`/modules/${moduleId}/days`, 'POST', { title }),
+      renameDay: (id: string, title: string) => send<CourseContent>(`/days/${id}`, 'PATCH', { title }),
+      removeDay: (id: string) => send<CourseContent>(`/days/${id}`, 'DELETE'),
+      addElement: (dayId: string, type: ElementType, titleRu: string, titleKz: string) =>
+        send<CourseElement>(`/days/${dayId}/elements`, 'POST', { type, titleRu, titleKz }),
+      updateElement: (id: string, payload: ElementPayload) => send<CourseElement>(`/elements/${id}`, 'PUT', payload),
+      removeElement: (id: string) => send<CourseContent>(`/elements/${id}`, 'DELETE'),
+      moveElement: (id: string, direction: StructureMove) => send<CourseContent>(`/elements/${id}/move`, 'POST', { direction }),
+    };
   },
   tenant: {
     access: (clientSlug: string) => request<TenantAccess>(`/api/tenant/access${toQueryString({ clientSlug })}`),

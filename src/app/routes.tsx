@@ -19,6 +19,7 @@ import { ModulesPage, OrganizationInfoPage, SubscriptionPage, UsagePage } from '
 import { SubscriptionBlockedPage } from '@/pages/tenant/SubscriptionBlockedPage';
 import { TenantLayout } from '@/pages/tenant/TenantLayout';
 import { AdminCabinet, RoleCabinet } from '@/pages/tenant/Cabinets';
+import { CourseBuilderPage } from '@/pages/tenant/CourseBuilderPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 
 function OrganizationCrumb({ tenantId }: { tenantId: string }) {
@@ -58,6 +59,7 @@ function cabinetRoutes(): RouteObject[] {
         { path: 'profile', element: <ProfilePage /> },
         { path: 'feature-unavailable', element: <FeatureUnavailablePage /> },
         { path: 'm/:moduleCode', element: <ModulePage /> },
+        { path: 'm/COURSES/:courseId', element: <CourseBuilderPage />, handle: crumb('Курс') },
         { path: '*', element: <NotFoundPage /> },
       ],
     },

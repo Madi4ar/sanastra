@@ -6,12 +6,38 @@
 import dayjs from 'dayjs';
 import type { RegistryModule, RegistryOption, RegistryPublishOption, RegistryPublishPayload } from '@/api/types';
 
-const STORAGE_KEY = 'superadmin-mock-registry-v1';
+const STORAGE_KEY = 'superadmin-mock-registry-v2';
 
 /** Элемент начального наполнения: [сегмент ключа, системное название, коммерческое название, вложенные опции] */
 type SeedOption = [string, string, string, SeedOption[]?];
 
-/** Перечень модулей и опций первой очереди (раздел 4 ТЗ). «Элементы контента (Конструктор курсов)» — в следующей очереди. */
+const CRUD: SeedOption[] = [
+  ['create', 'create', 'Создание'],
+  ['delete', 'delete', 'Удаление'],
+  ['edit', 'edit', 'Редактирование'],
+  ['view', 'view', 'Просмотр'],
+];
+
+/** Элементы контента конструктора курсов — те же типы, что в features/course-builder/elementTypes.ts */
+const CONTENT_ELEMENTS: [string, string][] = [
+  ['text', 'Лонгрид'],
+  ['video', 'Видео'],
+  ['interactive_video', 'Интерактивное видео'],
+  ['audio', 'Аудио'],
+  ['document', 'Документ'],
+  ['presentation', 'Презентация'],
+  ['folder', 'Папка'],
+  ['image', 'Картинка'],
+  ['link', 'Ссылка'],
+  ['scorm', 'Скорм (SCORM)'],
+  ['assignment', 'Практическая работа'],
+  ['table', 'Интерактивная таблица'],
+  ['test', 'Тест'],
+  ['survey', 'Анкета'],
+  ['reflection', 'Вопросы рефлексии'],
+];
+
+/** Перечень модулей и опций первой очереди (раздел 4 ТЗ) */
 const SEED: { key: string; displayName: string | null; versions: string[]; options: SeedOption[] }[] = [
   {
     // Пример из ТЗ: кодовое имя ещё не переименовано суперадминистратором
@@ -78,6 +104,12 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
     displayName: 'Управление конструктора отчетов',
     versions: ['0.9.0', '1.0.0'],
     options: [['builder_basic', 'builder_basic', 'Конструктор отчетов (базовый функционал генерации)']],
+  },
+  {
+    key: 'lms_content_elements',
+    displayName: 'Элементы контента (Конструктор курсов)',
+    versions: ['1.0.0', '1.1.0', '1.2.0', '2.0.0'],
+    options: CONTENT_ELEMENTS.map(([key, name]) => [key, key, name, CRUD] as SeedOption),
   },
   {
     key: 'lms_learner_cabinet',

@@ -408,3 +408,73 @@ export interface RegistryRenamePayload {
   key: string;
   displayName: string | null;
 }
+
+/** Элементы контента конструктора курсов (перенесено из ESUS LMS) */
+export type ElementType =
+  | 'text'
+  | 'video'
+  | 'interactive_video'
+  | 'audio'
+  | 'document'
+  | 'presentation'
+  | 'folder'
+  | 'image'
+  | 'link'
+  | 'scorm'
+  | 'assignment'
+  | 'table'
+  | 'test'
+  | 'survey'
+  | 'reflection';
+
+/** Файл элемента. Язык: '' — для обоих языков */
+export interface ElementFile {
+  id: string;
+  name: string;
+  size: number;
+  mime: string;
+  lang: '' | 'kz' | 'ru';
+  /** Папка внутри элемента «Папка» (null — корень) */
+  folderId: string | null;
+  /** Превью картинки (data URL), если файл небольшой */
+  dataUrl?: string;
+  uploadedAt: string;
+}
+
+export interface CourseElement {
+  id: string;
+  type: ElementType;
+  titleRu: string;
+  titleKz: string;
+  /** Обязательный для завершения курса */
+  required: boolean;
+  /** Скрыт от слушателей */
+  hidden: boolean;
+  /** Настройки типа — см. features/course-builder/elementTypes.ts */
+  settings: Record<string, unknown>;
+  files: ElementFile[];
+  updatedAt: string;
+}
+
+export interface CourseDay {
+  id: string;
+  title: string;
+  elements: CourseElement[];
+}
+
+export interface CourseModule {
+  id: string;
+  title: string;
+  days: CourseDay[];
+}
+
+export interface CourseContent {
+  course: Course;
+  /** Право редактировать структуру и элементы (courses.manage) */
+  canEdit: boolean;
+  modules: CourseModule[];
+}
+
+export type ElementPayload = Pick<CourseElement, 'titleRu' | 'titleKz' | 'required' | 'hidden' | 'settings' | 'files'>;
+
+export type StructureMove = 'up' | 'down';

@@ -17,5 +17,6 @@ export const queryKeys = {
   subscriptionSummary: (clientSlug: string) => ['subscription-summary', clientSlug] as const,
   tenantModules: (clientSlug: string) => ['tenant-modules', clientSlug] as const,
   tenantUsage: (clientSlug: string) => ['tenant-usage', clientSlug] as const,
+  courseContent: (clientSlug: string, courseId: string) => ['course-content', clientSlug, courseId] as const,
   tenantModuleData: (clientSlug: string, code: string) => ['tenant-module', clientSlug, code] as const,
 };

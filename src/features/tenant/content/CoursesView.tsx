@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Button, Card, Empty, Input, Modal, Progress, Segmented, Select, Tag } from 'antd';
 import { BookOpen, ChartColumn, GraduationCap, PlayCircle, Plus, Search, UserRound, Users } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { tokens } from '@/app/theme';
 import { isApiError } from '@/api/client';
 import { api, type ModuleData } from '@/api/endpoints';
@@ -11,14 +12,17 @@ import { CardGrid } from '@/features/tenant/ModuleCard';
 import { StatCard, StatGrid, TONE_CLASS, type Tone } from '@/features/tenant/StatCard';
 import { formatDate } from '@/shared/format';
 import { PageHeader } from '@/pages/tenant/PageHeader';
+import { useCabinet } from '@/features/tenant/cabinet';
 
 type Filter = 'ALL' | 'PUBLISHED' | 'DRAFT';
 const CATEGORY_TONES: Tone[] = ['primary', 'info', 'success', 'warning', 'neutral'];
 
 function CourseCard({ course, tone }: { course: Course; tone: Tone }) {
   const published = course.status === 'PUBLISHED';
+  const { base } = useCabinet();
   return (
-    <Card className="h-full" styles={{ body: { padding: 0, height: '100%' } }} data-testid={`course-${course.id}`}>
+    <Link to={`${base}/m/COURSES/${encodeURIComponent(course.id)}`} className="block h-full" aria-label={`Открыть курс «${course.title}»`}>
+    <Card hoverable className="h-full" styles={{ body: { padding: 0, height: '100%' } }} data-testid={`course-${course.id}`}>
       <div className="flex h-full flex-col">
         <div className={`relative flex h-24 items-center justify-center rounded-t-lg ${TONE_CLASS[tone]}`}>
           <BookOpen size={36} aria-hidden />
@@ -60,6 +64,7 @@ function CourseCard({ course, tone }: { course: Course; tone: Tone }) {
         </div>
       </div>
     </Card>
+    </Link>
   );
 }
 
