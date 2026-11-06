@@ -163,3 +163,12 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+.rich-text ul,
+.rich-text ol {
+  margin: 0.25rem 0;
+  padding-left: 1.25rem;
+}
+.rich-text p {
+  margin: 0 0 0.25rem;
+}

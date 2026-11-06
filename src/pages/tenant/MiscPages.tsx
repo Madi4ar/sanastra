@@ -8,6 +8,7 @@ import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import { FeatureGuard, useTenantContext } from '@/features/tenant/access';
 import { useCabinet } from '@/features/tenant/cabinet';
+import { ProgramsView } from '@/features/programs/ProgramsView';
 import { CoursesView } from '@/features/tenant/content/CoursesView';
 import { ProfileCard } from '@/features/profile/ProfileCard';
 import { MembersSection } from '@/features/tenant-admin/MembersSection';
@@ -49,7 +50,7 @@ export function FeatureUnavailablePage() {
 }
 
 function ModuleContent({ code }: { code: string }) {
-  const { clientSlug } = useTenantContext();
+  const { clientSlug, user } = useTenantContext();
   const qc = useQueryClient();
   const { message } = App.useApp();
   const [createOpen, setCreateOpen] = useState(false);
@@ -71,7 +72,12 @@ function ModuleContent({ code }: { code: string }) {
 
   if (q.isPending) return <Skeleton active paragraph={{ rows: 4 }} />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
-  if (q.data.kind === 'courses') return <CoursesView data={q.data} clientSlug={clientSlug} />;
+  if (q.data.kind === 'courses')
+    return user?.access.includes('lms_prog_core.create') || user?.access.includes('lms_prog_core.edit') ? (
+      <ProgramsView data={q.data} />
+    ) : (
+      <CoursesView data={q.data} />
+    );
   if (q.data.kind === 'webinars') return <WebinarsView data={q.data} clientSlug={clientSlug} />;
   const action = q.data.create;
 

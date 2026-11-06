@@ -4,7 +4,7 @@
  * Количество курсов синхронизировано с usage.COURSES_COUNT (лимит считает сервер).
  */
 import dayjs from 'dayjs';
-import type { Course, Webinar, WebinarStatus } from '@/api/types';
+import type { Course, ProgramFields, Webinar, WebinarStatus } from '@/api/types';
 import type { OrgRecord } from './db';
 
 interface StoredWebinar extends Omit<Webinar, 'status' | 'registeredByMe' | 'registered'> {
@@ -17,9 +17,9 @@ interface TenantContent {
   webinars: StoredWebinar[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-content-v1';
+const STORAGE_KEY = 'superadmin-mock-content-v2';
 
-const COURSE_TEMPLATES: Omit<Course, 'id' | 'updatedAt'>[] = [
+const COURSE_TEMPLATES: Pick<Course, 'title' | 'category' | 'teacher' | 'lessonsCount' | 'studentsCount' | 'progress' | 'status'>[] = [
   { title: 'Алгебра: подготовка к ЕНТ', category: 'Математика', teacher: 'Ирина Петрова', lessonsCount: 24, studentsCount: 48, progress: 72, status: 'PUBLISHED' },
   { title: 'Геометрия 8 класс', category: 'Математика', teacher: 'Ирина Петрова', lessonsCount: 18, studentsCount: 31, progress: 55, status: 'PUBLISHED' },
   { title: 'Английский язык B1', category: 'Языки', teacher: 'Сабина Алиева', lessonsCount: 32, studentsCount: 62, progress: 64, status: 'PUBLISHED' },
@@ -98,6 +98,29 @@ function roundStart(d: dayjs.Dayjs, live: boolean) {
   return live ? base.minute(Math.floor(base.minute() / 5) * 5) : base.minute(0);
 }
 
+/** Демо-наполнение формы программы: значения справочников — глобальные записи */
+function programDefaults(title: string, lessons: number, i: number): ProgramFields {
+  return {
+    titleKz: title,
+    titleRu: title,
+    titleEn: '',
+    descriptionKz: `<p>${title}: бағдарлама сипаттамасы.</p>`,
+    descriptionRu: `<p>${title}: описание программы.</p>`,
+    descriptionEn: '',
+    goalKz: 'Пән бойынша білім мен дағдыларды дамыту.',
+    goalRu: 'Развить знания и навыки по предмету.',
+    goalEn: '',
+    resultKz: 'Тыңдаушы алған білімін тәжірибеде қолданады.',
+    resultRu: 'Слушатель применяет полученные знания на практике.',
+    resultEn: '',
+    formatId: `dir-course_format-${i % 3}`,
+    assessmentId: `dir-course_assessment-${i % 2}`,
+    hoursTheory: lessons,
+    hoursPractice: Math.ceil(lessons / 2),
+    coverUrl: null,
+  };
+}
+
 function seed(org: OrgRecord): TenantContent {
   const now = dayjs();
   const count = Math.max(0, Math.round(org.usage.COURSES_COUNT ?? 0));
@@ -108,6 +131,8 @@ function seed(org: OrgRecord): TenantContent {
       id: `${org.tenantId}-c${i + 1}`,
       title: i < COURSE_TEMPLATES.length ? t.title : `${t.title} (поток ${Math.floor(i / COURSE_TEMPLATES.length) + 1})`,
       updatedAt: now.subtract(i * 3 + 1, 'day').toISOString(),
+      createdAt: now.subtract(i * 3 + 30, 'day').toISOString(),
+      ...programDefaults(i < COURSE_TEMPLATES.length ? t.title : `${t.title} (поток ${Math.floor(i / COURSE_TEMPLATES.length) + 1})`, t.lessonsCount, i),
     };
   });
   const webinars: StoredWebinar[] = WEBINAR_TEMPLATES.map((w, i) => ({
@@ -159,24 +184,20 @@ export function listWebinars(org: OrgRecord, userId: string): Webinar[] {
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 }
 
-export function addCourse(
-  org: OrgRecord,
-  input: { title: string; category: string; teacher: string; formatId?: string | null; assessmentId?: string | null; languageId?: string | null },
-): Course {
+export function addCourse(org: OrgRecord, input: ProgramFields & { teacher: string }): Course {
   const { all, content } = contentFor(org);
+  const at = new Date().toISOString();
   const course: Course = {
+    ...input,
     id: `${org.tenantId}-c${Date.now()}`,
-    title: input.title,
-    category: input.category,
-    teacher: input.teacher,
-    formatId: input.formatId ?? null,
-    assessmentId: input.assessmentId ?? null,
-    languageId: input.languageId ?? null,
+    title: input.titleRu,
+    category: 'Без категории',
     lessonsCount: 0,
     studentsCount: 0,
     progress: 0,
     status: 'DRAFT',
-    updatedAt: new Date().toISOString(),
+    createdAt: at,
+    updatedAt: at,
   };
   content.courses.push(course);
   saveAll(all);
@@ -212,15 +233,11 @@ export function touchCourse(org: OrgRecord, courseId: string, patch: Partial<Pic
   saveAll(all);
 }
 
-export function updateCourse(
-  org: OrgRecord,
-  courseId: string,
-  patch: Pick<Course, 'title' | 'category' | 'formatId' | 'assessmentId' | 'languageId'>,
-): Course | null {
+export function updateCourse(org: OrgRecord, courseId: string, patch: ProgramFields): Course | null {
   const { all, content } = contentFor(org);
   const course = content.courses.find((c) => c.id === courseId);
   if (!course) return null;
-  Object.assign(course, patch, { updatedAt: new Date().toISOString() });
+  Object.assign(course, patch, { title: patch.titleRu, updatedAt: new Date().toISOString() });
   saveAll(all);
   return course;
 }
@@ -239,6 +256,6 @@ export function allCoursesUsing(itemId: string, tenantId: string | null): boolea
   return Object.entries(all).some(
     ([id, c]) =>
       (tenantId === null || id === tenantId) &&
-      c.courses.some((x) => x.formatId === itemId || x.assessmentId === itemId || x.languageId === itemId),
+      c.courses.some((x) => x.formatId === itemId || x.assessmentId === itemId),
   );
 }

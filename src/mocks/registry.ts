@@ -8,7 +8,7 @@ import type { RegistryModule, RegistryOption, RegistryPublishOption, RegistryPub
 import { elementModuleKey } from '@/shared/access';
 import { DIRECTORIES, directoryModuleKey } from '@/shared/directories';
 
-const STORAGE_KEY = 'superadmin-mock-registry-v7';
+const STORAGE_KEY = 'superadmin-mock-registry-v8';
 
 /** Элемент начального наполнения: [сегмент ключа, системное название, коммерческое название, вложенные опции] */
 type SeedOption = [string, string, string, SeedOption[]?];
@@ -44,13 +44,14 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
   {
     // Пример из ТЗ: кодовое имя ещё не переименовано суперадминистратором
     key: 'lms_prog_core',
-    displayName: null,
+    displayName: 'Управление учебными программами',
     versions: ['1.0.0', '1.1.0', '1.2.0'],
     options: [
       ['create', 'create', 'Создание'],
       ['edit', 'edit', 'Редактирование'],
       ['delete', 'delete', 'Удаление'],
       ['view', 'view', 'Просмотр'],
+      ['list_view', 'list_view', 'Просмотр списка программ'],
     ],
   },
   {
@@ -108,7 +109,9 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
       ['edit', 'edit', 'Редактирование'],
       ['delete', 'delete', 'Удаление'],
       ['view', 'view', 'Просмотр'],
-      ['add_members_manual', 'add_members_manual', 'Добавление людей вручную в группу по ИИН / почте / ФИО'],
+      ['listeners_view', 'listeners_view', 'Просмотр списка слушателей группы'],
+      ['add_members_manual', 'add_members_manual', 'Добавление слушателя вручную (по ИИН / ФИО / Email)'],
+      ['invite_link', 'invite_link', 'Генерация и копирование пригласительной ссылки'],
     ],
   },
   {

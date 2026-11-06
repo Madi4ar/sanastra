@@ -8,7 +8,7 @@ import { loadRegistry } from './registry';
 
 export type GlobalRoleRecord = Omit<GlobalRole, 'usersCount'>;
 
-const STORAGE_KEY = 'superadmin-mock-roles-v6';
+const STORAGE_KEY = 'superadmin-mock-roles-v7';
 
 export const SYSTEM_ROLE_CODE: Record<SystemRole, string> = {
   SUPERADMIN: 'superadmin',
@@ -44,13 +44,13 @@ function seed(): GlobalRoleRecord[] {
     system('ORGANIZATION_ADMIN', 'Администратор организации', 'Полное управление кабинетом своей организации', all),
     // Пример из ТЗ: учебные программы — только просмотр, ЛК Тренера — все опции
     system('TRAINER', 'Тренер', 'Ведёт курсы и группы, проверяет задания', [
-      ...pick(all, ['lms_prog_core.view', 'lms_trainer_cabinet', 'lms_groups.view', 'lms_report_builder', 'lms_chat', 'lms_certificates']),
+      ...pick(all, ['lms_prog_core.view', 'lms_prog_core.list_view', 'lms_trainer_cabinet', 'lms_groups.view', 'lms_groups.listeners_view', 'lms_report_builder', 'lms_chat', 'lms_certificates']),
       ...elements,
       ...pick(all, ['lms_course_showcase.catalog_view']),
       ...directoriesView,
     ]),
     system('LEARNER', 'Слушатель', 'Проходит курсы, оставляет заявки на витрине', [
-      ...pick(all, ['lms_learner_cabinet', 'lms_course_showcase', 'lms_chat', 'lms_certificates.view']),
+      ...pick(all, ['lms_prog_core.list_view', 'lms_learner_cabinet', 'lms_course_showcase', 'lms_chat', 'lms_certificates.view']),
       ...contentView,
     ]),
     {

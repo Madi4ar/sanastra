@@ -210,7 +210,7 @@ describe('Кабинет: лимиты действий', () => {
     loginAs('ORGANIZATION_ADMIN');
     renderApp('/academy/admin/m/COURSES');
     expect(await screen.findByText('Достигнут лимит тарифа')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Создать курс/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Создать программу/ })).toBeDisabled();
   });
 
   it('блокировка tenant → служебная страница без внутренних ID', async () => {
@@ -227,8 +227,8 @@ describe('Кабинет: лимиты действий', () => {
 
 describe('Кабинет: курсы и вебинары', () => {
   it('каталог курсов: статистика, фильтр черновиков и поиск', async () => {
-    loginAs('ORGANIZATION_ADMIN');
-    const { user } = renderApp('/academy/admin/m/COURSES');
+    loginAs('LEARNER');
+    const { user } = renderApp('/learn/m/COURSES');
     const view = await screen.findByTestId('courses-view');
     expect(view).toHaveTextContent('9 курсов в организации, опубликовано 8'); // = usage.COURSES_COUNT
     expect(within(screen.getByTestId('courses-grid')).getAllByText(/учеников$/)).toHaveLength(9);
@@ -243,18 +243,36 @@ describe('Кабинет: курсы и вебинары', () => {
     expect(within(screen.getByTestId('courses-grid')).queryByText('Английский язык B1')).not.toBeInTheDocument();
   });
 
-  it('создание курса сохраняет его и пересчитывает лимит на сервере', async () => {
+  it('создание программы сохраняет её и пересчитывает лимит на сервере', async () => {
     loginAs('ORGANIZATION_ADMIN');
-    const { user } = renderApp('/academy/admin/m/COURSES');
-    await screen.findByTestId('courses-view');
-    await user.click(screen.getByRole('button', { name: /Создать курс/ }));
-    await user.type(await screen.findByLabelText(/Название/), 'Статистика для старшеклассников');
-    await user.click(screen.getByRole('button', { name: 'Создать' }));
-    expect(await screen.findByText('Курс создан как черновик')).toBeInTheDocument();
-    expect(await screen.findByText('Статистика для старшеклассников')).toBeInTheDocument();
+    renderApp('/academy/admin/m/COURSES');
+    await screen.findByTestId('programs-view');
+    const payload = {
+      titleKz: 'Статистика',
+      titleRu: 'Статистика для старшеклассников',
+      titleEn: '',
+      descriptionKz: '<p>Сипаттама</p>',
+      descriptionRu: '<p>Описание<script>alert(1)</script></p>',
+      descriptionEn: '',
+      goalKz: 'Мақсат',
+      goalRu: 'Цель',
+      goalEn: '',
+      resultKz: 'Нәтиже',
+      resultRu: 'Результат',
+      resultEn: '',
+      formatId: 'dir-course_format-0',
+      assessmentId: 'dir-course_assessment-0',
+      hoursTheory: 10,
+      hoursPractice: 5,
+      coverUrl: null,
+    };
+    const res = await fetch('/api/tenant/programs?clientSlug=academy', { method: 'POST', body: JSON.stringify(payload) });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { descriptionRu: string }).descriptionRu).not.toContain('script');
     expect(load().organizations[0]!.usage.COURSES_COUNT).toBe(10);
-    // 10 из 10 у тарифа «Базовый» — дальнейшее создание блокируется
-    await waitFor(() => expect(screen.getByRole('button', { name: /Создать курс/ })).toBeDisabled());
+    // 10 из 10 у тарифа «Базовый» — дальнейшее создание блокируется сервером
+    const again = await fetch('/api/tenant/programs?clientSlug=academy', { method: 'POST', body: JSON.stringify(payload) });
+    expect(again.status).toBe(403);
   });
 
   it('вебинары: эфир, предстоящие с записью, записи прошедших', async () => {

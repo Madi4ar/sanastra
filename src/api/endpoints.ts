@@ -1,6 +1,9 @@
 import { request, toQueryString } from './client';
 import type {
   Course,
+  GroupFormOptions,
+  GroupListener,
+  ProgramPayload,
   DirectoryItem,
   DirectoryItemPayload,
   DirectoryOption,
@@ -257,15 +260,16 @@ export const api = {
       createGroup: (payload: OrgGroupPayload) => send<OrgGroup>('/groups', 'POST', payload),
       updateGroup: (id: string, payload: OrgGroupPayload) => send<OrgGroup>(`/groups/${id}`, 'PUT', payload),
       removeGroup: (id: string) => send<void>(`/groups/${id}`, 'DELETE'),
+      groupOptions: () => send<GroupFormOptions>('/groups/options', 'GET'),
+      groupListeners: (id: string) => send<GroupListener[]>(`/groups/${id}/listeners`, 'GET'),
+      groupCandidates: (id: string, q: string) =>
+        request<GroupListener[]>(`/api/tenant/groups/${id}/candidates${toQueryString({ clientSlug, q })}`),
       addListeners: (id: string, memberIds: string[]) => send<OrgGroup>(`/groups/${id}/listeners`, 'POST', { memberIds }),
       removeListener: (id: string, memberId: string) => send<OrgGroup>(`/groups/${id}/listeners/${memberId}`, 'DELETE'),
       report: (type: ReportType, f: { groupId?: string; courseId?: string; positionId?: string }) =>
         request<ReportResult>(`/api/tenant/reports/${type}${toQueryString({ clientSlug, ...f })}`),
-      updateCourse: (
-        id: string,
-        payload: { title: string; category: string; formatId: string | null; assessmentId: string | null; languageId: string | null },
-      ) =>
-        send<Course>(`/courses/${encodeURIComponent(id)}`, 'PATCH', payload),
+      createProgram: (payload: ProgramPayload) => send<Course>('/programs', 'POST', payload),
+      updateProgram: (id: string, payload: ProgramPayload) => send<Course>(`/programs/${encodeURIComponent(id)}`, 'PUT', payload),
       removeCourse: (id: string) => send<void>(`/courses/${encodeURIComponent(id)}`, 'DELETE'),
     };
   },

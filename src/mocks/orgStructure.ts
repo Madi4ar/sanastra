@@ -4,7 +4,7 @@
  * Журнал неизменяем и сохраняется после удаления организации.
  */
 import dayjs from 'dayjs';
-import type { AuditChange, AuditEntry, AuditEvent, DepartmentKind, OrgGroup, PaymentOrder } from '@/api/types';
+import type { AuditChange, AuditEntry, AuditEvent, DepartmentKind, GroupStatus, PaymentOrder } from '@/api/types';
 import { allLeafKeys } from '@/shared/access';
 import { load, type OrgRecord } from './db';
 import { loadRegistry } from './registry';
@@ -48,6 +48,24 @@ export interface LocalRole {
   createdAt: string;
 }
 
+export interface GroupRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  academicYear: string;
+  departmentId: string | null;
+  formatId: string | null;
+  courseId: string | null;
+  trainerIds: string[];
+  listenersLimit: number;
+  startDate: string;
+  endDate: string;
+  status: GroupStatus;
+  inviteHash: string;
+  listenerIds: string[];
+  createdAt: string;
+}
+
 export interface TrainerEntry {
   id: string;
   tenantId: string;
@@ -64,14 +82,14 @@ interface Store {
   roles: LocalRole[];
   /** Пул тренеров организации */
   trainers: TrainerEntry[];
-  groups: (OrgGroup & { tenantId: string })[];
+  groups: GroupRecord[];
   /** Заказы на оплату: одна оплата продлевает подписку один раз */
   payments: (PaymentOrder & { tenantId: string; status: 'PENDING' | 'PAID' | 'DECLINED'; annualAmount: number; monthlyAmount: number })[];
   /** Новые записи сверху */
   audit: AuditEntry[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-org-structure-v5';
+const STORAGE_KEY = 'superadmin-mock-org-structure-v6';
 
 const EMPLOYEES = [
   'Ержанова Динара',

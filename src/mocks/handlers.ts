@@ -71,13 +71,12 @@ import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, p
 import { scheduleEndDate } from './paymentSchedule';
 import { isDeactivated, isTrainerDeactivated, loadStructure, removeStructure, roleHolders, syncMembers } from './orgStructure';
 import { directoryHandlers } from './directoryHandlers';
-import { isVisibleItem, removeDirectoriesOf, visibleItems } from './directories';
+import { removeDirectoriesOf, visibleItems } from './directories';
 import { tenantAdminHandlers } from './tenantAdminHandlers';
 import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
 import { findCustomRole, loadRoles, saveRoles, type GlobalRoleRecord } from './roles';
 import { allLeafKeys, canElement, effectiveAccess, inTariff, modulesOf } from '@/shared/access';
 import {
-  addCourse,
   COURSE_CATEGORIES,
   courseCount,
   findCourse,
@@ -369,20 +368,6 @@ function courseContent(ctx: CourseCtx) {
 function afterStructureChange(ctx: CourseCtx) {
   touchCourse(ctx.org, ctx.course.id, {});
   return HttpResponse.json(courseContent(ctx));
-}
-
-/** Значения формы курса: только записи, видимые этой организации */
-export function courseRefs(body: { formatId?: string | null; assessmentId?: string | null; languageId?: string | null }, tenantId: string) {
-  const fields = [
-    ['formatId', 'course_format'],
-    ['assessmentId', 'course_assessment'],
-    ['languageId', 'language'],
-  ] as const;
-  for (const [field, code] of fields) {
-    const id = body[field];
-    if (id && !isVisibleItem(id, code, tenantId)) return { error: 'Значение справочника недоступно.' };
-  }
-  return { formatId: body.formatId || null, assessmentId: body.assessmentId || null, languageId: body.languageId || null };
 }
 
 const titleOf = (v: unknown, fallback: string) => {
@@ -1626,21 +1611,8 @@ export const handlers: HttpHandler[] = [
     const used = ctx.org.usage[action.limitCode] ?? 0;
     if (used >= limit) return err(403, 'LIMIT_REACHED');
 
-    const body = (await request.json().catch(() => ({}))) as {
-      title?: string;
-      category?: string;
-      formatId?: string;
-      assessmentId?: string;
-      languageId?: string;
-    };
-    if (code === 'COURSES') {
-      const title = (body.title ?? '').trim();
-      if (title.length < 3 || title.length > 120)
-        return err(400, 'VALIDATION_ERROR', 'Название курса — от 3 до 120 символов', { title: 'Название курса — от 3 до 120 символов' });
-      const refs = courseRefs(body, ctx.org.tenantId);
-      if ('error' in refs) return err(400, 'VALIDATION_ERROR', refs.error);
-      addCourse(ctx.org, { title, category: body.category || 'Без категории', teacher: ctx.user.fullName, ...refs });
-    }
+    // Учебная программа создаётся через форму /api/tenant/programs
+    if (code === 'COURSES') return err(400, 'VALIDATION_ERROR', 'Заполните форму учебной программы.');
 
     const db = load();
     const org = db.organizations.find((o) => o.tenantId === ctx.org.tenantId)!;

@@ -1,7 +1,7 @@
 {
   "name": "superadmin-frontend",
   "version": "1.0.0",
-  "description": "Интерфейс суперадминистратора: организации, тарифы, подписки, модули",
+  "description": "Sanastra lms",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

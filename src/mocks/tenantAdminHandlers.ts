@@ -10,7 +10,11 @@ import type {
   CurrentUser,
   DepartmentKind,
   OrgDepartmentPayload,
+  GroupFormOptions,
+  GroupListener,
+  GroupStatus,
   OrgGroup,
+  ProgramPayload,
   OrgGroupPayload,
   OrgMember,
   OrgMemberPayload,
@@ -27,11 +31,12 @@ import type {
 } from '@/api/types';
 import { inTariff, moduleOfKey, TARIFF_MODULE_OF } from '@/shared/access';
 import { finalPrice, planAmount } from '@/shared/pricing';
+import { richTextToPlain, sanitizeRichText } from '@/shared/richText';
 import { computeStatus, effectiveLimitValues, effectiveModules, load, MODULES, save, type OrgRecord } from './db';
-import { courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
+import { addCourse, courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
 import { removeCourseContent } from './courseBuilder';
-import { courseRefs, err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
-import { addAudit, loadStructure, localMatrixOf, roleHolders, saveStructure, syncMembers, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
+import { err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
+import { addAudit, loadStructure, localMatrixOf, roleHolders, saveStructure, syncMembers, type GroupRecord, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
 import { canContinue, currentMonths, markPaid, newSchedule, planFor, scheduleEndDate } from './paymentSchedule';
 import { publish } from './eventBus';
 import { isVisibleItem, itemName } from './directories';
@@ -241,35 +246,155 @@ function applyRoleMembers(store: ReturnType<typeof loadStructure>, role: LocalRo
     });
 }
 
+// ---------- учебные программы ----------
+
+const LANG_FIELDS = ['Kz', 'Ru', 'En'] as const;
+
+function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: Record<string, string>; fields: ProgramPayload } {
+  const fe: Record<string, string> = {};
+  const text = (k: keyof ProgramPayload) => {
+    const v = body[k];
+    return typeof v === 'string' ? v.trim() : '';
+  };
+  const description = (k: 'descriptionKz' | 'descriptionRu' | 'descriptionEn') => sanitizeRichText(text(k));
+  const fields: ProgramPayload = {
+    titleKz: text('titleKz'),
+    titleRu: text('titleRu'),
+    titleEn: text('titleEn'),
+    descriptionKz: description('descriptionKz'),
+    descriptionRu: description('descriptionRu'),
+    descriptionEn: description('descriptionEn'),
+    goalKz: text('goalKz'),
+    goalRu: text('goalRu'),
+    goalEn: text('goalEn'),
+    resultKz: text('resultKz'),
+    resultRu: text('resultRu'),
+    resultEn: text('resultEn'),
+    formatId: body.formatId ?? null,
+    assessmentId: body.assessmentId ?? null,
+    hoursTheory: body.hoursTheory ?? null,
+    hoursPractice: body.hoursPractice ?? null,
+    coverUrl: body.coverUrl ?? null,
+  };
+  for (const l of LANG_FIELDS) {
+    const required = l !== 'En';
+    const label = l === 'Kz' ? 'на казахском' : l === 'Ru' ? 'на русском' : 'на английском';
+    const title = fields[`title${l}`];
+    if ((required && !title) || title.length > 200) fe[`title${l}`] = `Название ${label} — от 1 до 200 символов`;
+    const plain = richTextToPlain(fields[`description${l}`]);
+    if (required && !plain) fe[`description${l}`] = `Заполните описание ${label}`;
+    if (plain.length > 20000) fe[`description${l}`] = 'Не более 20 000 символов';
+    for (const [k, name] of [['goal', 'цель программы'], ['result', 'ожидаемый результат']] as const) {
+      const v = fields[`${k}${l}`];
+      if (required && !v) fe[`${k}${l}`] = `Заполните ${name} ${label}`;
+      if (v.length > 2000) fe[`${k}${l}`] = 'Не более 2000 символов';
+    }
+  }
+  if (!fields.formatId) fe.formatId = 'Выберите формат курса';
+  else if (!isVisibleItem(fields.formatId, 'course_format', org.tenantId)) fe.formatId = 'Значение справочника недоступно';
+  if (!fields.assessmentId) fe.assessmentId = 'Выберите тип оценивания';
+  else if (!isVisibleItem(fields.assessmentId, 'course_assessment', org.tenantId)) fe.assessmentId = 'Значение справочника недоступно';
+  for (const k of ['hoursTheory', 'hoursPractice'] as const) {
+    const v = fields[k];
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 100000) fe[k] = 'Целое положительное число';
+  }
+  const cover = fields.coverUrl;
+  if (cover && (!/^data:image\/(jpeg|png|webp);base64,/.test(cover) || cover.length > 7_000_000)) fe.coverUrl = 'JPG, PNG или WebP, до 5 МБ';
+  return { fe, fields };
+}
+
 // ---------- группы ----------
 
-const toGroup = (g: OrgGroup, org: OrgRecord): OrgGroup => ({
-  ...g,
-  courseTitle: g.courseId ? (findCourse(org, g.courseId)?.title ?? null) : null,
-});
+const STATUSES: GroupStatus[] = ['RECRUITING', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'];
 
-const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** Учебные годы для выбора: прошлый, текущий и два следующих */
+function academicYears(): string[] {
+  const now = dayjs();
+  // Учебный год начинается 1 сентября
+  const start = now.month() >= 8 ? now.year() : now.year() - 1;
+  return [-1, 0, 1, 2].map((d) => `${start + d}–${start + d + 1}`);
+}
 
-function validateGroup(body: Partial<OrgGroupPayload>, org: OrgRecord): Record<string, string> {
+const YEAR = /^(\d{4})–(\d{4})$/;
+const HASH = /^[a-f0-9]{32}$/;
+const newInviteHash = () => crypto.randomUUID().replace(/-/g, '');
+
+function toGroup(g: GroupRecord, org: OrgRecord, user: CurrentUser): OrgGroup {
+  const store = loadStructure();
+  const users = loadUsers();
+  const trainers = g.trainerIds.flatMap((id) => {
+    const t = store.trainers.find((x) => x.id === id && x.tenantId === org.tenantId);
+    const u = t && users.find((x) => x.id === t.userId);
+    return t && u ? [{ id, name: fullNameOf(u) }] : [];
+  });
+  const canInvite = user.access.includes('lms_groups.invite_link');
+  return {
+    id: g.id,
+    name: g.name,
+    academicYear: g.academicYear,
+    departmentId: g.departmentId,
+    departmentName: store.departments.find((d) => d.id === g.departmentId)?.name ?? null,
+    formatId: g.formatId,
+    formatName: itemName(g.formatId),
+    courseId: g.courseId,
+    courseTitle: g.courseId ? (findCourse(org, g.courseId)?.title ?? null) : null,
+    trainerIds: trainers.map((t) => t.id),
+    trainerNames: trainers.map((t) => t.name),
+    listenersLimit: g.listenersLimit,
+    startDate: g.startDate,
+    endDate: g.endDate,
+    status: g.status,
+    inviteHash: canInvite ? g.inviteHash : null,
+    inviteUrl: canInvite ? `https://${org.clientSlug}.beyim.kz/invite/group/${g.inviteHash}` : null,
+    listenerIds: g.listenerIds,
+    createdAt: g.createdAt,
+  };
+}
+
+function validateGroup(body: Partial<OrgGroupPayload>, org: OrgRecord, current?: GroupRecord): Record<string, string> {
+  const store = loadStructure();
   const fe: Record<string, string> = {};
-  const name = (body.name ?? '').trim();
-  if (name.length < 2 || name.length > 120) fe.name = 'Название — от 2 до 120 символов';
-  if (body.courseId && !findCourse(org, body.courseId)) fe.courseId = 'Программа не найдена';
-  if (body.startDate && body.endDate && body.endDate < body.startDate) fe.endDate = 'Дата окончания раньше даты начала';
-  for (const k of ['timeFrom', 'timeTo'] as const) if (body[k] && !TIME.test(body[k]!)) fe[k] = 'Формат ЧЧ:ММ';
-  if (body.timeFrom && body.timeTo && !fe.timeFrom && !fe.timeTo && body.timeTo <= body.timeFrom) fe.timeTo = 'Окончание раньше начала';
+  const year = YEAR.exec(body.academicYear ?? '');
+  if (!year || Number(year[2]) !== Number(year[1]) + 1) fe.academicYear = 'Выберите учебный год';
+  if (body.departmentId && !store.departments.some((d) => d.id === body.departmentId && d.tenantId === org.tenantId)) fe.departmentId = 'Подразделение не найдено';
+  if (!body.formatId) fe.formatId = 'Выберите формат курса';
+  else if (!isVisibleItem(body.formatId, 'course_format', org.tenantId)) fe.formatId = 'Значение справочника недоступно';
+  if (!body.courseId) fe.courseId = 'Выберите учебную программу';
+  else if (!findCourse(org, body.courseId)) fe.courseId = 'Программа не найдена';
+  const trainerIds = body.trainerIds ?? [];
+  if (new Set(trainerIds).size !== trainerIds.length) fe.trainerIds = 'Тренер выбран несколько раз';
+  // Уже назначенный и позже деактивированный тренер остаётся; нового можно выбрать только из активных
+  const invalid = trainerIds.some((id) => {
+    const t = store.trainers.find((x) => x.id === id && x.tenantId === org.tenantId);
+    return !t || (!t.active && !current?.trainerIds.includes(id));
+  });
+  if (invalid) fe.trainerIds = 'Выберите тренера из тренерского состава';
+  const limit = body.listenersLimit;
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 100000) fe.listenersLimit = 'Целое положительное число';
+  else if (current && limit < current.listenerIds.length) fe.listenersLimit = `В группе уже ${current.listenerIds.length} слушателей`;
+  if (!body.startDate || !dayjs(body.startDate).isValid()) fe.startDate = 'Укажите дату начала';
+  if (!body.endDate || !dayjs(body.endDate).isValid()) fe.endDate = 'Укажите дату окончания';
+  else if (body.startDate && body.endDate <= body.startDate) fe.endDate = 'Дата окончания должна быть строго позже даты начала';
+  if (!STATUSES.includes(body.status as GroupStatus)) fe.status = 'Выберите статус';
   return fe;
 }
 
 const groupFields = (b: Partial<OrgGroupPayload>) => ({
-  name: (b.name ?? '').trim(),
-  courseId: b.courseId || null,
-  startDate: b.startDate || null,
-  endDate: b.endDate || null,
-  days: Array.isArray(b.days) ? b.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : [],
-  timeFrom: b.timeFrom || null,
-  timeTo: b.timeTo || null,
+  academicYear: b.academicYear!,
+  departmentId: b.departmentId || null,
+  formatId: b.formatId!,
+  courseId: b.courseId!,
+  trainerIds: b.trainerIds ?? [],
+  listenersLimit: b.listenersLimit!,
+  startDate: b.startDate!,
+  endDate: b.endDate!,
+  status: b.status as GroupStatus,
 });
+
+const toListener = (m: Member, users: UserRecord[]): GroupListener => {
+  const u = users.find((x) => x.id === m.userId);
+  return { id: m.id, fullName: u ? fullNameOf(u) : m.fullName, iin: u?.iin ?? '', email: u?.email ?? m.email };
+};
 
 // ---------- отчёты ----------
 
@@ -733,6 +858,7 @@ export const tenantAdminHandlers = () => [
       return err(400, 'VALIDATION_ERROR', 'Сначала удалите или перенесите вложенные подразделения.');
     store.departments = store.departments.filter((d) => d.id !== dept.id);
     store.members.filter((m) => m.departmentId === dept.id).forEach((m) => bindDepartment(store, ctx, m, null));
+    store.groups.filter((g) => g.departmentId === dept.id).forEach((g) => (g.departmentId = null));
     store.roles
       .filter((r) => r.departmentId === dept.id)
       .forEach((r) => {
@@ -871,7 +997,28 @@ export const tenantAdminHandlers = () => [
     await latency();
     const ctx = sectionContext(request, 'lms_groups.view');
     if (ctx instanceof Response) return ctx;
-    return HttpResponse.json(loadStructure().groups.filter((g) => g.tenantId === ctx.org.tenantId).map((g) => toGroup(g, ctx.org)));
+    const store = syncMembers(ctx.org);
+    return HttpResponse.json(store.groups.filter((g) => g.tenantId === ctx.org.tenantId).map((g) => toGroup(g, ctx.org, ctx.user)));
+  }),
+
+  http.get('/api/tenant/groups/options', async ({ request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_groups.view');
+    if (ctx instanceof Response) return ctx;
+    const store = syncMembers(ctx.org);
+    const users = loadUsers();
+    const result: GroupFormOptions = {
+      academicYears: academicYears(),
+      departments: store.departments.filter((d) => d.tenantId === ctx.org.tenantId).map((d) => ({ id: d.id, name: d.name })),
+      programs: listCourses(ctx.org).map((c) => ({ id: c.id, title: c.title, formatId: c.formatId })),
+      trainers: store.trainers
+        .filter((t) => t.tenantId === ctx.org.tenantId)
+        .map((t) => {
+          const u = users.find((x) => x.id === t.userId);
+          return { id: t.id, fullName: u ? fullNameOf(u) : '', active: t.active };
+        }),
+    };
+    return HttpResponse.json(result);
   }),
 
   http.post('/api/tenant/groups', async ({ request }) => {
@@ -879,35 +1026,48 @@ export const tenantAdminHandlers = () => [
     const ctx = sectionContext(request, 'lms_groups.create');
     if (ctx instanceof Response) return ctx;
     const body = (await request.json().catch(() => ({}))) as Partial<OrgGroupPayload>;
+    const store = syncMembers(ctx.org);
     const fe = validateGroup(body, ctx.org);
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
-    const store = loadStructure();
-    const group = {
+    const taken = store.groups.some((g) => g.inviteHash === body.inviteHash);
+    const hash = ctx.user.access.includes('lms_groups.invite_link') && HASH.test(body.inviteHash ?? '') && !taken ? body.inviteHash! : newInviteHash();
+    const numbers = store.groups.filter((g) => g.tenantId === ctx.org.tenantId).map((g) => Number(/\d+/.exec(g.name)?.[0] ?? 0));
+    const group: GroupRecord = {
       id: crypto.randomUUID(),
       tenantId: ctx.org.tenantId,
+      name: `Группа ${Math.max(0, ...numbers) + 1}`,
       ...groupFields(body),
-      courseTitle: null,
+      inviteHash: hash,
       listenerIds: [],
       createdAt: new Date().toISOString(),
     };
     store.groups.push(group);
     saveStructure(store);
-    return HttpResponse.json(toGroup(group, ctx.org), { status: 201 });
+    return HttpResponse.json(toGroup(group, ctx.org, ctx.user), { status: 201 });
   }),
 
   http.put('/api/tenant/groups/:id', async ({ params, request }) => {
     await latency();
     const ctx = sectionContext(request, 'lms_groups.edit');
     if (ctx instanceof Response) return ctx;
-    const store = loadStructure();
+    const store = syncMembers(ctx.org);
     const group = store.groups.find((g) => g.id === params.id && g.tenantId === ctx.org.tenantId);
     if (!group) return err(404, 'NOT_FOUND');
     const body = (await request.json().catch(() => ({}))) as Partial<OrgGroupPayload>;
-    const fe = validateGroup(body, ctx.org);
+    const fe = validateGroup(body, ctx.org, group);
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
     Object.assign(group, groupFields(body));
+    const nextHash = body.inviteHash;
+    if (
+      nextHash &&
+      nextHash !== group.inviteHash &&
+      ctx.user.access.includes('lms_groups.invite_link') &&
+      HASH.test(nextHash) &&
+      !store.groups.some((g) => g.inviteHash === nextHash)
+    )
+      group.inviteHash = nextHash;
     saveStructure(store);
-    return HttpResponse.json(toGroup(group, ctx.org));
+    return HttpResponse.json(toGroup(group, ctx.org, ctx.user));
   }),
 
   http.delete('/api/tenant/groups/:id', async ({ params, request }) => {
@@ -921,6 +1081,37 @@ export const tenantAdminHandlers = () => [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  http.get('/api/tenant/groups/:id/listeners', async ({ params, request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_groups.listeners_view');
+    if (ctx instanceof Response) return ctx;
+    const store = syncMembers(ctx.org, true);
+    const group = store.groups.find((g) => g.id === params.id && g.tenantId === ctx.org.tenantId);
+    if (!group) return err(404, 'NOT_FOUND');
+    const users = loadUsers();
+    return HttpResponse.json(store.members.filter((m) => group.listenerIds.includes(m.id)).map((m) => toListener(m, users)));
+  }),
+
+  // Быстрое зачисление: поиск по ИИН, ФИО или Email среди пользователей организации
+  http.get('/api/tenant/groups/:id/candidates', async ({ params, request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_groups.add_members_manual');
+    if (ctx instanceof Response) return ctx;
+    const store = syncMembers(ctx.org, true);
+    const group = store.groups.find((g) => g.id === params.id && g.tenantId === ctx.org.tenantId);
+    if (!group) return err(404, 'NOT_FOUND');
+    const q = (new URL(request.url).searchParams.get('q') ?? '').trim().toLowerCase();
+    if (q.length < 3) return HttpResponse.json([]);
+    const users = loadUsers();
+    return HttpResponse.json(
+      store.members
+        .filter((m) => m.tenantId === ctx.org.tenantId && m.active && !group.listenerIds.includes(m.id))
+        .map((m) => toListener(m, users))
+        .filter((l) => [l.fullName, l.iin, l.email].some((v) => v.toLowerCase().includes(q)))
+        .slice(0, 20),
+    );
+  }),
+
   http.post('/api/tenant/groups/:id/listeners', async ({ params, request }) => {
     await latency();
     const ctx = sectionContext(request, 'lms_groups.add_members_manual');
@@ -930,9 +1121,12 @@ export const tenantAdminHandlers = () => [
     if (!group) return err(404, 'NOT_FOUND');
     const { memberIds } = (await request.json().catch(() => ({}))) as { memberIds?: string[] };
     const valid = store.members.filter((m) => m.tenantId === ctx.org.tenantId && m.active && memberIds?.includes(m.id)).map((m) => m.id);
-    group.listenerIds = [...new Set([...group.listenerIds, ...valid])];
+    const next = [...new Set([...group.listenerIds, ...valid])];
+    if (next.length > group.listenersLimit)
+      return err(400, 'VALIDATION_ERROR', `В группе лимит ${group.listenersLimit} слушателей. Увеличьте его в настройках группы.`);
+    group.listenerIds = next;
     saveStructure(store);
-    return HttpResponse.json(toGroup(group, ctx.org));
+    return HttpResponse.json(toGroup(group, ctx.org, ctx.user));
   }),
 
   http.delete('/api/tenant/groups/:id/listeners/:memberId', async ({ params, request }) => {
@@ -944,7 +1138,7 @@ export const tenantAdminHandlers = () => [
     if (!group) return err(404, 'NOT_FOUND');
     group.listenerIds = group.listenerIds.filter((id) => id !== params.memberId);
     saveStructure(store);
-    return HttpResponse.json(toGroup(group, ctx.org));
+    return HttpResponse.json(toGroup(group, ctx.org, ctx.user));
   }),
 
   // ---------- Конструктор отчётов ----------
@@ -962,23 +1156,31 @@ export const tenantAdminHandlers = () => [
   }),
 
   // ---------- Учебные программы: изменение и удаление ----------
-  http.patch('/api/tenant/courses/:id', async ({ params, request }) => {
+  http.post('/api/tenant/programs', async ({ request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_prog_core.create');
+    if (ctx instanceof Response) return ctx;
+    if ((ctx.org.usage.COURSES_COUNT ?? 0) >= effectiveLimitValues(ctx.org).COURSES_COUNT!) return err(403, 'LIMIT_REACHED');
+    const body = (await request.json().catch(() => ({}))) as Partial<ProgramPayload>;
+    const { fe, fields } = validateProgram(body, ctx.org);
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const course = addCourse(ctx.org, { ...fields, teacher: ctx.user.fullName });
+    const db = load();
+    const org = db.organizations.find((o) => o.tenantId === ctx.org.tenantId)!;
+    org.usage.COURSES_COUNT = courseCount(ctx.org);
+    save(db);
+    publish({ type: 'limits.updated', tenantId: org.tenantId, version: org.version, changed: ['limits'], occurredAt: new Date().toISOString() });
+    return HttpResponse.json(course, { status: 201 });
+  }),
+
+  http.put('/api/tenant/programs/:id', async ({ params, request }) => {
     await latency();
     const ctx = sectionContext(request, 'lms_prog_core.edit');
     if (ctx instanceof Response) return ctx;
-    const body = (await request.json().catch(() => ({}))) as {
-      title?: string;
-      category?: string;
-      formatId?: string | null;
-      assessmentId?: string | null;
-      languageId?: string | null;
-    };
-    const refs = courseRefs(body, ctx.org.tenantId);
-    if ('error' in refs) return err(400, 'VALIDATION_ERROR', refs.error);
-    const title = (body.title ?? '').trim();
-    if (title.length < 3 || title.length > 120)
-      return err(400, 'VALIDATION_ERROR', 'Название курса — от 3 до 120 символов', { title: 'Название курса — от 3 до 120 символов' });
-    const course = updateCourse(ctx.org, String(params.id), { title, category: body.category || 'Без категории', ...refs });
+    const body = (await request.json().catch(() => ({}))) as Partial<ProgramPayload>;
+    const { fe, fields } = validateProgram(body, ctx.org);
+    if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const course = updateCourse(ctx.org, String(params.id), fields);
     return course ? HttpResponse.json(course) : err(404, 'NOT_FOUND');
   }),
 

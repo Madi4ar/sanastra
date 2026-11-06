@@ -96,6 +96,7 @@ export function derivePermissions(role: Role, matrix: readonly string[]): string
   const p = new Set(INHERENT[role]);
   const courseView = [
     'lms_prog_core.view',
+    'lms_prog_core.list_view',
     'lms_learner_cabinet.my_courses',
     'lms_trainer_cabinet.my_courses',
   ].some((k) => has(matrix, k)) || matrix.some((k) => /^lms_element_[a-z_]+\.view$/.test(k));

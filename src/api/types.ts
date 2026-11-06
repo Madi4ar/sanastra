@@ -342,8 +342,9 @@ export interface PlatformUserPayload extends Omit<RegisterPayload, 'password'> {
 
 // ---------- Контент модулей кабинета ----------
 
-export interface Course {
+export interface Course extends ProgramFields {
   id: string;
+  /** Название на русском */
   title: string;
   category: string;
   teacher: string;
@@ -352,12 +353,33 @@ export interface Course {
   /** Средний прогресс учеников, % */
   progress: number;
   status: 'PUBLISHED' | 'DRAFT';
+  createdAt: string;
   updatedAt: string;
-  /** Значения справочников: формат, оценивание, язык обучения */
-  formatId?: string | null;
-  assessmentId?: string | null;
-  languageId?: string | null;
 }
+
+/** Поля формы учебной программы */
+export interface ProgramFields {
+  titleKz: string;
+  titleRu: string;
+  titleEn: string;
+  /** Форматированный текст (HTML из разрешённого набора тегов) */
+  descriptionKz: string;
+  descriptionRu: string;
+  descriptionEn: string;
+  goalKz: string;
+  goalRu: string;
+  goalEn: string;
+  resultKz: string;
+  resultRu: string;
+  resultEn: string;
+  formatId: string | null;
+  assessmentId: string | null;
+  hoursTheory: number | null;
+  hoursPractice: number | null;
+  coverUrl: string | null;
+}
+
+export type ProgramPayload = ProgramFields;
 
 /** Статус вычисляет сервер по времени начала и длительности */
 export type WebinarStatus = 'UPCOMING' | 'LIVE' | 'RECORDED';
@@ -781,22 +803,59 @@ export interface TenantRolePayload {
   matrix: string[];
 }
 
+export type GroupStatus = 'RECRUITING' | 'IN_PROGRESS' | 'COMPLETED' | 'ARCHIVED';
+
 export interface OrgGroup {
   id: string;
+  /** Обозначение группы в реестре, присваивается автоматически */
   name: string;
+  academicYear: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  formatId: string | null;
+  formatName: string | null;
   courseId: string | null;
   courseTitle: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  /** Дни занятий: 0 — понедельник … 6 — воскресенье */
-  days: number[];
-  timeFrom: string | null;
-  timeTo: string | null;
+  trainerIds: string[];
+  trainerNames: string[];
+  listenersLimit: number;
+  startDate: string;
+  endDate: string;
+  status: GroupStatus;
+  /** Ссылка видна только при наличии опции «Генерация и копирование пригласительной ссылки» */
+  inviteHash: string | null;
+  inviteUrl: string | null;
   listenerIds: string[];
   createdAt: string;
 }
 
-export type OrgGroupPayload = Pick<OrgGroup, 'name' | 'courseId' | 'startDate' | 'endDate' | 'days' | 'timeFrom' | 'timeTo'>;
+export interface OrgGroupPayload {
+  academicYear: string | null;
+  departmentId: string | null;
+  formatId: string | null;
+  courseId: string | null;
+  trainerIds: string[];
+  listenersLimit: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: GroupStatus;
+  inviteHash: string | null;
+}
+
+/** Значения для формы и фильтров групп: только своя организация */
+export interface GroupFormOptions {
+  academicYears: string[];
+  departments: { id: string; name: string }[];
+  programs: { id: string; title: string; formatId: string | null }[];
+  trainers: { id: string; fullName: string; active: boolean }[];
+}
+
+export interface GroupListener {
+  id: string;
+  fullName: string;
+  iin: string;
+  email: string;
+}
 
 export type ReportType = 'PERFORMANCE' | 'COMPLETION' | 'ATTENDANCE' | 'ACTIVITY';
 
