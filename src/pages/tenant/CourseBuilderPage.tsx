@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App, Button, Card, Collapse, Dropdown, Empty, Input, Skeleton, Tag, Tooltip } from 'antd';
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Eye, Lock, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Eye, Lock, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { api } from '@/api/endpoints';
@@ -9,7 +9,7 @@ import type { CourseContent, CourseDay, CourseElement, CourseModule, ElementActi
 import { useCabinet } from '@/features/tenant/cabinet';
 import { AddElementModal, ElementEditor, ElementIcon } from '@/features/course-builder/ElementEditor';
 import { ElementPreview } from '@/features/course-builder/ElementPreview';
-import { ELEMENT_HINT, ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
+import { ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
 import { ProgramFormModal } from '@/features/programs/ProgramFormModal';
 import { sanitizeRichText } from '@/shared/richText';
 import { FeatureGuard } from '@/features/tenant/access';
@@ -184,7 +184,7 @@ function CourseBuilder({ courseId }: { courseId: string }) {
   const builder = api.courseBuilder(clientSlug, courseId);
   const q = useQuery({ queryKey: key, queryFn: builder.get, retry: false });
 
-  const [adding, setAdding] = useState<{ dayId: string; type: ElementType } | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
   const [promo, setPromo] = useState(false);
   const catalog = useModuleCatalog(clientSlug, true);
   const promoModule = catalog.data?.find((m) => m.code === ADVANCED_CONTENT_MODULE);
@@ -298,40 +298,9 @@ function CourseBuilder({ courseId }: { courseId: string }) {
         <p className="m-0 py-2 text-sm text-muted">В этом дне пока нет элементов.</p>
       )}
       {canEdit && creatable.length + demoTypes.length > 0 && (
-        <Dropdown
-          trigger={['click']}
-          menu={{
-            className: 'max-h-96 overflow-y-auto',
-            items: [
-              ...creatable.map((t) => ({
-                key: t,
-                icon: <ElementIcon type={t} />,
-                label: (
-                  <span className="flex flex-col">
-                    <span>{ELEMENT_LABEL[t]}</span>
-                    <span className="text-xs text-muted">{ELEMENT_HINT[t]}</span>
-                  </span>
-                ),
-              })),
-              ...(demoTypes.length ? [{ type: 'divider' as const }] : []),
-              ...demoTypes.map((t) => ({
-                key: `demo:${t}`,
-                icon: <ElementIcon type={t} />,
-                label: (
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span>{ELEMENT_LABEL[t]}</span>
-                    <DemoTag tariff={demoElements[t]} />
-                  </span>
-                ),
-              })),
-            ],
-            onClick: ({ key }) => (key.startsWith('demo:') ? openDemo() : setAdding({ dayId: d.id, type: key as ElementType })),
-          }}
-        >
-          <Button className="mt-2" type="dashed" block icon={<Plus size={16} />} data-testid={`add-element-${d.id}`}>
-            Добавить элемент контента <ChevronDown size={14} className="ml-1 inline" aria-hidden />
-          </Button>
-        </Dropdown>
+        <Button className="mt-2" type="dashed" block icon={<Plus size={16} />} data-testid={`add-element-${d.id}`} onClick={() => setAdding(d.id)}>
+          Добавить элемент контента
+        </Button>
       )}
     </section>
   );
@@ -476,9 +445,13 @@ function CourseBuilder({ courseId }: { courseId: string }) {
         <AddElementModal
           clientSlug={clientSlug}
           courseId={courseId}
-          dayId={adding.dayId}
-          initialType={adding.type}
+          dayId={adding}
           types={creatable}
+          demoTypes={demoElements}
+          onDemo={() => {
+            setAdding(null);
+            openDemo();
+          }}
           onClose={() => setAdding(null)}
           onCreated={(el) => {
             setAdding(null);

@@ -308,7 +308,7 @@ describe('Кабинет: права на создание', () => {
 describe('Конструктор контента учебной программы', () => {
   const courseUrl = `/academy/admin/m/COURSES/${ACADEMY_ID}-c1`;
 
-  it('«Добавить элемент контента» — список элементов тарифа, элементы вне тарифа подсвечены как демо', async () => {
+  it('«Добавить элемент контента» — окно со списком элементов тарифа, элементы вне тарифа подсвечены как демо', async () => {
     loginAs('ORGANIZATION_ADMIN');
     const { user } = renderApp(courseUrl);
     await screen.findByTestId('course-builder');
@@ -316,11 +316,11 @@ describe('Конструктор контента учебной програм�
     expect(screen.getAllByText('Демо / Доступно в тарифе Стандарт').length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole('button', { name: /Добавить элемент контента/ })[0]!);
-    const list = (await screen.findByText('Скорм (SCORM)')).closest<HTMLElement>('.ant-dropdown-menu')!;
+    const list = await screen.findByTestId('element-type-picker');
     expect(within(list).getByText('Тест')).toBeInTheDocument();
     expect(within(list).getByText('Вопросы рефлексии')).toBeInTheDocument();
-    const demo = within(list).getByText('Скорм (SCORM)').closest('li')!;
-    expect(demo).toHaveTextContent('Демо / Доступно в тарифе Стандарт');
+    expect(within(list).getByTestId('demo-element-scorm')).toHaveTextContent('Демо');
+    expect(within(list).getByTestId('demo-element-scorm')).toHaveTextContent('Доступно в тарифе Стандарт');
 
     // Выбор доступного элемента открывает его форму
     await user.click(within(list).getByText('Тест'));

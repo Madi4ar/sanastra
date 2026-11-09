@@ -4,6 +4,7 @@ import {
   AudioLines,
   BookOpenText,
   ClipboardCheck,
+  Lock,
   ClipboardList,
   FileText,
   Film,
@@ -51,13 +52,14 @@ export function ElementIcon({ type, size = 18 }: { type: ElementType; size?: num
   return <Icon size={size} aria-hidden />;
 }
 
-/** «Что добавить в день?» — выбор типа и названия нового элемента */
+/** «Что добавить в день?» — окно «Добавить элемент контента»: выбор типа и названия нового элемента */
 export function AddElementModal({
   clientSlug,
   courseId,
   dayId,
   types = ELEMENT_TYPES,
-  initialType = null,
+  demoTypes = {},
+  onDemo,
   onClose,
   onCreated,
 }: {
@@ -66,14 +68,15 @@ export function AddElementModal({
   dayId: string;
   /** Типы, на создание которых у роли есть право */
   types?: readonly ElementType[];
-  /** Тип, выбранный в списке «Добавить элемент контента»: форма открывается сразу */
-  initialType?: ElementType | null;
+  /** Типы вне тарифа → тариф, где они доступны: показываются в списке как демо */
+  demoTypes?: Partial<Record<ElementType, string | null>>;
+  onDemo?: () => void;
   onClose: () => void;
   onCreated: (el: CourseElement) => void;
 }) {
   const qc = useQueryClient();
   const { message } = App.useApp();
-  const [type, setType] = useState<ElementType | null>(initialType);
+  const [type, setType] = useState<ElementType | null>(null);
   const [titleRu, setTitleRu] = useState('');
   const [titleKz, setTitleKz] = useState('');
   const [error, setError] = useState<string>();
@@ -95,7 +98,7 @@ export function AddElementModal({
     <Modal
       open
       width={760}
-      title={type ? `Новый элемент: ${ELEMENT_LABEL[type]}` : 'Что добавить в день?'}
+      title={type ? `Новый элемент: ${ELEMENT_LABEL[type]}` : 'Добавить элемент контента'}
       onCancel={onClose}
       destroyOnHidden
       footer={
@@ -131,9 +134,29 @@ export function AddElementModal({
                 <span className="mt-0.5 text-primary">
                   <ElementIcon type={t} />
                 </span>
-                <span>
+                <span className="min-w-0">
                   <span className="block text-sm font-medium">{ELEMENT_LABEL[t]}</span>
                   <span className="block text-xs text-muted">{ELEMENT_HINT[t]}</span>
+                </span>
+              </button>
+            ))}
+            {(Object.keys(demoTypes) as ElementType[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                data-testid={`demo-element-${t}`}
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-dashed border-border bg-transparent p-3 text-left opacity-80 transition-colors hover:border-warning"
+                onClick={onDemo}
+              >
+                <span className="mt-0.5 text-muted">
+                  <ElementIcon type={t} />
+                </span>
+                <span className="flex min-w-0 flex-col items-start gap-1">
+                  <span className="block text-sm font-medium break-words">{ELEMENT_LABEL[t]}</span>
+                  <Tag color="gold" className="m-0" icon={<Lock size={12} className="mr-1 inline" aria-hidden />}>
+                    Демо
+                  </Tag>
+                  {demoTypes[t] && <span className="block text-xs text-muted break-words">Доступно в тарифе {demoTypes[t]}</span>}
                 </span>
               </button>
             ))}
