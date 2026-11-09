@@ -327,21 +327,40 @@ describe('Конструктор контента учебной програм�
     expect(await screen.findByText('Новый элемент: Тест')).toBeInTheDocument();
   });
 
-  it('просмотр глазами тренера и слушателя: без кнопок редактирования, с описанием программы', async () => {
+  it('просмотр глазами — отдельная страница без меню администратора, только чтение, без демо', async () => {
     loginAs('ORGANIZATION_ADMIN');
     const { user } = renderApp(courseUrl);
     await screen.findByTestId('course-builder');
     await user.click(screen.getByRole('button', { name: /Просмотр глазами/ }));
     await user.click(await screen.findByText('Глазами слушателя'));
-    const learner = await screen.findByTestId('program-preview-LEARNER');
-    await waitFor(() => expect(within(learner).getByText('Введение в курс')).toBeInTheDocument());
-    expect(within(learner).queryByRole('button', { name: /Настроить/ })).not.toBeInTheDocument();
-    await user.click(within(learner).getByText('О программе'));
-    expect(await within(learner).findByText('Цель программы')).toBeInTheDocument();
+    const page = await screen.findByTestId('program-view-LEARNER');
+    await waitFor(() => expect(within(page).getByText('Введение в курс')).toBeInTheDocument());
+    expect(screen.queryByRole('menuitem', { name: 'Курсы' })).not.toBeInTheDocument(); // без меню кабинета
+    expect(within(page).queryByRole('button', { name: /Настроить|Действия с элементом|Добавить/ })).not.toBeInTheDocument();
+    expect(within(page).queryByText(/Демо/)).not.toBeInTheDocument();
+    await user.click(within(page).getByText('О программе'));
+    expect(await within(page).findByText('Цель программы')).toBeInTheDocument();
 
-    await user.click(screen.getByText('Тренер'));
-    const trainer = await screen.findByTestId('program-preview-TRAINER');
+    await user.click(within(page).getByText('Тренер'));
+    const trainer = await screen.findByTestId('program-view-TRAINER');
     await waitFor(() => expect(within(trainer).getByText('Введение в курс')).toBeInTheDocument());
+    expect(within(trainer).queryByRole('button', { name: /Настроить/ })).not.toBeInTheDocument();
+
+    await user.click(within(trainer).getByRole('button', { name: /Вернуться в конструктор/ }));
+    expect(await screen.findByTestId('course-builder')).toBeInTheDocument();
+  });
+
+  it('у слушателя нет демо: ни элементов вне тарифа, ни закрытых модулей', async () => {
+    loginAs('LEARNER');
+    const content = (await (await fetch(`/api/tenant/courses/${ACADEMY_ID}-c1/content?clientSlug=academy`)).json()) as {
+      demoElements: Record<string, unknown>;
+      modules: { days: { elements: { type: string }[] }[] }[];
+    };
+    expect(content.demoElements).toEqual({});
+    const types = content.modules.flatMap((m) => m.days.flatMap((d) => d.elements.map((e) => e.type)));
+    expect(types).not.toContain('interactive_video');
+    const catalog = (await (await fetch('/api/tenant/module-catalog?clientSlug=academy')).json()) as { enabled: boolean }[];
+    expect(catalog.every((m) => m.enabled)).toBe(true);
   });
 
   it('цель и ожидаемый результат — форматированный текст, очищается на сервере', async () => {

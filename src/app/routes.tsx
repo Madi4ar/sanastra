@@ -27,7 +27,7 @@ import { ModulesPage, OrganizationInfoPage, SubscriptionPage, UsagePage } from '
 import { SubscriptionBlockedPage } from '@/pages/tenant/SubscriptionBlockedPage';
 import { TenantLayout } from '@/pages/tenant/TenantLayout';
 import { AdminCabinet, RoleCabinet } from '@/pages/tenant/Cabinets';
-import { CourseBuilderPage } from '@/pages/tenant/CourseBuilderPage';
+import { CourseBuilderPage, ProgramViewAsPage } from '@/pages/tenant/CourseBuilderPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 
 function OrganizationCrumb({ tenantId }: { tenantId: string }) {
@@ -50,6 +50,8 @@ const crumb = (title: string) => ({ crumb: () => title }) satisfies CrumbHandle;
 function cabinetRoutes(): RouteObject[] {
   return [
     { path: 'subscription-blocked', element: <SubscriptionBlockedPage /> },
+    // Просмотр программы глазами тренера или слушателя — отдельная страница без меню кабинета
+    { path: 'm/COURSES/:courseId/view/:role', element: <ProgramViewAsPage /> },
     {
       element: <TenantLayout />,
       children: [

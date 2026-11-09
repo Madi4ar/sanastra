@@ -29,14 +29,14 @@ import type {
   TenantRole,
   TenantRolePayload,
 } from '@/api/types';
-import { inTariff, moduleOfKey, TARIFF_MODULE_OF } from '@/shared/access';
+import { inTariff, TARIFF_MODULE_OF } from '@/shared/access';
 import { finalPrice, planAmount } from '@/shared/pricing';
 import { richTextToPlain, sanitizeRichText } from '@/shared/richText';
 import { computeStatus, effectiveLimitValues, effectiveModules, load, MODULES, save, type OrgRecord } from './db';
 import { addCourse, courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
 import { removeCourseContent } from './courseBuilder';
 import { err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
-import { addAudit, loadStructure, localMatrixOf, roleHolders, saveStructure, syncMembers, type GroupRecord, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
+import { addAudit, loadStructure, roleHolders, saveStructure, syncMembers, type GroupRecord, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
 import { canContinue, currentMonths, markPaid, newSchedule, planFor, scheduleEndDate } from './paymentSchedule';
 import { publish } from './eventBus';
 import { isVisibleItem, itemName } from './directories';
@@ -499,14 +499,10 @@ export const tenantAdminHandlers = () => [
     const ctx = tenantContext(request);
     if (ctx instanceof Response) return ctx;
     const enabled = effectiveModules(ctx.org);
-    // Администратор видит все модули; сотрудник — только те, что включены в матрице его ролей
+    // Демо-доступ — только у администратора организации: тренер, слушатель и другие сотрудники
+    // видят лишь модули тарифа, закрытых модулей для них нет
     const isAdmin = ctx.user.role === 'ORGANIZATION_ADMIN';
-    const granted = new Set(
-      [...matrixOf(ctx.user.role, ctx.user.customRole), ...localMatrixOf(ctx.user.id, ctx.org.clientSlug)].map(
-        (k) => TARIFF_MODULE_OF[moduleOfKey(k)],
-      ),
-    );
-    const result: CatalogModule[] = MODULES.filter((m) => isAdmin || enabled.includes(m.code) || granted.has(m.code)).map((m) => ({
+    const result: CatalogModule[] = MODULES.filter((m) => isAdmin || enabled.includes(m.code)).map((m) => ({
       code: m.code,
       name: m.name,
       description: m.description,

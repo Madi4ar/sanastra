@@ -94,7 +94,8 @@ function modeOf(code: string, user: CurrentUser, org: OrgRecord): 'WORK' | 'DEMO
   const raw = [...matrixOf(user.role, user.customRole), ...localMatrixOf(user.id, org.clientSlug)];
   const tariffModule = TARIFF_MODULE_OF[directoryModuleKey(code)];
   const granted = raw.includes(option(code, 'view'));
-  return granted && tariffModule && !effectiveModules(org).includes(tariffModule) ? 'DEMO' : null;
+  // Демо-режим показывается только администратору организации
+  return user.role === 'ORGANIZATION_ADMIN' && granted && tariffModule && !effectiveModules(org).includes(tariffModule) ? 'DEMO' : null;
 }
 
 function tenantDirectory(request: Request, code: string, action: DirectoryAction) {

@@ -342,10 +342,12 @@ function courseContext(request: Request, courseId: string, edit = false) {
 type CourseCtx = Exclude<ReturnType<typeof courseContext>, Response>;
 
 /**
- * Элементы контента в демо-доступе: просмотр типа включён в матрице роли, но модуль тарифа
- * элемента не входит в тариф организации. Значение — ближайший тариф, где элемент доступен.
+ * Элементы контента в демо-доступе (только для администратора организации): просмотр типа включён
+ * в матрице роли, но модуль тарифа элемента не входит в тариф организации. Значение — ближайший тариф, где элемент доступен.
  */
 function demoElementsOf(ctx: CourseCtx): Partial<Record<ElementType, string | null>> {
+  // Тренер, слушатель и другие сотрудники демо-элементов не видят: такие элементы для них скрыты
+  if (ctx.user.role !== 'ORGANIZATION_ADMIN') return {};
   const raw = [...matrixOf(ctx.user.role, ctx.user.customRole), ...localMatrixOf(ctx.user.id, ctx.org.clientSlug)];
   const enabled = effectiveModules(ctx.org);
   return Object.fromEntries(

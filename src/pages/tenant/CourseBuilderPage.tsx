@@ -1,15 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { App, Button, Card, Collapse, Dropdown, Empty, Input, Skeleton, Tag, Tooltip } from 'antd';
+import { App, Button, Card, Collapse, Dropdown, Empty, Input, Segmented, Skeleton, Tag, Tooltip } from 'antd';
 import { ArrowDown, ArrowLeft, ArrowUp, Eye, Lock, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { CourseContent, CourseDay, CourseElement, CourseModule, ElementAction, ElementType } from '@/api/types';
 import { useCabinet } from '@/features/tenant/cabinet';
 import { AddElementModal, ElementEditor, ElementIcon } from '@/features/course-builder/ElementEditor';
 import { ElementPreview } from '@/features/course-builder/ElementPreview';
-import { ProgramPreview, type PreviewRole } from '@/features/course-builder/ProgramPreview';
 import { ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
 import { ProgramAbout } from '@/features/programs/ProgramAbout';
 import { ProgramFormModal } from '@/features/programs/ProgramFormModal';
@@ -177,13 +176,23 @@ function ElementRow({
   );
 }
 
-function CourseBuilder({ courseId }: { courseId: string }) {
+export type PreviewRole = 'TRAINER' | 'LEARNER';
+
+/**
+ * Страница курса. С viewAs — содержимое с правами тренера или слушателя, только для чтения
+ * (просмотр глазами роли для редактора программы).
+ */
+function CourseBuilder({ courseId, viewAs }: { courseId: string; viewAs?: PreviewRole }) {
   const { clientSlug, base } = useCabinet();
   const qc = useQueryClient();
   const { message, modal } = App.useApp();
   const key = queryKeys.courseContent(clientSlug, courseId);
   const builder = api.courseBuilder(clientSlug, courseId);
-  const q = useQuery({ queryKey: key, queryFn: builder.get, retry: false });
+  const q = useQuery({
+    queryKey: viewAs ? [...key, 'as', viewAs] : key,
+    queryFn: viewAs ? () => builder.viewAs(viewAs) : builder.get,
+    retry: false,
+  });
 
   const [adding, setAdding] = useState<string | null>(null);
   const [promo, setPromo] = useState(false);
@@ -192,7 +201,6 @@ function CourseBuilder({ courseId }: { courseId: string }) {
   const [editing, setEditing] = useState<CourseElement | null>(null);
   const [viewing, setViewing] = useState<CourseElement | null>(null);
   const [editingProgram, setEditingProgram] = useState(false);
-  const [previewAs, setPreviewAs] = useState<PreviewRole | null>(null);
   const navigate = useNavigate();
   const admin = api.tenantAdmin(clientSlug);
   const removeCourse = useMutation({
@@ -231,7 +239,8 @@ function CourseBuilder({ courseId }: { courseId: string }) {
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const { course, canEdit, canDeleteCourse, modules, elementAccess, demoElements = {} } = q.data;
   // Итоговый доступ роли к элементам контента: какие типы можно создавать, править, удалять
-  const allowed = (type: ElementType, action: ElementAction) => elementAccess[type]?.includes(action) ?? false;
+  const allowed = (type: ElementType, action: ElementAction) =>
+    (!viewAs || action === 'view') && (elementAccess[type]?.includes(action) ?? false);
   const creatable = ELEMENT_TYPES.filter((t) => allowed(t, 'create'));
   // Типы вне тарифа: в списке добавления подсвечены как демо
   const isDemo = (type: ElementType) => type in demoElements;
@@ -309,11 +318,13 @@ function CourseBuilder({ courseId }: { courseId: string }) {
 
   return (
     <div data-testid="course-builder">
-      <div className="mb-2">
-        <Link to={`${base}/m/COURSES`} className="inline-flex items-center gap-1 text-sm">
-          <ArrowLeft size={14} aria-hidden /> Все курсы
-        </Link>
-      </div>
+      {!viewAs && (
+        <div className="mb-2">
+          <Link to={`${base}/m/COURSES`} className="inline-flex items-center gap-1 text-sm">
+            <ArrowLeft size={14} aria-hidden /> Все курсы
+          </Link>
+        </div>
+      )}
       <PageHeader
         title={course.title}
         subtitle={
@@ -331,7 +342,7 @@ function CourseBuilder({ courseId }: { courseId: string }) {
                     { key: 'TRAINER', label: 'Глазами тренера' },
                     { key: 'LEARNER', label: 'Глазами слушателя' },
                   ],
-                  onClick: ({ key }) => setPreviewAs(key as PreviewRole),
+                  onClick: ({ key }) => navigate(`${base}/m/COURSES/${encodeURIComponent(courseId)}/view/${key.toLowerCase()}`),
                 }}
               >
                 <Button icon={<Eye size={16} />}>Просмотр глазами</Button>
@@ -461,8 +472,52 @@ function CourseBuilder({ courseId }: { courseId: string }) {
       {editing && <ElementEditor key={editing.id} clientSlug={clientSlug} courseId={courseId} element={editing} onClose={() => setEditing(null)} />}
       {viewing && <ElementPreview element={viewing} onClose={() => setViewing(null)} />}
       {promo && promoModule && <UpgradePromoModal module={promoModule} onClose={() => setPromo(false)} />}
-      {previewAs && <ProgramPreview clientSlug={clientSlug} courseId={courseId} initialRole={previewAs} onClose={() => setPreviewAs(null)} />}
       {editingProgram && <ProgramFormModal clientSlug={clientSlug} course={course} onClose={() => setEditingProgram(false)} />}
+    </div>
+  );
+}
+
+const VIEW_ROLES: Record<string, PreviewRole> = { trainer: 'TRAINER', learner: 'LEARNER' };
+const VIEW_LABEL: Record<PreviewRole, string> = { TRAINER: 'тренер', LEARNER: 'слушатель' };
+
+/**
+ * Просмотр глазами тренера или слушателя: отдельная страница без меню администратора,
+ * курс показан так, как его видит пользователь с этой ролью.
+ */
+export function ProgramViewAsPage() {
+  const { courseId = '', role = '' } = useParams();
+  const { base } = useCabinet();
+  const navigate = useNavigate();
+  const viewAs = VIEW_ROLES[role];
+  const builderUrl = `${base}/m/COURSES/${encodeURIComponent(courseId)}`;
+  if (!viewAs) return <Navigate to={builderUrl} replace />;
+  return (
+    <div className="min-h-screen bg-page" data-testid={`program-view-${viewAs}`}>
+      <div className="sticky top-0 z-10 border-b border-border bg-primary-soft">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+          <Eye size={18} className="text-primary" aria-hidden />
+          <span className="min-w-0 flex-1 text-sm">
+            <span className="font-semibold">Режим просмотра.</span> Программа показана так, как её видит {VIEW_LABEL[viewAs]}. Изменения недоступны.
+          </span>
+          <Segmented
+            aria-label="Чьими глазами смотреть"
+            value={viewAs}
+            onChange={(v) => navigate(`${builderUrl}/view/${String(v).toLowerCase()}`, { replace: true })}
+            options={[
+              { value: 'TRAINER', label: 'Тренер' },
+              { value: 'LEARNER', label: 'Слушатель' },
+            ]}
+          />
+          <Button icon={<ArrowLeft size={16} />} onClick={() => navigate(builderUrl)}>
+            Вернуться в конструктор
+          </Button>
+        </div>
+      </div>
+      <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+        <FeatureGuard code="COURSES">
+          <CourseBuilder key={viewAs} courseId={courseId} viewAs={viewAs} />
+        </FeatureGuard>
+      </main>
     </div>
   );
 }
