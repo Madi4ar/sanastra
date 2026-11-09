@@ -19,7 +19,7 @@ type Lang = 'Kz' | 'Ru' | 'En';
 const LANGS: { key: Lang; label: string; required: boolean }[] = [
   { key: 'Kz', label: 'Казахский', required: true },
   { key: 'Ru', label: 'Русский', required: true },
-  { key: 'En', label: 'Английский', required: false },
+  { key: 'En', label: 'Английский', required: true },
 ];
 
 async function coverToDataUrl(file: File): Promise<string> {

@@ -276,17 +276,17 @@ function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: R
     hoursPractice: body.hoursPractice ?? null,
     coverUrl: body.coverUrl ?? null,
   };
+  // Все три языка — казахский, русский и английский — обязательны
   for (const l of LANG_FIELDS) {
-    const required = l !== 'En';
     const label = l === 'Kz' ? 'на казахском' : l === 'Ru' ? 'на русском' : 'на английском';
     const title = fields[`title${l}`];
-    if ((required && !title) || title.length > 200) fe[`title${l}`] = `Название ${label} — от 1 до 200 символов`;
+    if (!title || title.length > 200) fe[`title${l}`] = `Название ${label} — от 1 до 200 символов`;
     const plain = richTextToPlain(fields[`description${l}`]);
-    if (required && !plain) fe[`description${l}`] = `Заполните описание ${label}`;
+    if (!plain) fe[`description${l}`] = `Заполните описание ${label}`;
     if (plain.length > 20000) fe[`description${l}`] = 'Не более 20 000 символов';
     for (const [k, name] of [['goal', 'цель программы'], ['result', 'ожидаемый результат']] as const) {
       const v = fields[`${k}${l}`];
-      if (required && !v) fe[`${k}${l}`] = `Заполните ${name} ${label}`;
+      if (!v) fe[`${k}${l}`] = `Заполните ${name} ${label}`;
       if (v.length > 2000) fe[`${k}${l}`] = 'Не более 2000 символов';
     }
   }
