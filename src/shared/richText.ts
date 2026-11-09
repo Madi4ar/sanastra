@@ -37,3 +37,17 @@ export function sanitizeRichText(html: string): string {
 export function richTextToPlain(html: string): string {
   return (new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '').trim();
 }
+
+/** Значение для показа и редактора: простой текст прежних записей превращается в абзацы, разметка очищается */
+export function toRichText(value: string): string {
+  if (/<[a-z][\s\S]*>/i.test(value)) return sanitizeRichText(value);
+  const div = document.createElement('div');
+  return value
+    .split(/\n+/)
+    .filter((line) => line.trim())
+    .map((line) => {
+      div.textContent = line;
+      return `<p>${div.innerHTML}</p>`;
+    })
+    .join('');
+}

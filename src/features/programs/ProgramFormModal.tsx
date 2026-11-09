@@ -8,7 +8,7 @@ import { queryKeys } from '@/api/queryKeys';
 import type { Course, ProgramPayload } from '@/api/types';
 import { useDirectoryOptions } from '@/features/directories/useDirectoryOptions';
 import { Field } from '@/shared/FormField';
-import { sanitizeRichText } from '@/shared/richText';
+import { toRichText } from '@/shared/richText';
 
 const COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const COVER_LIMIT = 5 * 1024 * 1024;
@@ -46,7 +46,7 @@ const TOOLS = [
 function RichTextEditor({ id, label, value, invalid, onChange }: { id: string; label: string; value: string; invalid: boolean; onChange: (v: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   // Содержимое задаётся один раз: дальше редактор управляет им сам, иначе сбивается курсор
-  const [initial] = useState(() => ({ __html: sanitizeRichText(value) }));
+  const [initial] = useState(() => ({ __html: toRichText(value) }));
   const emit = () => onChange(ref.current?.innerHTML ?? '');
   const run = (command: string, arg?: string) => {
     ref.current?.focus();
@@ -216,23 +216,21 @@ export function ProgramFormModal({
                   />
                 </Field>
                 <Field label={`Цель программы (${l.label.toLowerCase()} язык)`} htmlFor={`program-goal-${l.key}`} required={l.required} error={fe[`goal${l.key}`]}>
-                  <Input.TextArea
+                  <RichTextEditor
                     id={`program-goal-${l.key}`}
-                    rows={2}
-                    maxLength={2000}
-                    status={fe[`goal${l.key}`] ? 'error' : undefined}
+                    label={`Цель программы (${l.label.toLowerCase()} язык)`}
                     value={values[`goal${l.key}`]}
-                    onChange={(e) => set({ [`goal${l.key}`]: e.target.value })}
+                    invalid={Boolean(fe[`goal${l.key}`])}
+                    onChange={(v) => set({ [`goal${l.key}`]: v })}
                   />
                 </Field>
                 <Field label={`Ожидаемый результат (${l.label.toLowerCase()} язык)`} htmlFor={`program-result-${l.key}`} required={l.required} error={fe[`result${l.key}`]}>
-                  <Input.TextArea
+                  <RichTextEditor
                     id={`program-result-${l.key}`}
-                    rows={2}
-                    maxLength={2000}
-                    status={fe[`result${l.key}`] ? 'error' : undefined}
+                    label={`Ожидаемый результат (${l.label.toLowerCase()} язык)`}
                     value={values[`result${l.key}`]}
-                    onChange={(e) => set({ [`result${l.key}`]: e.target.value })}
+                    invalid={Boolean(fe[`result${l.key}`])}
+                    onChange={(v) => set({ [`result${l.key}`]: v })}
                   />
                 </Field>
               </div>

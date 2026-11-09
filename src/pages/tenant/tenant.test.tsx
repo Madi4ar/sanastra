@@ -327,6 +327,47 @@ describe('Конструктор контента учебной програм�
     expect(await screen.findByText('Новый элемент: Тест')).toBeInTheDocument();
   });
 
+  it('просмотр глазами тренера и слушателя: без кнопок редактирования, с описанием программы', async () => {
+    loginAs('ORGANIZATION_ADMIN');
+    const { user } = renderApp(courseUrl);
+    await screen.findByTestId('course-builder');
+    await user.click(screen.getByRole('button', { name: /Просмотр глазами/ }));
+    await user.click(await screen.findByText('Глазами слушателя'));
+    const learner = await screen.findByTestId('program-preview-LEARNER');
+    await waitFor(() => expect(within(learner).getByText('Введение в курс')).toBeInTheDocument());
+    expect(within(learner).queryByRole('button', { name: /Настроить/ })).not.toBeInTheDocument();
+    await user.click(within(learner).getByText('О программе'));
+    expect(await within(learner).findByText('Цель программы')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Тренер'));
+    const trainer = await screen.findByTestId('program-preview-TRAINER');
+    await waitFor(() => expect(within(trainer).getByText('Введение в курс')).toBeInTheDocument());
+  });
+
+  it('цель и ожидаемый результат — форматированный текст, очищается на сервере', async () => {
+    loginAs('ORGANIZATION_ADMIN');
+    const id = `${ACADEMY_ID}-c1`;
+    const course = (await (await fetch(`/api/tenant/courses/${id}/content?clientSlug=academy`)).json()) as { course: Record<string, unknown> };
+    const res = await fetch(`/api/tenant/programs/${id}?clientSlug=academy`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...course.course, goalRu: '<p><b>Цель</b><script>alert(1)</script></p>', resultRu: '<p></p>' }),
+    });
+    expect(res.status).toBe(400);
+    const ok = await fetch(`/api/tenant/programs/${id}?clientSlug=academy`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...course.course, goalRu: '<p><b>Цель</b><script>alert(1)</script></p>' }),
+    });
+    expect(ok.status).toBe(200);
+    const saved = (await ok.json()) as { goalRu: string };
+    expect(saved.goalRu).toBe('<p><b>Цель</b></p>');
+  });
+
+  it('просмотр глазами доступен только редактору программы', async () => {
+    loginAs('LEARNER');
+    const res = await fetch(`/api/tenant/courses/${ACADEMY_ID}-c1/content?clientSlug=academy&as=TRAINER`);
+    expect(res.status).toBe(403);
+  });
+
   it('сервер не даёт создать элемент вне тарифа', async () => {
     loginAs('ORGANIZATION_ADMIN');
     const content = (await (await fetch(`/api/tenant/courses/${ACADEMY_ID}-c1/content?clientSlug=academy`)).json()) as {

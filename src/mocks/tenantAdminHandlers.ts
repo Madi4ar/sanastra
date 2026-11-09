@@ -256,7 +256,8 @@ function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: R
     const v = body[k];
     return typeof v === 'string' ? v.trim() : '';
   };
-  const description = (k: 'descriptionKz' | 'descriptionRu' | 'descriptionEn') => sanitizeRichText(text(k));
+  // Описание, цель и ожидаемый результат — форматированный текст
+  const description = (k: keyof ProgramPayload) => sanitizeRichText(text(k));
   const fields: ProgramPayload = {
     titleKz: text('titleKz'),
     titleRu: text('titleRu'),
@@ -264,12 +265,12 @@ function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: R
     descriptionKz: description('descriptionKz'),
     descriptionRu: description('descriptionRu'),
     descriptionEn: description('descriptionEn'),
-    goalKz: text('goalKz'),
-    goalRu: text('goalRu'),
-    goalEn: text('goalEn'),
-    resultKz: text('resultKz'),
-    resultRu: text('resultRu'),
-    resultEn: text('resultEn'),
+    goalKz: description('goalKz'),
+    goalRu: description('goalRu'),
+    goalEn: description('goalEn'),
+    resultKz: description('resultKz'),
+    resultRu: description('resultRu'),
+    resultEn: description('resultEn'),
     formatId: body.formatId ?? null,
     assessmentId: body.assessmentId ?? null,
     hoursTheory: body.hoursTheory ?? null,
@@ -285,7 +286,7 @@ function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: R
     if (!plain) fe[`description${l}`] = `Заполните описание ${label}`;
     if (plain.length > 20000) fe[`description${l}`] = 'Не более 20 000 символов';
     for (const [k, name] of [['goal', 'цель программы'], ['result', 'ожидаемый результат']] as const) {
-      const v = fields[`${k}${l}`];
+      const v = richTextToPlain(fields[`${k}${l}`]);
       if (!v) fe[`${k}${l}`] = `Заполните ${name} ${label}`;
       if (v.length > 2000) fe[`${k}${l}`] = 'Не более 2000 символов';
     }

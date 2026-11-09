@@ -1409,7 +1409,14 @@ export const handlers: HttpHandler[] = [
     await latency();
     const ctx = courseContext(request, String(params.courseId));
     if (ctx instanceof Response) return ctx;
-    return HttpResponse.json(courseContent(ctx));
+    // Просмотр глазами тренера или слушателя: итоговый доступ системной роли в этой организации, без редактирования
+    const as = new URL(request.url).searchParams.get('as');
+    if (as === null) return HttpResponse.json(courseContent(ctx));
+    if (as !== 'TRAINER' && as !== 'LEARNER') return err(400, 'VALIDATION_ERROR', 'Неизвестная роль для просмотра.');
+    if (!ctx.canEdit) return err(403, 'FORBIDDEN', 'Просмотр глазами других ролей доступен редактору программы.');
+    const role: 'TRAINER' | 'LEARNER' = as;
+    const viewer = { ...ctx.user, id: '', role, customRole: undefined, access: accessFor({ role, clientSlug: ctx.org.clientSlug }) };
+    return HttpResponse.json(courseContent({ ...ctx, user: viewer, canEdit: false }));
   }),
 
   http.post('/api/tenant/courses/:courseId/modules', async ({ params, request }) => {

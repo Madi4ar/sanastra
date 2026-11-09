@@ -9,9 +9,10 @@ import type { CourseContent, CourseDay, CourseElement, CourseModule, ElementActi
 import { useCabinet } from '@/features/tenant/cabinet';
 import { AddElementModal, ElementEditor, ElementIcon } from '@/features/course-builder/ElementEditor';
 import { ElementPreview } from '@/features/course-builder/ElementPreview';
+import { ProgramPreview, type PreviewRole } from '@/features/course-builder/ProgramPreview';
 import { ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
+import { ProgramAbout } from '@/features/programs/ProgramAbout';
 import { ProgramFormModal } from '@/features/programs/ProgramFormModal';
-import { sanitizeRichText } from '@/shared/richText';
 import { FeatureGuard } from '@/features/tenant/access';
 import { UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
 import { ADVANCED_CONTENT_MODULE } from '@/shared/access';
@@ -191,6 +192,7 @@ function CourseBuilder({ courseId }: { courseId: string }) {
   const [editing, setEditing] = useState<CourseElement | null>(null);
   const [viewing, setViewing] = useState<CourseElement | null>(null);
   const [editingProgram, setEditingProgram] = useState(false);
+  const [previewAs, setPreviewAs] = useState<PreviewRole | null>(null);
   const navigate = useNavigate();
   const admin = api.tenantAdmin(clientSlug);
   const removeCourse = useMutation({
@@ -322,6 +324,20 @@ function CourseBuilder({ courseId }: { courseId: string }) {
         extra={
           <>
             {canEdit && (
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: [
+                    { key: 'TRAINER', label: 'Глазами тренера' },
+                    { key: 'LEARNER', label: 'Глазами слушателя' },
+                  ],
+                  onClick: ({ key }) => setPreviewAs(key as PreviewRole),
+                }}
+              >
+                <Button icon={<Eye size={16} />}>Просмотр глазами</Button>
+              </Dropdown>
+            )}
+            {canEdit && (
               <Button icon={<Pencil size={16} />} onClick={() => setEditingProgram(true)}>
                 Редактировать программу
               </Button>
@@ -353,92 +369,75 @@ function CourseBuilder({ courseId }: { courseId: string }) {
         }
       />
 
-      <Collapse
-        className="mb-4"
-        data-testid="program-info"
-        items={[
-          {
-            key: 'about',
-            label: 'О программе',
-            children: (
-              <div className="flex flex-col gap-3 text-sm">
-                <div className="rich-text" dangerouslySetInnerHTML={{ __html: sanitizeRichText(course.descriptionRu) }} />
-                {course.goalRu && (
-                  <p className="m-0 whitespace-pre-line">
-                    <span className="font-medium">Цель: </span>
-                    {course.goalRu}
-                  </p>
-                )}
-                {course.resultRu && (
-                  <p className="m-0 whitespace-pre-line">
-                    <span className="font-medium">Ожидаемый результат: </span>
-                    {course.resultRu}
-                  </p>
-                )}
-                <p className="m-0 text-muted">
-                  Теория: {course.hoursTheory ?? 0} ч · практика: {course.hoursPractice ?? 0} ч
-                </p>
-              </div>
-            ),
-          },
-        ]}
-      />
+      {/* Отступы задаёт контейнер: margin на компонентах antd перебивается их стилями */}
+      <div className="flex flex-col gap-6">
+        <Collapse
+          data-testid="program-info"
+          items={[
+            {
+              key: 'about',
+              label: 'О программе',
+              children: <ProgramAbout course={course} />,
+            },
+          ]}
+        />
 
-      {!modules.length && (
-        <Card>
-          <Empty description={canEdit ? 'Структура курса пуста — добавьте первый модуль' : 'Содержимое курса ещё не готово'} />
-        </Card>
-      )}
-
-      <div className="flex flex-col gap-4">
-        {modules.map((m, mi) => (
-          <Card
-            key={m.id}
-            data-testid={`module-${m.id}`}
-            title={
-              <span className="flex min-w-0 items-center gap-2">
-                <Tag className="m-0">Модуль {mi + 1}</Tag>
-                <EditableTitle value={m.title} label="Название модуля" editable={canEdit} onSave={(t) => run(() => builder.renameModule(m.id, t))} />
-              </span>
-            }
-            extra={
-              canEdit && (
-                <span className="flex items-center gap-1">
-                  <IconButton type="text" size="small" label="Модуль выше" icon={<ArrowUp size={14} />} disabled={mi === 0} onClick={() => run(() => builder.moveModule(m.id, 'up'))} />
-                  <IconButton
-                    type="text"
-                    size="small"
-                    label="Модуль ниже"
-                    icon={<ArrowDown size={14} />}
-                    disabled={mi === modules.length - 1}
-                    onClick={() => run(() => builder.moveModule(m.id, 'down'))}
-                  />
-                  <IconButton
-                    type="text"
-                    danger
-                    size="small"
-                    label={`Удалить модуль «${m.title}»`}
-                    icon={<Trash2 size={14} />}
-                    onClick={() =>
-                      confirmRemove(m.title, 'Модуль, его дни и элементы будут удалены из курса.', () => builder.removeModule(m.id), 'Модуль удалён')
-                    }
-                  />
-                </span>
-              )
-            }
-          >
-            <div className="flex flex-col gap-3">
-              {m.days.map((d, di) => renderDay(m, d, di))}
-              {canEdit && (
-                <div>
-                  <Button icon={<Plus size={16} />} onClick={() => run(() => builder.addDay(m.id, ''), 'День добавлен')}>
-                    Добавить день
-                  </Button>
-                </div>
-              )}
-            </div>
+        {!modules.length && (
+          <Card>
+            <Empty description={canEdit ? 'Структура курса пуста — добавьте первый модуль' : 'Содержимое курса ещё не готово'} />
           </Card>
-        ))}
+        )}
+
+        <div className="flex flex-col gap-4">
+          {modules.map((m, mi) => (
+            <Card
+              key={m.id}
+              data-testid={`module-${m.id}`}
+              title={
+                <span className="flex min-w-0 items-center gap-2">
+                  <Tag className="m-0">Модуль {mi + 1}</Tag>
+                  <EditableTitle value={m.title} label="Название модуля" editable={canEdit} onSave={(t) => run(() => builder.renameModule(m.id, t))} />
+                </span>
+              }
+              extra={
+                canEdit && (
+                  <span className="flex items-center gap-1">
+                    <IconButton type="text" size="small" label="Модуль выше" icon={<ArrowUp size={14} />} disabled={mi === 0} onClick={() => run(() => builder.moveModule(m.id, 'up'))} />
+                    <IconButton
+                      type="text"
+                      size="small"
+                      label="Модуль ниже"
+                      icon={<ArrowDown size={14} />}
+                      disabled={mi === modules.length - 1}
+                      onClick={() => run(() => builder.moveModule(m.id, 'down'))}
+                    />
+                    <IconButton
+                      type="text"
+                      danger
+                      size="small"
+                      label={`Удалить модуль «${m.title}»`}
+                      icon={<Trash2 size={14} />}
+                      onClick={() =>
+                        confirmRemove(m.title, 'Модуль, его дни и элементы будут удалены из курса.', () => builder.removeModule(m.id), 'Модуль удалён')
+                      }
+                    />
+                  </span>
+                )
+              }
+            >
+              <div className="flex flex-col gap-3">
+                {m.days.map((d, di) => renderDay(m, d, di))}
+                {canEdit && (
+                  <div>
+                    <Button icon={<Plus size={16} />} onClick={() => run(() => builder.addDay(m.id, ''), 'День добавлен')}>
+                      Добавить день
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))}
+      </div>
       </div>
 
       {adding && (
@@ -462,6 +461,7 @@ function CourseBuilder({ courseId }: { courseId: string }) {
       {editing && <ElementEditor key={editing.id} clientSlug={clientSlug} courseId={courseId} element={editing} onClose={() => setEditing(null)} />}
       {viewing && <ElementPreview element={viewing} onClose={() => setViewing(null)} />}
       {promo && promoModule && <UpgradePromoModal module={promoModule} onClose={() => setPromo(false)} />}
+      {previewAs && <ProgramPreview clientSlug={clientSlug} courseId={courseId} initialRole={previewAs} onClose={() => setPreviewAs(null)} />}
       {editingProgram && <ProgramFormModal clientSlug={clientSlug} course={course} onClose={() => setEditingProgram(false)} />}
     </div>
   );

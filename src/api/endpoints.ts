@@ -281,6 +281,8 @@ export const api = {
       request<T>(`${base}${path}${q}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
     return {
       get: () => request<CourseContent>(`${base}/content${q}`),
+      /** Содержимое курса глазами тренера или слушателя */
+      viewAs: (role: 'TRAINER' | 'LEARNER') => request<CourseContent>(`${base}/content${toQueryString({ clientSlug, as: role })}`),
       addModule: (title: string) => send<CourseContent>('/modules', 'POST', { title }),
       renameModule: (id: string, title: string) => send<CourseContent>(`/modules/${id}`, 'PATCH', { title }),
       removeModule: (id: string) => send<CourseContent>(`/modules/${id}`, 'DELETE'),
