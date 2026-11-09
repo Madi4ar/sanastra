@@ -531,6 +531,8 @@ export interface CourseContent {
   canDeleteCourse: boolean;
   /** Разрешённые действия по типам элементов (итоговый доступ роли) */
   elementAccess: Partial<Record<ElementType, ElementAction[]>>;
+  /** Типы элементов в демо-доступе (вне тарифа) → тариф, в котором они доступны */
+  demoElements: Partial<Record<ElementType, string | null>>;
   modules: CourseModule[];
 }
 

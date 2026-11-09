@@ -304,3 +304,41 @@ describe('Кабинет: права на создание', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('Конструктор контента учебной программы', () => {
+  const courseUrl = `/academy/admin/m/COURSES/${ACADEMY_ID}-c1`;
+
+  it('«Добавить элемент контента» — список элементов тарифа, элементы вне тарифа подсвечены как демо', async () => {
+    loginAs('ORGANIZATION_ADMIN');
+    const { user } = renderApp(courseUrl);
+    await screen.findByTestId('course-builder');
+    // Интерактивное видео не входит в «Базовый»: элемент курса показан карточкой демо-доступа
+    expect(screen.getAllByText('Демо / Доступно в тарифе Стандарт').length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole('button', { name: /Добавить элемент контента/ })[0]!);
+    const list = (await screen.findByText('Скорм (SCORM)')).closest<HTMLElement>('.ant-dropdown-menu')!;
+    expect(within(list).getByText('Тест')).toBeInTheDocument();
+    expect(within(list).getByText('Вопросы рефлексии')).toBeInTheDocument();
+    const demo = within(list).getByText('Скорм (SCORM)').closest('li')!;
+    expect(demo).toHaveTextContent('Демо / Доступно в тарифе Стандарт');
+
+    // Выбор доступного элемента открывает его форму
+    await user.click(within(list).getByText('Тест'));
+    expect(await screen.findByText('Новый элемент: Тест')).toBeInTheDocument();
+  });
+
+  it('сервер не даёт создать элемент вне тарифа', async () => {
+    loginAs('ORGANIZATION_ADMIN');
+    const content = (await (await fetch(`/api/tenant/courses/${ACADEMY_ID}-c1/content?clientSlug=academy`)).json()) as {
+      demoElements: Record<string, string | null>;
+      modules: { days: { id: string }[] }[];
+    };
+    expect(Object.keys(content.demoElements).sort()).toEqual(['interactive_video', 'scorm', 'table']);
+    const dayId = content.modules[0]!.days[0]!.id;
+    const res = await fetch(`/api/tenant/courses/${ACADEMY_ID}-c1/days/${dayId}/elements?clientSlug=academy`, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'scorm', titleRu: 'Пакет' }),
+    });
+    expect(res.status).toBe(403);
+  });
+});

@@ -57,6 +57,7 @@ export function AddElementModal({
   courseId,
   dayId,
   types = ELEMENT_TYPES,
+  initialType = null,
   onClose,
   onCreated,
 }: {
@@ -65,12 +66,14 @@ export function AddElementModal({
   dayId: string;
   /** Типы, на создание которых у роли есть право */
   types?: readonly ElementType[];
+  /** Тип, выбранный в списке «Добавить элемент контента»: форма открывается сразу */
+  initialType?: ElementType | null;
   onClose: () => void;
   onCreated: (el: CourseElement) => void;
 }) {
   const qc = useQueryClient();
   const { message } = App.useApp();
-  const [type, setType] = useState<ElementType | null>(null);
+  const [type, setType] = useState<ElementType | null>(initialType);
   const [titleRu, setTitleRu] = useState('');
   const [titleKz, setTitleKz] = useState('');
   const [error, setError] = useState<string>();

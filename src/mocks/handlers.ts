@@ -69,13 +69,13 @@ import {
 } from './users';
 import { EMAIL_PATTERN, isValidIin, isValidKzPhone, isValidPassword, MESSAGES, phoneDigits } from '@/features/auth/validation';
 import { scheduleEndDate } from './paymentSchedule';
-import { isDeactivated, isTrainerDeactivated, loadStructure, removeStructure, roleHolders, syncMembers } from './orgStructure';
+import { isDeactivated, isTrainerDeactivated, loadStructure, localMatrixOf, removeStructure, roleHolders, syncMembers } from './orgStructure';
 import { directoryHandlers } from './directoryHandlers';
 import { removeDirectoriesOf, visibleItems } from './directories';
-import { tenantAdminHandlers } from './tenantAdminHandlers';
+import { tenantAdminHandlers, upgradeTariffFor } from './tenantAdminHandlers';
 import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
-import { findCustomRole, loadRoles, saveRoles, type GlobalRoleRecord } from './roles';
-import { allLeafKeys, canElement, effectiveAccess, inTariff, modulesOf } from '@/shared/access';
+import { findCustomRole, loadRoles, matrixOf, saveRoles, type GlobalRoleRecord } from './roles';
+import { allLeafKeys, canElement, effectiveAccess, elementModuleKey, inTariff, modulesOf, TARIFF_MODULE_OF } from '@/shared/access';
 import {
   COURSE_CATEGORIES,
   courseCount,
@@ -341,15 +341,35 @@ function courseContext(request: Request, courseId: string, edit = false) {
 
 type CourseCtx = Exclude<ReturnType<typeof courseContext>, Response>;
 
+/**
+ * Элементы контента в демо-доступе: просмотр типа включён в матрице роли, но модуль тарифа
+ * элемента не входит в тариф организации. Значение — ближайший тариф, где элемент доступен.
+ */
+function demoElementsOf(ctx: CourseCtx): Partial<Record<ElementType, string | null>> {
+  const raw = [...matrixOf(ctx.user.role, ctx.user.customRole), ...localMatrixOf(ctx.user.id, ctx.org.clientSlug)];
+  const enabled = effectiveModules(ctx.org);
+  return Object.fromEntries(
+    ELEMENT_TYPES.flatMap((t) => {
+      const tariffModule = TARIFF_MODULE_OF[elementModuleKey(t)];
+      if (!tariffModule || enabled.includes(tariffModule) || !canElement(raw, t, 'view')) return [];
+      return [[t, upgradeTariffFor(ctx.org, tariffModule)?.name ?? null]];
+    }),
+  );
+}
+
 function courseContent(ctx: CourseCtx) {
   const modules = getStructure(ctx.course.id);
   const access = ctx.user.access;
-  // Элементы без права просмотра типа не отдаются; скрытые — только редактору структуры
+  const demoElements = demoElementsOf(ctx);
+  // Элементы без права просмотра типа не отдаются (демо-элементы — только как карточки без содержимого);
+  // скрытые — только редактору структуры
   const visible = modules.map((m) => ({
     ...m,
     days: m.days.map((d) => ({
       ...d,
-      elements: d.elements.filter((e) => canElement(access, e.type, 'view') && (ctx.canEdit || !e.hidden)),
+      elements: d.elements
+        .filter((e) => (canElement(access, e.type, 'view') || e.type in demoElements) && (ctx.canEdit || !e.hidden))
+        .map((e) => (e.type in demoElements ? { ...e, settings: {}, files: [] } : e)),
     })),
   }));
   const elementAccess = Object.fromEntries(
@@ -360,6 +380,7 @@ function courseContent(ctx: CourseCtx) {
     canEdit: ctx.canEdit,
     canDeleteCourse: access.includes('lms_prog_core.delete'),
     elementAccess,
+    demoElements,
     modules: visible,
   };
 }

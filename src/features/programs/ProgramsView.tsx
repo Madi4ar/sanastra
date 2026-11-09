@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Button, Card, Input, InputNumber, Select, Table, Tag } from 'antd';
 import { BookOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { api, type ModuleData } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import type { Course } from '@/api/types';
@@ -22,6 +22,7 @@ export function ProgramsView({ data }: { data: ModuleData }) {
   const { data: user } = useCurrentUser();
   const qc = useQueryClient();
   const { message, modal } = App.useApp();
+  const navigate = useNavigate();
   const access = user?.access ?? [];
   const canCreate = access.includes('lms_prog_core.create');
   const canEdit = access.includes('lms_prog_core.edit');
@@ -201,7 +202,15 @@ export function ProgramsView({ data }: { data: ModuleData }) {
           ]}
         />
       </Card>
-      {editing && <ProgramFormModal clientSlug={clientSlug} course={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <ProgramFormModal
+          clientSlug={clientSlug}
+          course={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          // Конструктор контента доступен сразу после сохранения базовой карточки программы
+          onSaved={(c) => editing === 'new' && navigate(`${base}/m/COURSES/${encodeURIComponent(c.id)}`)}
+        />
+      )}
     </div>
   );
 }

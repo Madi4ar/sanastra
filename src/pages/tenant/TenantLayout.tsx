@@ -50,6 +50,7 @@ import { useTenantContext } from '@/features/tenant/access';
 import { useTenantAccess } from '@/features/tenant/queries';
 import type { CrumbHandle } from '@/layout/AppLayout';
 import { HIDDEN_PAGES } from '@/features/tenant/access';
+import { ADVANCED_CONTENT_MODULE } from '@/shared/access';
 import { ADVANCED_DIRECTORIES_MODULE } from '@/shared/directories';
 import { demoBadgeText, UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
 import type { CatalogModule } from '@/api/types';
@@ -84,7 +85,7 @@ const navTheme: ThemeConfig = {
 };
 
 /** Разделы скрыты из меню и поиска; доступ к ним настраивается в матрице доступов */
-const HIDDEN_FROM_MENU = ['REPORTS', 'CHAT', 'CERTIFICATES', ADVANCED_DIRECTORIES_MODULE, ...HIDDEN_PAGES];
+const HIDDEN_FROM_MENU = ['REPORTS', 'CHAT', 'CERTIFICATES', ADVANCED_DIRECTORIES_MODULE, ADVANCED_CONTENT_MODULE, ...HIDDEN_PAGES];
 
 /** Названия разделов в кабинете администратора */
 const ADMIN_MODULE_LABEL: Record<string, string> = { COURSES: 'Учебные программы', REPORTS: 'Конструктор отчётов' };

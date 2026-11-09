@@ -33,12 +33,12 @@ export const ELEMENT_LABEL: Record<ElementType, string> = {
   folder: 'Папка',
   image: 'Картинка',
   link: 'Ссылка',
-  scorm: 'SCORM-пакет',
+  scorm: 'Скорм (SCORM)',
   assignment: 'Практическая работа',
   table: 'Интерактивная таблица',
   test: 'Тест',
   survey: 'Анкета',
-  reflection: 'Вопрос для рефлексии',
+  reflection: 'Вопросы рефлексии',
 };
 
 export const ELEMENT_HINT: Record<ElementType, string> = {

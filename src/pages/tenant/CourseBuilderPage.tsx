@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App, Button, Card, Collapse, Dropdown, Empty, Input, Skeleton, Tag, Tooltip } from 'antd';
-import { ArrowDown, ArrowLeft, ArrowUp, Eye, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Eye, Lock, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { api } from '@/api/endpoints';
@@ -9,10 +9,12 @@ import type { CourseContent, CourseDay, CourseElement, CourseModule, ElementActi
 import { useCabinet } from '@/features/tenant/cabinet';
 import { AddElementModal, ElementEditor, ElementIcon } from '@/features/course-builder/ElementEditor';
 import { ElementPreview } from '@/features/course-builder/ElementPreview';
-import { ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
+import { ELEMENT_HINT, ELEMENT_LABEL, ELEMENT_TYPES, readinessIssues } from '@/features/course-builder/elementTypes';
 import { ProgramFormModal } from '@/features/programs/ProgramFormModal';
 import { sanitizeRichText } from '@/shared/richText';
 import { FeatureGuard } from '@/features/tenant/access';
+import { UpgradePromoModal, useModuleCatalog } from '@/features/tenant-admin/UpgradePromo';
+import { ADVANCED_CONTENT_MODULE } from '@/shared/access';
 import { IconButton } from '@/shared/IconButton';
 import { ErrorState } from '@/shared/PageState';
 import { PageHeader } from './PageHeader';
@@ -70,6 +72,33 @@ function EditableTitle({
         if (e.key === 'Escape') setEditing(false);
       }}
     />
+  );
+}
+
+const demoText = (tariff: string | null | undefined) => (tariff ? `Демо / Доступно в тарифе ${tariff}` : 'Демо');
+
+function DemoTag({ tariff }: { tariff: string | null | undefined }) {
+  return (
+    <Tag color="gold" className="m-0" icon={<Lock size={12} className="mr-1 inline" aria-hidden />}>
+      {demoText(tariff)}
+    </Tag>
+  );
+}
+
+/** Элемент типа вне тарифа: только карточка, клик открывает демо-доступ */
+function DemoElementRow({ el, tariff, onOpen }: { el: CourseElement; tariff: string | null | undefined; onOpen: () => void }) {
+  const title = el.titleRu || el.titleKz;
+  return (
+    <li className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-surface px-3 py-2 opacity-80" data-testid={`element-${el.id}`}>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted">
+        <ElementIcon type={el.type} />
+      </span>
+      <button type="button" className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left" onClick={onOpen}>
+        <span className="block truncate text-sm font-medium text-text">{title}</span>
+        <span className="text-xs text-muted">{ELEMENT_LABEL[el.type]}</span>
+      </button>
+      <DemoTag tariff={tariff} />
+    </li>
   );
 }
 
@@ -155,7 +184,10 @@ function CourseBuilder({ courseId }: { courseId: string }) {
   const builder = api.courseBuilder(clientSlug, courseId);
   const q = useQuery({ queryKey: key, queryFn: builder.get, retry: false });
 
-  const [adding, setAdding] = useState<string | null>(null);
+  const [adding, setAdding] = useState<{ dayId: string; type: ElementType } | null>(null);
+  const [promo, setPromo] = useState(false);
+  const catalog = useModuleCatalog(clientSlug, true);
+  const promoModule = catalog.data?.find((m) => m.code === ADVANCED_CONTENT_MODULE);
   const [editing, setEditing] = useState<CourseElement | null>(null);
   const [viewing, setViewing] = useState<CourseElement | null>(null);
   const [editingProgram, setEditingProgram] = useState(false);
@@ -195,10 +227,14 @@ function CourseBuilder({ courseId }: { courseId: string }) {
 
   if (q.isPending) return <Skeleton active paragraph={{ rows: 8 }} />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
-  const { course, canEdit, canDeleteCourse, modules, elementAccess } = q.data;
+  const { course, canEdit, canDeleteCourse, modules, elementAccess, demoElements = {} } = q.data;
   // Итоговый доступ роли к элементам контента: какие типы можно создавать, править, удалять
   const allowed = (type: ElementType, action: ElementAction) => elementAccess[type]?.includes(action) ?? false;
   const creatable = ELEMENT_TYPES.filter((t) => allowed(t, 'create'));
+  // Типы вне тарифа: в списке добавления подсвечены как демо
+  const isDemo = (type: ElementType) => type in demoElements;
+  const demoTypes = ELEMENT_TYPES.filter(isDemo);
+  const openDemo = () => (promoModule ? setPromo(true) : message.info('Элемент доступен в демо-режиме: он не входит в тариф организации'));
   const total = modules.reduce((n, m) => n + m.days.reduce((k, d) => k + d.elements.length, 0), 0);
 
   const renderDay = (m: CourseModule, d: CourseDay, di: number) => (
@@ -231,36 +267,71 @@ function CourseBuilder({ courseId }: { courseId: string }) {
       </div>
       {d.elements.length ? (
         <ol className="m-0 flex list-none flex-col gap-2 p-0">
-          {d.elements.map((el, i) => (
-            <ElementRow
-              key={el.id}
-              el={el}
-              index={i}
-              total={d.elements.length}
-              canEdit={canEdit}
-              canChange={allowed(el.type, 'edit')}
-              canDelete={allowed(el.type, 'delete')}
-              onOpen={() => setViewing(el)}
-              onEdit={() => setEditing(el)}
-              onMove={(dir) => run(() => builder.moveElement(el.id, dir))}
-              onRemove={() =>
-                confirmRemove(
-                  el.titleRu || el.titleKz,
-                  'Элемент пропадёт из курса вместе с настройками и файлами.',
-                  () => builder.removeElement(el.id),
-                  'Элемент удалён',
-                )
-              }
-            />
-          ))}
+          {d.elements.map((el, i) =>
+            isDemo(el.type) ? (
+              <DemoElementRow key={el.id} el={el} tariff={demoElements[el.type]} onOpen={openDemo} />
+            ) : (
+              <ElementRow
+                key={el.id}
+                el={el}
+                index={i}
+                total={d.elements.length}
+                canEdit={canEdit}
+                canChange={allowed(el.type, 'edit')}
+                canDelete={allowed(el.type, 'delete')}
+                onOpen={() => setViewing(el)}
+                onEdit={() => setEditing(el)}
+                onMove={(dir) => run(() => builder.moveElement(el.id, dir))}
+                onRemove={() =>
+                  confirmRemove(
+                    el.titleRu || el.titleKz,
+                    'Элемент пропадёт из курса вместе с настройками и файлами.',
+                    () => builder.removeElement(el.id),
+                    'Элемент удалён',
+                  )
+                }
+              />
+            ),
+          )}
         </ol>
       ) : (
         <p className="m-0 py-2 text-sm text-muted">В этом дне пока нет элементов.</p>
       )}
-      {canEdit && creatable.length > 0 && (
-        <Button className="mt-2" type="dashed" block icon={<Plus size={16} />} onClick={() => setAdding(d.id)}>
-          Добавить элемент
-        </Button>
+      {canEdit && creatable.length + demoTypes.length > 0 && (
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            className: 'max-h-96 overflow-y-auto',
+            items: [
+              ...creatable.map((t) => ({
+                key: t,
+                icon: <ElementIcon type={t} />,
+                label: (
+                  <span className="flex flex-col">
+                    <span>{ELEMENT_LABEL[t]}</span>
+                    <span className="text-xs text-muted">{ELEMENT_HINT[t]}</span>
+                  </span>
+                ),
+              })),
+              ...(demoTypes.length ? [{ type: 'divider' as const }] : []),
+              ...demoTypes.map((t) => ({
+                key: `demo:${t}`,
+                icon: <ElementIcon type={t} />,
+                label: (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span>{ELEMENT_LABEL[t]}</span>
+                    <DemoTag tariff={demoElements[t]} />
+                  </span>
+                ),
+              })),
+            ],
+            onClick: ({ key }) => (key.startsWith('demo:') ? openDemo() : setAdding({ dayId: d.id, type: key as ElementType })),
+          }}
+        >
+          <Button className="mt-2" type="dashed" block icon={<Plus size={16} />} data-testid={`add-element-${d.id}`}>
+            Добавить элемент контента <ChevronDown size={14} className="ml-1 inline" aria-hidden />
+          </Button>
+        </Dropdown>
       )}
     </section>
   );
@@ -405,7 +476,8 @@ function CourseBuilder({ courseId }: { courseId: string }) {
         <AddElementModal
           clientSlug={clientSlug}
           courseId={courseId}
-          dayId={adding}
+          dayId={adding.dayId}
+          initialType={adding.type}
           types={creatable}
           onClose={() => setAdding(null)}
           onCreated={(el) => {
@@ -416,6 +488,7 @@ function CourseBuilder({ courseId }: { courseId: string }) {
       )}
       {editing && <ElementEditor key={editing.id} clientSlug={clientSlug} courseId={courseId} element={editing} onClose={() => setEditing(null)} />}
       {viewing && <ElementPreview element={viewing} onClose={() => setViewing(null)} />}
+      {promo && promoModule && <UpgradePromoModal module={promoModule} onClose={() => setPromo(false)} />}
       {editingProgram && <ProgramFormModal clientSlug={clientSlug} course={course} onClose={() => setEditingProgram(false)} />}
     </div>
   );

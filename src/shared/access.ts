@@ -26,13 +26,19 @@ const ELEMENT_TYPE_KEYS = [
 /** Модуль реестра для типа элемента контента: «Модуль: Лонгрид» → lms_element_text */
 export const elementModuleKey = (type: string) => `lms_element_${type}`;
 
+/** Модуль тарифа с интерактивными элементами контента; остальные элементы входят в модуль «Курсы» */
+export const ADVANCED_CONTENT_MODULE = 'ADV_CONTENT';
+export const ADVANCED_ELEMENT_TYPES: readonly string[] = ['interactive_video', 'scorm', 'table'];
+
 /**
  * Модуль тарифа, в составе которого поставляется модуль Реестра.
  * null — базовая функциональность платформы, доступна при любом тарифе.
  */
 export const TARIFF_MODULE_OF: Record<string, string | null> = {
   lms_prog_core: 'COURSES',
-  ...Object.fromEntries(ELEMENT_TYPE_KEYS.map((t) => [elementModuleKey(t), 'COURSES'])),
+  ...Object.fromEntries(
+    ELEMENT_TYPE_KEYS.map((t) => [elementModuleKey(t), ADVANCED_ELEMENT_TYPES.includes(t) ? ADVANCED_CONTENT_MODULE : 'COURSES']),
+  ),
   // Справочники доступны при любом тарифе, расширенные классификаторы — с отдельным модулем тарифа
   ...Object.fromEntries(
     DIRECTORIES.map((d) => [
