@@ -104,8 +104,8 @@ const fromCourse = (c: Course | null): ProgramPayload => ({
   resultKz: c?.resultKz ?? '',
   resultRu: c?.resultRu ?? '',
   resultEn: c?.resultEn ?? '',
-  formatId: c?.formatId ?? null,
-  assessmentId: c?.assessmentId ?? null,
+  formatIds: c?.formatIds ?? [],
+  assessmentIds: c?.assessmentIds ?? [],
   hoursTheory: c?.hoursTheory ?? null,
   hoursPractice: c?.hoursPractice ?? null,
   coverUrl: c?.coverUrl ?? null,
@@ -238,28 +238,30 @@ export function ProgramFormModal({
           }))}
         />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Формат курса" htmlFor="program-format" required error={fe.formatId}>
+          <Field label="Формат курса" htmlFor="program-format" required error={fe.formatIds}>
             <Select
               id="program-format"
               aria-label="Формат курса"
+              mode="multiple"
               style={{ width: '100%' }}
-              placeholder="Выберите формат"
-              status={fe.formatId ? 'error' : undefined}
-              value={values.formatId ?? undefined}
+              placeholder="Выберите один или несколько форматов"
+              status={fe.formatIds ? 'error' : undefined}
+              value={values.formatIds}
               options={formats.data ?? []}
-              onChange={(formatId) => set({ formatId })}
+              onChange={(formatIds) => set({ formatIds })}
             />
           </Field>
-          <Field label="Тип оценивания" htmlFor="program-assessment" required error={fe.assessmentId}>
+          <Field label="Тип оценивания" htmlFor="program-assessment" required error={fe.assessmentIds}>
             <Select
               id="program-assessment"
               aria-label="Тип оценивания"
+              mode="multiple"
               style={{ width: '100%' }}
-              placeholder="Выберите тип"
-              status={fe.assessmentId ? 'error' : undefined}
-              value={values.assessmentId ?? undefined}
+              placeholder="Выберите один или несколько типов"
+              status={fe.assessmentIds ? 'error' : undefined}
+              value={values.assessmentIds}
               options={assessments.data ?? []}
-              onChange={(assessmentId) => set({ assessmentId })}
+              onChange={(assessmentIds) => set({ assessmentIds })}
             />
           </Field>
           <Field label="Количество часов (теория)" htmlFor="program-theory" required error={fe.hoursTheory}>

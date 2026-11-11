@@ -250,7 +250,10 @@ function applyRoleMembers(store: ReturnType<typeof loadStructure>, role: LocalRo
 
 const LANG_FIELDS = ['Kz', 'Ru', 'En'] as const;
 
-function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: Record<string, string>; fields: ProgramPayload } {
+function validateProgram(
+  body: Partial<ProgramPayload> & { formatId?: string | null; assessmentId?: string | null },
+  org: OrgRecord,
+): { fe: Record<string, string>; fields: ProgramPayload } {
   const fe: Record<string, string> = {};
   const text = (k: keyof ProgramPayload) => {
     const v = body[k];
@@ -271,8 +274,8 @@ function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: R
     resultKz: description('resultKz'),
     resultRu: description('resultRu'),
     resultEn: description('resultEn'),
-    formatId: body.formatId ?? null,
-    assessmentId: body.assessmentId ?? null,
+    formatIds: Array.isArray(body.formatIds) ? [...new Set(body.formatIds)] : body.formatId ? [body.formatId] : [],
+    assessmentIds: Array.isArray(body.assessmentIds) ? [...new Set(body.assessmentIds)] : body.assessmentId ? [body.assessmentId] : [],
     hoursTheory: body.hoursTheory ?? null,
     hoursPractice: body.hoursPractice ?? null,
     coverUrl: body.coverUrl ?? null,
@@ -291,10 +294,10 @@ function validateProgram(body: Partial<ProgramPayload>, org: OrgRecord): { fe: R
       if (v.length > 2000) fe[`${k}${l}`] = 'Не более 2000 символов';
     }
   }
-  if (!fields.formatId) fe.formatId = 'Выберите формат курса';
-  else if (!isVisibleItem(fields.formatId, 'course_format', org.tenantId)) fe.formatId = 'Значение справочника недоступно';
-  if (!fields.assessmentId) fe.assessmentId = 'Выберите тип оценивания';
-  else if (!isVisibleItem(fields.assessmentId, 'course_assessment', org.tenantId)) fe.assessmentId = 'Значение справочника недоступно';
+  if (!fields.formatIds.length) fe.formatIds = 'Выберите хотя бы один формат курса';
+  else if (fields.formatIds.some((id) => !isVisibleItem(id, 'course_format', org.tenantId))) fe.formatIds = 'Значение справочника недоступно';
+  if (!fields.assessmentIds.length) fe.assessmentIds = 'Выберите хотя бы один тип оценивания';
+  else if (fields.assessmentIds.some((id) => !isVisibleItem(id, 'course_assessment', org.tenantId))) fe.assessmentIds = 'Значение справочника недоступно';
   for (const k of ['hoursTheory', 'hoursPractice'] as const) {
     const v = fields[k];
     if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 100000) fe[k] = 'Целое положительное число';
@@ -337,6 +340,8 @@ function toGroup(g: GroupRecord, org: OrgRecord, user: CurrentUser): OrgGroup {
     departmentName: store.departments.find((d) => d.id === g.departmentId)?.name ?? null,
     formatId: g.formatId,
     formatName: itemName(g.formatId),
+    assessmentId: g.assessmentId ?? null,
+    assessmentName: itemName(g.assessmentId),
     courseId: g.courseId,
     courseTitle: g.courseId ? (findCourse(org, g.courseId)?.title ?? null) : null,
     trainerIds: trainers.map((t) => t.id),
@@ -360,6 +365,8 @@ function validateGroup(body: Partial<OrgGroupPayload>, org: OrgRecord, current?:
   if (body.departmentId && !store.departments.some((d) => d.id === body.departmentId && d.tenantId === org.tenantId)) fe.departmentId = 'Подразделение не найдено';
   if (!body.formatId) fe.formatId = 'Выберите формат курса';
   else if (!isVisibleItem(body.formatId, 'course_format', org.tenantId)) fe.formatId = 'Значение справочника недоступно';
+  if (!body.assessmentId) fe.assessmentId = 'Выберите тип оценивания';
+  else if (!isVisibleItem(body.assessmentId, 'course_assessment', org.tenantId)) fe.assessmentId = 'Значение справочника недоступно';
   if (!body.courseId) fe.courseId = 'Выберите учебную программу';
   else if (!findCourse(org, body.courseId)) fe.courseId = 'Программа не найдена';
   const trainerIds = body.trainerIds ?? [];
@@ -384,6 +391,7 @@ const groupFields = (b: Partial<OrgGroupPayload>) => ({
   academicYear: b.academicYear!,
   departmentId: b.departmentId || null,
   formatId: b.formatId!,
+  assessmentId: b.assessmentId!,
   courseId: b.courseId!,
   trainerIds: b.trainerIds ?? [],
   listenersLimit: b.listenersLimit!,
@@ -1007,7 +1015,7 @@ export const tenantAdminHandlers = () => [
     const result: GroupFormOptions = {
       academicYears: academicYears(),
       departments: store.departments.filter((d) => d.tenantId === ctx.org.tenantId).map((d) => ({ id: d.id, name: d.name })),
-      programs: listCourses(ctx.org).map((c) => ({ id: c.id, title: c.title, formatId: c.formatId })),
+      programs: listCourses(ctx.org).map((c) => ({ id: c.id, title: c.title, formatIds: c.formatIds, assessmentIds: c.assessmentIds })),
       trainers: store.trainers
         .filter((t) => t.tenantId === ctx.org.tenantId)
         .map((t) => {

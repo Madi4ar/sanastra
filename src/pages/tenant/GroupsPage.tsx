@@ -51,11 +51,13 @@ function GroupModal({ group, onClose }: { group: OrgGroup | null; onClose: () =>
   const admin = api.tenantAdmin(clientSlug);
   const options = useGroupOptions(clientSlug);
   const formats = useDirectoryOptions(clientSlug, 'course_format');
+  const assessments = useDirectoryOptions(clientSlug, 'course_assessment');
   const canInvite = Boolean(user?.access.includes('lms_groups.invite_link'));
   const [values, setValues] = useState<OrgGroupPayload>({
     academicYear: group?.academicYear ?? null,
     departmentId: group?.departmentId ?? null,
     formatId: group?.formatId ?? null,
+    assessmentId: group?.assessmentId ?? null,
     courseId: group?.courseId ?? null,
     trainerIds: group?.trainerIds.length ? group.trainerIds : [''],
     listenersLimit: group?.listenersLimit ?? null,
@@ -139,7 +141,11 @@ function GroupModal({ group, onClose }: { group: OrgGroup | null; onClose: () =>
             options={(options.data?.programs ?? []).map((p) => ({ value: p.id, label: p.title }))}
             onChange={(courseId) => {
               const program = options.data?.programs.find((p) => p.id === courseId);
-              set({ courseId, formatId: values.formatId ?? program?.formatId ?? null });
+              set({
+                courseId,
+                formatId: values.formatId ?? program?.formatIds[0] ?? null,
+                assessmentId: values.assessmentId ?? program?.assessmentIds[0] ?? null,
+              });
             }}
           />
         </Field>
@@ -153,6 +159,18 @@ function GroupModal({ group, onClose }: { group: OrgGroup | null; onClose: () =>
             value={values.formatId ?? undefined}
             options={formats.data ?? []}
             onChange={(formatId) => set({ formatId })}
+          />
+        </Field>
+        <Field label="Тип оценивания" htmlFor="group-assessment" required error={fe.assessmentId}>
+          <Select
+            id="group-assessment"
+            aria-label="Тип оценивания"
+            style={{ width: '100%' }}
+            placeholder="Выберите тип оценивания"
+            status={fe.assessmentId ? 'error' : undefined}
+            value={values.assessmentId ?? undefined}
+            options={assessments.data ?? []}
+            onChange={(assessmentId) => set({ assessmentId })}
           />
         </Field>
         <div className="sm:col-span-2">
@@ -428,6 +446,7 @@ export function GroupsPage() {
               { title: 'Учебный год', dataIndex: 'academicYear', key: 'year', width: 120 },
               { title: 'Филиал / отдел', key: 'department', render: (_, g) => g.departmentName ?? <span className="text-muted">—</span> },
               { title: 'Формат', key: 'format', width: 110, render: (_, g) => g.formatName ?? '—' },
+              { title: 'Тип оценивания', key: 'assessment', width: 150, render: (_, g) => g.assessmentName ?? '—' },
               { title: 'Программа', key: 'course', render: (_, g) => g.courseTitle ?? <span className="text-muted">Не привязана</span> },
               { title: 'Тренеры', key: 'trainers', render: (_, g) => (g.trainerNames.length ? g.trainerNames.join(', ') : <span className="text-muted">—</span>) },
               { title: 'Слушатели', key: 'count', width: 100, render: (_, g) => `${g.listenerIds.length} / ${g.listenersLimit}` },

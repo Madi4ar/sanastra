@@ -55,6 +55,7 @@ export interface GroupRecord {
   academicYear: string;
   departmentId: string | null;
   formatId: string | null;
+  assessmentId: string | null;
   courseId: string | null;
   trainerIds: string[];
   listenersLimit: number;

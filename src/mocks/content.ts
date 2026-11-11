@@ -113,8 +113,8 @@ function programDefaults(title: string, lessons: number, i: number): ProgramFiel
     resultKz: '<p>Тыңдаушы алған білімін тәжірибеде қолданады.</p>',
     resultRu: '<p>Слушатель применяет полученные знания на практике.</p>',
     resultEn: '<p>The learner applies the acquired knowledge in practice.</p>',
-    formatId: `dir-course_format-${i % 3}`,
-    assessmentId: `dir-course_assessment-${i % 2}`,
+    formatIds: [`dir-course_format-${i % 3}`],
+    assessmentIds: [`dir-course_assessment-${i % 2}`],
     hoursTheory: lessons,
     hoursPractice: Math.ceil(lessons / 2),
     coverUrl: null,
@@ -156,6 +156,22 @@ function contentFor(org: OrgRecord): { all: Record<string, TenantContent>; conte
     all[org.tenantId] = content;
     saveAll(all);
   }
+  // Совместимость с программами, сохранёнными до перехода справочников на multiple.
+  let migrated = false;
+  for (const course of content.courses) {
+    const legacy = course as Course & { formatId?: string | null; assessmentId?: string | null };
+    if (!Array.isArray(course.formatIds)) {
+      course.formatIds = legacy.formatId ? [legacy.formatId] : [];
+      delete legacy.formatId;
+      migrated = true;
+    }
+    if (!Array.isArray(course.assessmentIds)) {
+      course.assessmentIds = legacy.assessmentId ? [legacy.assessmentId] : [];
+      delete legacy.assessmentId;
+      migrated = true;
+    }
+  }
+  if (migrated) saveAll(all);
   return { all, content };
 }
 
@@ -256,6 +272,6 @@ export function allCoursesUsing(itemId: string, tenantId: string | null): boolea
   return Object.entries(all).some(
     ([id, c]) =>
       (tenantId === null || id === tenantId) &&
-      c.courses.some((x) => x.formatId === itemId || x.assessmentId === itemId),
+      c.courses.some((x) => x.formatIds.includes(itemId) || x.assessmentIds.includes(itemId)),
   );
 }

@@ -260,15 +260,18 @@ describe('Кабинет: курсы и вебинары', () => {
       resultKz: 'Нәтиже',
       resultRu: 'Результат',
       resultEn: 'Result',
-      formatId: 'dir-course_format-0',
-      assessmentId: 'dir-course_assessment-0',
+      formatIds: ['dir-course_format-0', 'dir-course_format-1'],
+      assessmentIds: ['dir-course_assessment-0', 'dir-course_assessment-1'],
       hoursTheory: 10,
       hoursPractice: 5,
       coverUrl: null,
     };
     const res = await fetch('/api/tenant/programs?clientSlug=academy', { method: 'POST', body: JSON.stringify(payload) });
     expect(res.status).toBe(201);
-    expect(((await res.json()) as { descriptionRu: string }).descriptionRu).not.toContain('script');
+    const created = (await res.json()) as { descriptionRu: string; formatIds: string[]; assessmentIds: string[] };
+    expect(created.descriptionRu).not.toContain('script');
+    expect(created.formatIds).toEqual(payload.formatIds);
+    expect(created.assessmentIds).toEqual(payload.assessmentIds);
     expect(load().organizations[0]!.usage.COURSES_COUNT).toBe(10);
     // 10 из 10 у тарифа «Базовый» — дальнейшее создание блокируется сервером
     const again = await fetch('/api/tenant/programs?clientSlug=academy', { method: 'POST', body: JSON.stringify(payload) });

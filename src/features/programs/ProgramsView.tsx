@@ -31,7 +31,8 @@ export function ProgramsView({ data }: { data: ModuleData }) {
 
   const formats = useDirectoryOptions(clientSlug, 'course_format');
   const assessments = useDirectoryOptions(clientSlug, 'course_assessment');
-  const nameOf = (list: { value: string; label: string }[] | undefined, id?: string | null) => list?.find((o) => o.value === id)?.label ?? '—';
+  const namesOf = (list: { value: string; label: string }[] | undefined, ids: string[]) =>
+    ids.map((id) => list?.find((o) => o.value === id)?.label).filter(Boolean).join(', ') || '—';
 
   const [search, setSearch] = useState('');
   const [formatId, setFormatId] = useState<string>();
@@ -45,8 +46,8 @@ export function ProgramsView({ data }: { data: ModuleData }) {
     () =>
       (data.courses ?? [])
         .filter((c) => !text || [c.titleKz, c.titleRu, c.titleEn].some((t) => t.toLowerCase().includes(text)))
-        .filter((c) => !formatId || c.formatId === formatId)
-        .filter((c) => !assessmentId || c.assessmentId === assessmentId)
+        .filter((c) => !formatId || c.formatIds.includes(formatId))
+        .filter((c) => !assessmentId || c.assessmentIds.includes(assessmentId))
         .filter((c) => hoursFrom === null || totalHours(c) >= hoursFrom)
         .filter((c) => hoursTo === null || totalHours(c) <= hoursTo),
     [data.courses, text, formatId, assessmentId, hoursFrom, hoursTo],
@@ -155,8 +156,8 @@ export function ProgramsView({ data }: { data: ModuleData }) {
                 </div>
               ),
             },
-            { title: 'Формат', key: 'format', width: 130, render: (_, c) => nameOf(formats.data, c.formatId) },
-            { title: 'Тип оценивания', key: 'assessment', width: 140, render: (_, c) => nameOf(assessments.data, c.assessmentId) },
+            { title: 'Формат', key: 'format', width: 170, render: (_, c) => namesOf(formats.data, c.formatIds) },
+            { title: 'Тип оценивания', key: 'assessment', width: 180, render: (_, c) => namesOf(assessments.data, c.assessmentIds) },
             {
               title: 'Трудоёмкость',
               key: 'hours',

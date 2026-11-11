@@ -372,8 +372,10 @@ export interface ProgramFields {
   resultKz: string;
   resultRu: string;
   resultEn: string;
-  formatId: string | null;
-  assessmentId: string | null;
+  /** Программа может проводиться в нескольких форматах */
+  formatIds: string[];
+  /** В программе может использоваться несколько типов оценивания */
+  assessmentIds: string[];
   hoursTheory: number | null;
   hoursPractice: number | null;
   coverUrl: string | null;
@@ -816,6 +818,8 @@ export interface OrgGroup {
   departmentName: string | null;
   formatId: string | null;
   formatName: string | null;
+  assessmentId: string | null;
+  assessmentName: string | null;
   courseId: string | null;
   courseTitle: string | null;
   trainerIds: string[];
@@ -835,6 +839,7 @@ export interface OrgGroupPayload {
   academicYear: string | null;
   departmentId: string | null;
   formatId: string | null;
+  assessmentId: string | null;
   courseId: string | null;
   trainerIds: string[];
   listenersLimit: number | null;
@@ -848,7 +853,7 @@ export interface OrgGroupPayload {
 export interface GroupFormOptions {
   academicYears: string[];
   departments: { id: string; name: string }[];
-  programs: { id: string; title: string; formatId: string | null }[];
+  programs: { id: string; title: string; formatIds: string[]; assessmentIds: string[] }[];
   trainers: { id: string; fullName: string; active: boolean }[];
 }
 
