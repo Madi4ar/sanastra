@@ -134,6 +134,9 @@ function Hero() {
       />
       <Container>
         <Reveal className="mx-auto max-w-4xl text-center">
+          <p className="m-0 mb-6 text-[17px] leading-6 font-medium text-pretty text-ln-accent md:text-[19px] md:leading-7">
+            Білімді жандардың сана биігінде жолығуы
+          </p>
           <h1
             id="hero-h"
             className="m-0 text-[44px] leading-[48px] font-semibold tracking-[-0.035em] text-ln-ink sm:text-[64px] sm:leading-[68px] lg:text-[88px] lg:leading-[92px]"
