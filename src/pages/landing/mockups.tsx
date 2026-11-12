@@ -13,13 +13,10 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-/** Карточка-рамка макета (ТЗ, раздел 7): border, radius 16, мягкая тень. */
+/** Карточка-рамка макета: radius 20, тень из токенов темы. */
 export function MockFrame({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div
-      className={`overflow-hidden rounded-2xl border border-ln-border bg-ln-bg ${className}`}
-      style={{ boxShadow: '0 12px 40px rgba(9, 30, 66, 0.08)' }}
-    >
+    <div className={`ln-shadow overflow-hidden rounded-[20px] border border-ln-border-soft bg-ln-bg ${className}`}>
       {children}
     </div>
   );
@@ -38,7 +35,7 @@ function MockCard({ title, icon, children }: { title: string; icon: ReactNode; c
   return (
     <div className="rounded-xl border border-ln-border-soft bg-ln-bg p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ln-ink">
-        <span className="text-ln-brand">{icon}</span>
+        <span className="text-ln-accent">{icon}</span>
         {title}
       </div>
       {children}
@@ -85,7 +82,7 @@ export function DashboardMockup() {
               <div
                 key={label}
                 className={`mb-0.5 flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] ${
-                  active ? 'bg-ln-brand-soft font-semibold text-ln-brand' : 'text-ln-ink-2'
+                  active ? 'bg-ln-brand-soft font-semibold text-ln-accent' : 'text-ln-ink-2'
                 }`}
               >
                 <Icon size={16} />
@@ -167,11 +164,11 @@ export function DashboardMockup() {
               </MockCard>
             </div>
             <div className="mt-3 flex items-center gap-3 rounded-xl border border-ln-border-soft bg-ln-soft p-3 text-[13px]">
-              <CalendarDays size={16} className="shrink-0 text-ln-brand" />
+              <CalendarDays size={16} className="shrink-0 text-ln-accent" />
               <span className="text-ln-ink-2">
                 <b className="font-semibold text-ln-ink">Бүгін, 14:00</b> · Алгебра · онлайн-сабақ
               </span>
-              <span className="ml-auto hidden items-center gap-1 rounded-md bg-ln-brand-soft px-2 py-1 text-xs font-medium text-ln-brand sm:inline-flex">
+              <span className="ml-auto hidden items-center gap-1 rounded-md bg-ln-brand-soft px-2 py-1 text-xs font-medium text-ln-accent sm:inline-flex">
                 <Video size={12} /> Қосылу
               </span>
             </div>
@@ -199,7 +196,7 @@ export function TeacherMockup() {
               <p className="m-0 text-xs font-medium text-ln-muted">Алгебра · 9 сынып</p>
               <p className="m-0 font-semibold text-ln-ink">Тапсырма: Квадрат теңдеулер</p>
             </div>
-            <span className="rounded-md bg-ln-brand-soft px-2 py-1 text-xs font-semibold text-ln-brand">24 / 28 тапсырды</span>
+            <span className="rounded-md bg-ln-brand-soft px-2 py-1 text-xs font-semibold text-ln-accent">24 / 28 тапсырды</span>
           </div>
           <div className="divide-y divide-ln-border-soft rounded-xl border border-ln-border-soft">
             {rows.map(([name, status, score]) => (
@@ -234,14 +231,14 @@ export function LearnerMockup() {
           <p className="m-0 mb-4 font-semibold text-ln-ink">Бүгін</p>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3 rounded-xl border border-ln-border-soft p-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-brand-soft text-ln-brand">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-brand-soft text-ln-accent">
                 <PlayCircle size={20} />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="m-0 text-sm font-medium text-ln-ink">Сабақ: Функция графигі</p>
                 <p className="m-0 text-xs text-ln-muted">Алгебра · 14:00–14:45</p>
               </div>
-              <span className="text-xs font-semibold text-ln-brand">Бастау</span>
+              <span className="text-xs font-semibold text-ln-accent">Бастау</span>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-ln-border-soft p-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-warning-soft text-ln-warning">
@@ -274,12 +271,11 @@ export function LearnerMockup() {
 function Phone({ title, label, children }: { title: string; label: string; children: ReactNode }) {
   return (
     <div
-      className="w-full max-w-[260px] rounded-[36px] border border-ln-border bg-ln-ink p-2.5"
-      style={{ boxShadow: '0 12px 40px rgba(9, 30, 66, 0.12)' }}
+      className="ln-shadow w-full max-w-[260px] rounded-[40px] bg-ln-bezel p-2.5"
       role="img"
       aria-label={label}
     >
-      <div className="overflow-hidden rounded-[28px] bg-ln-bg" aria-hidden>
+      <div className="overflow-hidden rounded-[31px] bg-ln-bg" aria-hidden>
         <div className="flex justify-center pt-2">
           <span className="h-1.5 w-16 rounded-full bg-ln-subtle" />
         </div>
@@ -310,7 +306,7 @@ export function PhoneScreens() {
         ))}
       </Phone>
       <Phone title="Курс" label="Мобильді қосымша: курс беті">
-        <div className="mb-3 flex h-24 items-center justify-center rounded-2xl bg-ln-brand-soft text-ln-brand">
+        <div className="mb-3 flex h-24 items-center justify-center rounded-2xl bg-ln-brand-soft text-ln-accent">
           <BookOpen size={32} />
         </div>
         <p className="m-0 font-semibold text-ln-ink">Python негіздері</p>

@@ -4,7 +4,6 @@ import {
   BarChart3,
   BookOpen,
   Briefcase,
-  Building2,
   CalendarDays,
   Check,
   ChevronDown,
@@ -35,7 +34,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useCurrentUser, homeFor } from '@/auth/auth';
 import { DashboardMockup, LearnerMockup, PhoneScreens, TeacherMockup } from './mockups';
-import { Container, PrimaryButton, Reveal, SanastraLogo, Section, SectionHeading, SecondaryButton } from './primitives';
+import { Container, GhostButton, PrimaryButton, Reveal, SanastraLogo, Section, SectionHeading, SecondaryButton } from './primitives';
 
 const NAV = [
   { href: '#features', label: 'Мүмкіндіктер' },
@@ -60,18 +59,15 @@ function Header() {
   }, [open]);
 
   return (
-    <header
-      className="sticky top-0 z-40 border-b border-ln-border-soft backdrop-blur-md"
-      style={{ background: 'rgba(255, 255, 255, 0.92)' }}
-    >
-      <Container className="flex h-[68px] items-center gap-6">
+    <header className="ln-glass sticky top-0 z-40 border-b border-ln-border-soft">
+      <Container className="flex h-16 items-center gap-6">
         <SanastraLogo />
         <nav aria-label="Негізгі навигация" className="ml-4 hidden items-center gap-1 lg:flex">
           {NAV.map((n) => (
             <a
               key={n.href}
               href={n.href}
-              className="ln-focus rounded-md px-3 py-2 text-sm font-medium text-ln-ink-2! no-underline hover:bg-ln-soft hover:text-ln-ink!"
+              className="ln-focus rounded-full px-3.5 py-2 text-[15px] text-ln-ink-2! no-underline transition-colors hover:text-ln-ink!"
             >
               {n.label}
             </a>
@@ -82,16 +78,14 @@ function Header() {
             <PrimaryButton to={cabinet}>Кабинетке өту</PrimaryButton>
           ) : (
             <>
-              <SecondaryButton to="/login" className="border-transparent">
-                Кіру
-              </SecondaryButton>
+              <GhostButton to="/login">Кіру</GhostButton>
               <PrimaryButton to="/login">Бастау</PrimaryButton>
             </>
           )}
         </div>
         <button
           type="button"
-          className="ln-focus ml-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-ln-border bg-ln-bg text-ln-ink sm:ml-0 lg:hidden"
+          className="ln-focus ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-ln-ink hover:bg-ln-subtle sm:ml-0 lg:hidden"
           aria-label={open ? 'Мәзірді жабу' : 'Мәзірді ашу'}
           aria-expanded={open}
           aria-controls="mobile-nav"
@@ -101,14 +95,14 @@ function Header() {
         </button>
       </Container>
       {open && (
-        <nav id="mobile-nav" aria-label="Мобильді навигация" className="border-t border-ln-border-soft bg-ln-bg lg:hidden">
+        <nav id="mobile-nav" aria-label="Мобильді навигация" className="border-t border-ln-border-soft lg:hidden">
           <Container className="flex flex-col gap-1 py-4">
             {NAV.map((n) => (
               <a
                 key={n.href}
                 href={n.href}
                 onClick={() => setOpen(false)}
-                className="ln-focus rounded-md px-3 py-3 text-base font-medium text-ln-ink! no-underline hover:bg-ln-soft hover:text-ln-ink!"
+                className="ln-focus rounded-xl px-3 py-3 text-[17px] font-medium text-ln-ink! no-underline hover:bg-ln-subtle hover:text-ln-ink!"
               >
                 {n.label}
               </a>
@@ -128,49 +122,39 @@ function Header() {
 
 function Hero() {
   return (
-    <section aria-labelledby="hero-h" className="relative isolate overflow-hidden pt-16 pb-16 md:pt-24 lg:pb-[120px]">
-      {/* Большой фоновый градиент в цветах логотипа: синий сверху, плавно уходит в белый под макетом */}
+    <section aria-labelledby="hero-h" className="relative isolate overflow-hidden pt-20 pb-20 md:pt-28 md:pb-28">
+      {/* Бренд-цвет живёт в слое контента: один мягкий свет за макетом, без цветных пятен вокруг заголовка */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10"
+        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[70%]"
         style={{
-          background: [
-            'radial-gradient(55% 45% at 50% 0%, rgba(24, 104, 219, 0.45) 0%, rgba(24, 104, 219, 0) 70%)',
-            'radial-gradient(38% 38% at 8% 18%, rgba(56, 152, 255, 0.35) 0%, rgba(56, 152, 255, 0) 70%)',
-            'radial-gradient(38% 40% at 92% 22%, rgba(11, 79, 196, 0.32) 0%, rgba(11, 79, 196, 0) 70%)',
-            'radial-gradient(60% 35% at 50% 62%, rgba(142, 197, 255, 0.35) 0%, rgba(142, 197, 255, 0) 70%)',
-            'linear-gradient(180deg, #D6E8FF 0%, #EEF5FF 40%, #FFFFFF 88%)',
-          ].join(', '),
+          background:
+            'radial-gradient(60% 55% at 50% 100%, color-mix(in srgb, var(--ln-brand) 18%, transparent) 0%, transparent 70%), linear-gradient(180deg, var(--ln-bg) 0%, var(--ln-soft) 100%)',
         }}
       />
       <Container>
-        <Reveal className="mx-auto max-w-3xl text-center">
-          <p className="m-0 mb-5 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1 text-sm font-medium text-ln-ink-2 backdrop-blur">
-            <img src="/brand/sanastra-icon-32.png" width={18} height={18} alt="" className="rounded" />
-            Sanastra
-          </p>
+        <Reveal className="mx-auto max-w-4xl text-center">
           <h1
             id="hero-h"
-            className="m-0 text-[38px] leading-[44px] font-bold tracking-[-0.03em] text-ln-ink md:text-[56px] md:leading-[64px]"
+            className="m-0 text-[44px] leading-[48px] font-semibold tracking-[-0.035em] text-ln-ink sm:text-[64px] sm:leading-[68px] lg:text-[88px] lg:leading-[92px]"
           >
             Саналы білім.
             <br />
-            Тұрақты даму.
+            <span className="text-ln-muted">Тұрақты даму.</span>
           </h1>
-          <p className="m-0 mx-auto mt-6 max-w-xl text-lg leading-7 text-ln-ink-2">
+          <p className="m-0 mx-auto mt-7 max-w-2xl text-[19px] leading-[30px] text-pretty text-ln-ink-2 md:text-[21px] md:leading-8">
             Курстарды, тапсырмаларды, бағалауды және оқу нәтижелерін бір платформада басқарыңыз.
           </p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <PrimaryButton to="/login" size="lg">
-              Тегін бастау <ArrowRight size={16} aria-hidden />
+              Тегін бастау <ArrowRight size={18} aria-hidden />
             </PrimaryButton>
             <SecondaryButton href="#preview" size="lg">
               Демо көру
             </SecondaryButton>
           </div>
-          <p className="m-0 mt-5 text-sm text-ln-muted">Оқу процесін қарапайым, түсінікті және нәтижелі ету үшін жасалған.</p>
         </Reveal>
-        <Reveal variant="scale" className="mx-auto mt-14 max-w-[1080px] scroll-mt-24 md:mt-20" delay={120}>
+        <Reveal variant="scale" className="mx-auto mt-16 max-w-[1080px] scroll-mt-24 md:mt-24" delay={150}>
           <div id="preview">
             <DashboardMockup />
           </div>
@@ -180,41 +164,9 @@ function Hero() {
   );
 }
 
-/* ---------------- Trust ---------------- */
-
-const ORGS: { name: string; icon: LucideIcon }[] = [
-  { name: 'Qazaq Academy', icon: GraduationCap },
-  { name: 'Білім орталығы', icon: BookOpen },
-  { name: 'Astana Tech College', icon: Building2 },
-  { name: 'Daryn School', icon: School },
-  { name: 'Orken Learning', icon: Award },
-  { name: 'Steppe University', icon: Landmark },
-];
-
-function Trust() {
-  return (
-    <section aria-labelledby="trust-h" className="border-y border-ln-border-soft bg-ln-soft py-12 md:py-14">
-      <Container>
-        <Reveal>
-          <h2 id="trust-h" className="m-0 text-center text-base leading-6 font-medium text-ln-ink-2">
-            Білім беру ұйымдарына арналған сенімді цифрлық орта
-          </h2>
-          <ul className="m-0 mt-8 grid list-none grid-cols-2 gap-x-6 gap-y-6 p-0 sm:grid-cols-3 lg:grid-cols-6">
-            {ORGS.map(({ name, icon: Icon }) => (
-              <li key={name} className="flex items-center justify-center gap-2 text-ln-muted grayscale">
-                <Icon size={20} aria-hidden />
-                <span className="text-[15px] font-semibold tracking-tight">{name}</span>
-              </li>
-            ))}
-          </ul>
-        </Reveal>
-      </Container>
-    </section>
-  );
-}
-
 /* ---------------- Features bento ---------------- */
 
+/** Плитка без рамки: поверхность отделяется только тоном фона и радиусом. */
 function FeatureCard({
   icon: Icon,
   title,
@@ -232,13 +184,11 @@ function FeatureCard({
 }) {
   return (
     <Reveal className={className} delay={delay}>
-      <article className="ln-card flex h-full flex-col rounded-xl border border-ln-border bg-ln-bg p-6 md:p-7">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-brand-soft text-ln-brand">
-          <Icon size={20} aria-hidden />
-        </span>
-        <h3 className="m-0 mt-5 text-xl leading-7 font-semibold text-ln-ink md:text-2xl md:leading-8">{title}</h3>
-        <p className="m-0 mt-2 text-base leading-6 text-ln-ink-2">{text}</p>
-        {children && <div className="mt-6 flex-1">{children}</div>}
+      <article className="flex h-full flex-col rounded-[28px] bg-ln-soft p-7 md:p-9">
+        <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
+        <h3 className="m-0 mt-6 text-[22px] leading-7 font-semibold tracking-[-0.02em] text-ln-ink md:text-[26px] md:leading-8">{title}</h3>
+        <p className="m-0 mt-3 text-[17px] leading-[26px] text-ln-ink-2">{text}</p>
+        {children && <div className="mt-8 flex-1">{children}</div>}
       </article>
     </Reveal>
   );
@@ -253,7 +203,7 @@ function Features() {
           title="Оқу процесінің бәрі — бір жерде"
           text="Sanastra оқу бағдарламаларын құрудан бастап, нәтижелерді талдауға дейінгі барлық процесті біріктіреді."
         />
-        <div className="mt-12 grid gap-4 md:mt-16 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+        <div className="mt-14 grid gap-4 md:mt-20 md:grid-cols-2 lg:grid-cols-3 lg:gap-5">
           <FeatureCard
             className="lg:col-span-2"
             icon={BookOpen}
@@ -266,10 +216,10 @@ function Features() {
                 ['2-модуль', 'Негізгі тақырып', '6 сабақ'],
                 ['3-модуль', 'Қорытынды жоба', '2 тапсырма'],
               ].map(([m, t, c]) => (
-                <div key={m} className="rounded-lg border border-ln-border-soft bg-ln-soft p-3">
+                <div key={m} className="rounded-2xl bg-ln-bg p-4">
                   <p className="m-0 text-xs text-ln-muted">{m}</p>
-                  <p className="m-0 mt-1 text-sm font-semibold text-ln-ink">{t}</p>
-                  <p className="m-0 mt-2 text-xs text-ln-ink-2">{c}</p>
+                  <p className="m-0 mt-1 text-[15px] font-semibold text-ln-ink">{t}</p>
+                  <p className="m-0 mt-2 text-[13px] text-ln-ink-2">{c}</p>
                 </div>
               ))}
             </div>
@@ -305,7 +255,7 @@ function Features() {
           >
             <div className="flex flex-wrap gap-2" aria-hidden>
               {['Әкімші', 'Оқытушы', 'Тренер', 'Білім алушы', 'Ата-ана'].map((r) => (
-                <span key={r} className="rounded-full border border-ln-border-soft bg-ln-soft px-3 py-1 text-sm text-ln-ink-2">
+                <span key={r} className="rounded-full bg-ln-bg px-4 py-1.5 text-[15px] text-ln-ink-2">
                   {r}
                 </span>
               ))}
@@ -328,28 +278,65 @@ const STEPS = [
   'Сертификат алады',
 ];
 
+/** Текущий шаг в демонстрации: три пройдены, четвёртый — «сіз осындасыз». */
+const CURRENT_STEP = 3;
+
+/**
+ * Фирменный элемент страницы: путь обучения как трек прогресса —
+ * то, что слушатель видит в продукте. Цвет бренда здесь — статус, а не декор.
+ */
 function LearningPath() {
   return (
     <Section id="learning" labelledBy="learning-h" className="bg-ln-soft">
       <Container>
         <SectionHeading id="learning-h" title="Оқу жолы" text="Білім алушы қай қадамда тұрғанын әрқашан көреді." />
-        <ol className="relative m-0 mt-12 grid list-none gap-6 p-0 md:mt-16 lg:grid-cols-6 lg:gap-4">
-          {STEPS.map((s, i) => (
-            <Reveal as="li" key={s} delay={i * 60} className="relative flex items-center gap-4 lg:flex-col lg:text-center">
-              {/* соединительная линия: вертикальная на мобильных, горизонтальная на desktop */}
-              {i < STEPS.length - 1 && (
-                <span
-                  className="absolute top-12 left-6 h-[calc(100%-24px)] w-px bg-ln-border lg:top-6 lg:left-[calc(50%+28px)] lg:h-px lg:w-[calc(100%-40px)]"
-                  aria-hidden
-                />
-              )}
-              <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-ln-border bg-ln-bg text-base font-semibold text-ln-brand">
-                {i + 1}
-              </span>
-              <span className="text-base leading-6 font-medium text-ln-ink">{s}</span>
-            </Reveal>
-          ))}
-        </ol>
+        <Reveal className="mt-14 md:mt-20">
+          <ol className="m-0 grid list-none gap-6 p-0 lg:grid-cols-6 lg:gap-4">
+            {STEPS.map((s, i) => {
+              const done = i < CURRENT_STEP;
+              const current = i === CURRENT_STEP;
+              return (
+                <li key={s} className="relative flex items-center gap-4 lg:flex-col lg:items-center lg:text-center">
+                  {i < STEPS.length - 1 && (
+                    <span
+                      className="absolute top-12 left-[23px] h-[calc(100%-24px)] w-[2px] overflow-hidden rounded-full bg-ln-border lg:top-[23px] lg:left-[calc(50%+28px)] lg:h-[2px] lg:w-[calc(100%-40px)]"
+                      aria-hidden
+                    >
+                      {done && (
+                        <span className="ln-seg-fill absolute inset-0 bg-ln-brand" style={{ transitionDelay: `${200 + i * 140}ms` }} />
+                      )}
+                    </span>
+                  )}
+                  <span
+                    className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[17px] font-semibold ${
+                      done
+                        ? 'bg-ln-brand text-white'
+                        : current
+                          ? 'bg-ln-bg text-ln-accent ring-2 ring-ln-brand ring-offset-4 ring-offset-ln-soft'
+                          : 'bg-ln-bg text-ln-muted ring-1 ring-ln-border'
+                    }`}
+                    aria-hidden
+                  >
+                    {done ? <Check size={20} strokeWidth={2.5} /> : i + 1}
+                  </span>
+                  <span className="flex flex-col gap-1 lg:items-center">
+                    <span className={`text-[17px] leading-6 font-medium ${done || current ? 'text-ln-ink' : 'text-ln-ink-2'}`}>
+                      <span className="sr-only">
+                        {i + 1}-қадам{done ? ', аяқталды' : current ? ', ағымдағы қадам' : ''}:{' '}
+                      </span>
+                      {s}
+                    </span>
+                    {current && (
+                      <span className="self-start rounded-full bg-ln-brand-soft px-2.5 py-0.5 text-[13px] font-medium text-ln-accent lg:self-center" aria-hidden>
+                        Сіз осындасыз
+                      </span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </Reveal>
       </Container>
     </Section>
   );
@@ -368,7 +355,7 @@ function Analytics() {
   const bars = [52, 61, 58, 70, 74, 69, 81, 86];
   return (
     <Section id="analytics" labelledBy="analytics-h">
-      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
         <SectionHeading
           id="analytics-h"
           align="left"
@@ -376,20 +363,20 @@ function Analytics() {
           text="Қай курс жақсы нәтиже беріп жатыр, кімге қосымша қолдау қажет және оқу процесі қалай жүріп жатқанын бірден көріңіз."
         />
         <Reveal variant="scale">
-          <div className="rounded-2xl border border-ln-border bg-ln-bg p-5 md:p-6" style={{ boxShadow: '0 12px 40px rgba(9, 30, 66, 0.08)' }}>
+          <div className="ln-shadow rounded-[28px] border border-ln-border-soft bg-ln-bg p-5 md:p-7">
             <dl className="m-0 grid grid-cols-2 gap-3">
               {METRICS.map((m) => (
-                <div key={m.label} className="rounded-xl border border-ln-border-soft p-4">
-                  <dt className="text-sm text-ln-muted">{m.label}</dt>
-                  <dd className="tabular m-0 mt-1 text-2xl font-bold text-ln-ink md:text-[28px]">{m.value}</dd>
+                <div key={m.label} className="rounded-2xl bg-ln-soft p-4 md:p-5">
+                  <dt className="text-[13px] leading-[18px] text-ln-muted">{m.label}</dt>
+                  <dd className="tabular m-0 mt-2 text-[28px] leading-8 font-semibold tracking-[-0.02em] text-ln-ink md:text-[34px] md:leading-10">{m.value}</dd>
                 </div>
               ))}
             </dl>
-            <div className="mt-4 rounded-xl border border-ln-border-soft p-4" role="img" aria-label="Соңғы 8 аптадағы курсты аяқтау деңгейі 52%-дан 86%-ға дейін өсті">
-              <p className="m-0 mb-3 text-sm font-medium text-ln-ink">Аяқтау деңгейі, апта бойынша</p>
+            <div className="mt-3 rounded-2xl bg-ln-soft p-4 md:p-5" role="img" aria-label="Соңғы 8 аптадағы курсты аяқтау деңгейі 52%-дан 86%-ға дейін өсті">
+              <p className="m-0 mb-4 text-[15px] font-medium text-ln-ink">Аяқтау деңгейі, апта бойынша</p>
               <div className="flex h-28 items-end gap-2" aria-hidden>
                 {bars.map((b, i) => (
-                  <div key={i} className="flex-1 rounded-t-md bg-ln-brand" style={{ height: `${b}%`, opacity: 0.4 + (i / bars.length) * 0.6 }} />
+                  <div key={i} className="flex-1 rounded-md bg-ln-brand" style={{ height: `${b}%`, opacity: 0.35 + (i / bars.length) * 0.65 }} />
                 ))}
               </div>
             </div>
@@ -414,17 +401,15 @@ const TEACHER: { icon: LucideIcon; label: string }[] = [
 function Teacher() {
   return (
     <Section labelledBy="teacher-h" className="bg-ln-soft">
-      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
         <div>
           <SectionHeading id="teacher-h" align="left" eyebrow="Оқытушыға" title="Оқытушыға — қарапайым жұмыс ортасы" />
-          <ul className="m-0 mt-8 grid list-none gap-3 p-0 sm:grid-cols-2">
-            {TEACHER.map(({ icon: Icon, label }, i) => (
-              <Reveal as="li" key={label} delay={i * 40} className="flex items-center gap-3 text-base text-ln-ink">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ln-border bg-ln-bg text-ln-brand">
-                  <Icon size={18} aria-hidden />
-                </span>
+          <ul className="m-0 mt-10 grid list-none gap-x-8 p-0 sm:grid-cols-2">
+            {TEACHER.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-3 border-b border-ln-border py-4 text-[17px] text-ln-ink">
+                <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ln-ink-2" aria-hidden />
                 {label}
-              </Reveal>
+              </li>
             ))}
           </ul>
         </div>
@@ -439,7 +424,7 @@ function Teacher() {
 function Learner() {
   return (
     <Section labelledBy="learner-h">
-      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
         <Reveal variant="scale" className="order-2 lg:order-1">
           <LearnerMockup />
         </Reveal>
@@ -492,21 +477,21 @@ function Integrations() {
     <Section id="integrations" labelledBy="integrations-h">
       <Container>
         <SectionHeading id="integrations-h" title="Қолданыстағы жүйелермен бірге жұмыс істейді" />
-        <ul className="m-0 mt-12 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 md:mt-16 lg:grid-cols-3">
-          {INTEGRATIONS.map(({ name, text, icon: Icon }, i) => (
-            <Reveal as="li" key={name} delay={(i % 3) * 60}>
-              <div className="ln-card flex h-full items-center gap-4 rounded-xl border border-ln-border bg-ln-bg p-5">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-ln-subtle text-ln-ink-2">
-                  <Icon size={22} aria-hidden />
+        <Reveal>
+          <ul className="m-0 mt-14 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 md:mt-20 lg:grid-cols-3 lg:gap-5">
+            {INTEGRATIONS.map(({ name, text, icon: Icon }) => (
+              <li key={name} className="flex h-full items-center gap-4 rounded-[22px] bg-ln-soft p-5 md:p-6">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-ln-bg text-ln-ink-2">
+                  <Icon size={22} strokeWidth={1.75} aria-hidden />
                 </span>
                 <div>
-                  <p className="m-0 text-base font-semibold text-ln-ink">{name}</p>
-                  <p className="m-0 text-sm text-ln-muted">{text}</p>
+                  <p className="m-0 text-[17px] font-semibold text-ln-ink">{name}</p>
+                  <p className="m-0 mt-0.5 text-[15px] text-ln-muted">{text}</p>
                 </div>
-              </div>
-            </Reveal>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
       </Container>
     </Section>
   );
@@ -526,9 +511,7 @@ function Security() {
       <Container className="grid items-center gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-16">
         <div>
           <Reveal>
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-ln-brand-soft text-ln-brand">
-              <ShieldCheck size={24} aria-hidden />
-            </span>
+            <ShieldCheck size={44} strokeWidth={1.5} className="text-ln-ink" aria-hidden />
           </Reveal>
           <div className="mt-6">
             <SectionHeading
@@ -539,17 +522,20 @@ function Security() {
             />
           </div>
         </div>
-        <ul className="m-0 grid list-none gap-3 p-0">
-          {SECURITY.map(({ icon: Icon, label }, i) => (
-            <Reveal as="li" key={label} delay={i * 50}>
-              <div className="flex items-center gap-4 rounded-xl border border-ln-border bg-ln-bg p-4">
-                <Icon size={20} className="shrink-0 text-ln-brand" aria-hidden />
-                <span className="flex-1 text-base text-ln-ink">{label}</span>
-                <Check size={18} className="shrink-0 text-ln-success" aria-label="бар" />
-              </div>
-            </Reveal>
-          ))}
-        </ul>
+        {/* Сгруппированный список: одна поверхность, строки разделены линиями с отступом */}
+        <Reveal>
+          <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-ln-bg p-0">
+            {SECURITY.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-4 pl-5 [&:last-child>span]:border-b-0">
+                <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ln-ink-2" aria-hidden />
+                <span className="flex flex-1 items-center gap-4 border-b border-ln-border-soft py-4 pr-5 text-[17px] text-ln-ink">
+                  <span className="flex-1">{label}</span>
+                  <Check size={20} strokeWidth={2.25} className="shrink-0 text-ln-success" aria-label="бар" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
       </Container>
     </Section>
   );
@@ -569,17 +555,15 @@ function Organizations() {
     <Section id="organizations" labelledBy="orgs-h">
       <Container>
         <SectionHeading id="orgs-h" title="Бір курсқа да, үлкен ұйымға да" />
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 md:mt-16 lg:grid-cols-4 lg:gap-6">
-          {AUDIENCES.map(({ icon: Icon, title, text }, i) => (
-            <Reveal key={title} delay={i * 60}>
-              <article className="ln-card flex h-full flex-col rounded-xl border border-ln-border bg-ln-bg p-6">
-                <Icon size={24} className="text-ln-brand" aria-hidden />
-                <h3 className="m-0 mt-5 text-lg leading-7 font-semibold text-ln-ink">{title}</h3>
-                <p className="m-0 mt-2 text-base leading-6 text-ln-ink-2">{text}</p>
-              </article>
-            </Reveal>
+        <Reveal className="mt-14 grid gap-4 sm:grid-cols-2 md:mt-20 lg:grid-cols-4 lg:gap-5">
+          {AUDIENCES.map(({ icon: Icon, title, text }) => (
+            <article key={title} className="flex h-full flex-col rounded-[28px] bg-ln-soft p-7">
+              <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
+              <h3 className="m-0 mt-6 text-[20px] leading-[26px] font-semibold tracking-[-0.015em] text-ln-ink">{title}</h3>
+              <p className="m-0 mt-2 text-[17px] leading-[26px] text-ln-ink-2">{text}</p>
+            </article>
           ))}
-        </div>
+        </Reveal>
       </Container>
     </Section>
   );
@@ -636,38 +620,35 @@ function Pricing() {
     <Section id="pricing" labelledBy="pricing-h" className="bg-ln-soft">
       <Container>
         <SectionHeading id="pricing-h" title="Сізге сай жоспарды таңдаңыз" />
-        <div className="mt-12 grid items-stretch gap-4 md:mt-16 md:grid-cols-2 lg:gap-6 xl:grid-cols-4">
+        <div className="mt-14 grid items-stretch gap-4 md:mt-20 md:grid-cols-2 lg:gap-5 xl:grid-cols-4">
           {PLANS.map((p, i) => (
-            <Reveal key={p.name} delay={i * 60} className={p.popular ? 'xl:-mt-3 xl:mb-3' : undefined}>
+            <Reveal key={p.name} delay={i * 60}>
               <article
-                className={`relative flex h-full flex-col rounded-xl border bg-ln-bg p-6 md:p-7 ${
-                  p.popular ? 'border-2 border-ln-brand' : 'border-ln-border'
-                }`}
-                style={p.popular ? { boxShadow: '0 16px 40px rgba(24, 104, 219, 0.16)' } : undefined}
+                className={`relative flex h-full flex-col rounded-[28px] bg-ln-bg p-7 md:p-8 ${p.popular ? 'ln-shadow ring-2 ring-ln-brand' : ''}`}
                 aria-label={`${p.name} тарифі${p.popular ? ', жиі таңдалады' : ''}`}
               >
                 {p.popular && (
-                  <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-ln-brand px-3 py-1 text-xs font-semibold whitespace-nowrap text-white">
+                  <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-ln-brand px-3 py-1 text-[13px] leading-5 font-medium whitespace-nowrap text-white">
                     <Star size={12} fill="currentColor" aria-hidden /> Жиі таңдалады
                   </span>
                 )}
-                <h3 className={`m-0 text-xl font-semibold ${p.popular ? 'text-ln-brand' : 'text-ln-ink'}`}>{p.name}</h3>
+                <h3 className="m-0 text-[22px] leading-7 font-semibold tracking-[-0.015em] text-ln-ink">{p.name}</h3>
                 {/* Фиксированные высоты: цены и списки на соседних карточках стоят на одной линии */}
-                <p className="m-0 mt-1 min-h-10 text-sm text-ln-muted">{p.text}</p>
+                <p className="m-0 mt-1 min-h-12 text-[15px] leading-6 text-ln-muted">{p.text}</p>
                 <p className="m-0 mt-4 flex min-h-16 flex-wrap items-end gap-x-1">
                   <span
-                    className={`tabular font-bold tracking-[-0.02em] text-ln-ink ${
-                      p.period ? 'text-[32px] leading-10' : 'text-[22px] leading-7'
+                    className={`tabular font-semibold tracking-[-0.03em] text-ln-ink ${
+                      p.period ? 'text-[36px] leading-[44px]' : 'text-[24px] leading-8'
                     }`}
                   >
                     {p.price}
                   </span>
-                  {p.period && <span className="text-base text-ln-muted"> {p.period}</span>}
+                  {p.period && <span className="pb-1 text-[17px] text-ln-muted"> {p.period}</span>}
                 </p>
-                <ul className="m-0 mt-6 flex flex-1 list-none flex-col gap-3 p-0">
+                <ul className="m-0 mt-6 flex flex-1 list-none flex-col gap-3 border-t border-ln-border-soft p-0 pt-6">
                   {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-base leading-6 text-ln-ink-2">
-                      <Check size={18} className="mt-0.5 shrink-0 text-ln-brand" aria-hidden />
+                    <li key={f} className="flex items-start gap-2.5 text-[15px] leading-6 text-ln-ink-2">
+                      <Check size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-ln-ink-2" aria-hidden />
                       {f}
                     </li>
                   ))}
@@ -699,20 +680,20 @@ function Pricing() {
 
 function FinalCta() {
   return (
-    <section aria-labelledby="cta-h" className="py-16 md:py-[88px] lg:py-[120px]" style={{ background: '#172B4D' }}>
+    <section aria-labelledby="cta-h" className="bg-ln-inverse py-20 md:py-28 lg:py-36">
       <Container>
         <Reveal className="mx-auto max-w-2xl text-center">
-          <h2 id="cta-h" className="m-0 text-[28px] leading-9 font-bold tracking-[-0.025em] text-white md:text-4xl md:leading-[44px]">
+          <h2 id="cta-h" className="m-0 text-[32px] leading-[38px] font-semibold tracking-[-0.03em] text-balance text-white md:text-5xl md:leading-[54px]">
             Саналы білімге бүгін қадам жасаңыз
           </h2>
-          <p className="m-0 mt-4 text-lg leading-7 text-white/80">Sanastra-мен оқу процесін бір жүйеге біріктіріңіз.</p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <p className="m-0 mt-5 text-[19px] leading-[30px] text-white/80">Sanastra-мен оқу процесін бір жүйеге біріктіріңіз.</p>
+          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <PrimaryButton to="/login" size="lg">
               Sanastra-ны бастау
             </PrimaryButton>
             <a
               href="mailto:hello@sanastra.kz"
-              className="ln-focus inline-flex h-11 items-center justify-center rounded-lg border border-white/30 px-5 text-sm font-semibold text-white! no-underline hover:bg-white/10 hover:text-white!"
+              className="ln-focus inline-flex h-12 items-center justify-center rounded-full bg-white/10 px-6 text-[17px] font-medium text-white! no-underline transition-colors hover:bg-white/20 hover:text-white!"
             >
               Демо сұрау
             </a>
@@ -755,21 +736,21 @@ const FOOTER: { title: string; links: { label: string; href: string }[] }[] = [
 
 function Footer() {
   return (
-    <footer className="border-t border-ln-border-soft bg-ln-bg pt-12 pb-8 md:pt-16">
+    <footer className="bg-ln-soft pt-12 pb-8 md:pt-16">
       <Container>
         <div className="grid gap-10 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
             <SanastraLogo />
-            <p className="m-0 mt-4 max-w-xs text-base text-ln-ink-2">Білім беруді басқарудың қарапайым әрі заманауи жолы.</p>
+            <p className="m-0 mt-4 max-w-xs text-[15px] leading-6 text-ln-ink-2">Білім беруді басқарудың қарапайым әрі заманауи жолы.</p>
           </div>
           {/* Desktop: колонки */}
           {FOOTER.map((col) => (
             <nav key={col.title} aria-label={col.title} className="hidden md:block">
-              <p className="m-0 mb-4 text-sm font-semibold text-ln-ink">{col.title}</p>
-              <ul className="m-0 flex list-none flex-col gap-3 p-0">
+              <p className="m-0 mb-3 text-[13px] font-semibold text-ln-ink">{col.title}</p>
+              <ul className="m-0 flex list-none flex-col gap-1 p-0">
                 {col.links.map((l) => (
                   <li key={l.label}>
-                    <a href={l.href} className="ln-focus rounded text-sm text-ln-ink-2! no-underline hover:text-ln-brand!">
+                    <a href={l.href} className="ln-focus inline-block rounded py-1 text-[13px] text-ln-ink-2! no-underline hover:text-ln-ink! hover:underline">
                       {l.label}
                     </a>
                   </li>
@@ -778,17 +759,17 @@ function Footer() {
             </nav>
           ))}
           {/* Mobile: аккордеон (ТЗ, раздел 27) */}
-          <div className="divide-y divide-ln-border-soft border-y border-ln-border-soft md:hidden">
+          <div className="divide-y divide-ln-border border-y border-ln-border md:hidden">
             {FOOTER.map((col) => (
               <details key={col.title} className="group">
-                <summary className="ln-focus flex cursor-pointer list-none items-center justify-between py-4 text-base font-semibold text-ln-ink">
+                <summary className="ln-focus flex min-h-11 cursor-pointer list-none items-center justify-between py-3 text-[17px] font-medium text-ln-ink">
                   {col.title}
                   <ChevronDown size={18} className="transition-transform group-open:rotate-180" aria-hidden />
                 </summary>
                 <ul className="m-0 flex list-none flex-col gap-3 p-0 pb-4">
                   {col.links.map((l) => (
                     <li key={l.label}>
-                      <a href={l.href} className="ln-focus rounded text-base text-ln-ink-2! no-underline">
+                      <a href={l.href} className="ln-focus inline-block rounded py-1 text-[17px] text-ln-ink-2! no-underline">
                         {l.label}
                       </a>
                     </li>
@@ -798,7 +779,7 @@ function Footer() {
             ))}
           </div>
         </div>
-        <p className="m-0 mt-12 border-t border-ln-border-soft pt-6 text-sm text-ln-muted">
+        <p className="m-0 mt-12 border-t border-ln-border pt-6 text-[13px] text-ln-muted">
           © 2026 Sanastra. Барлық құқықтар қорғалған.
         </p>
       </Container>
@@ -825,7 +806,11 @@ export function LandingPage() {
   }, []);
 
   return (
-    <div id="top" className="min-h-screen bg-ln-bg text-ln-ink" style={{ fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div
+      id="top"
+      className="ln-root min-h-screen antialiased"
+      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, "Segoe UI", sans-serif' }}
+    >
       <a
         href="#main"
         className="ln-focus sr-only rounded-lg bg-ln-brand! px-4 py-2 text-white! focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
@@ -835,7 +820,6 @@ export function LandingPage() {
       <Header />
       <main id="main">
         <Hero />
-        <Trust />
         <Features />
         <LearningPath />
         <Analytics />

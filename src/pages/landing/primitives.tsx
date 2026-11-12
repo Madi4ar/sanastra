@@ -6,7 +6,7 @@ export function SanastraLogo({ inverted = false, to = '/' }: { inverted?: boolea
   return (
     <Link to={to} className="ln-focus flex items-center gap-2.5 rounded-md no-underline" aria-label="Sanastra — басты бет">
       <img src="/brand/sanastra-icon-64.png" width={32} height={32} alt="" className="rounded-lg" />
-      <span className={`text-xl font-bold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Sanastra</span>
+      <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Sanastra</span>
     </Link>
   );
 }
@@ -53,12 +53,12 @@ export function Reveal({
   );
 }
 
-/** Контейнер страницы: max-width 1240, отступы 20 / 24 / 32 px. */
+/** Контейнер страницы: max-width 1200, отступы 20 / 24 / 32 px. */
 export function Container({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`mx-auto w-full max-w-[1240px] px-5 md:px-6 lg:px-8 ${className}`}>{children}</div>;
+  return <div className={`mx-auto w-full max-w-[1200px] px-5 md:px-6 lg:px-8 ${className}`}>{children}</div>;
 }
 
-/** Секция с вертикальными интервалами 64 / 88 / 120 px. */
+/** Секция с вертикальными интервалами 80 / 112 / 144 px. */
 export function Section({
   id,
   children,
@@ -71,13 +71,13 @@ export function Section({
   labelledBy?: string;
 }) {
   return (
-    <section id={id} aria-labelledby={labelledBy} className={`scroll-mt-20 py-16 md:py-[88px] lg:py-[120px] ${className}`}>
+    <section id={id} aria-labelledby={labelledBy} className={`scroll-mt-20 py-20 md:py-28 lg:py-36 ${className}`}>
       {children}
     </section>
   );
 }
 
-/** Заголовок секции: H2 36/44 bold, -0.025em; подзаголовок Body Large. */
+/** Заголовок секции: H2 32/38 → 48/54 semibold, -0.03em; подзаголовок 19/30. Надзаголовок — нейтральный, без цвета бренда. */
 export function SectionHeading({
   id,
   eyebrow,
@@ -93,20 +93,24 @@ export function SectionHeading({
 }) {
   return (
     <Reveal className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-2xl'}>
-      {eyebrow && <p className="m-0 mb-3 text-sm font-semibold text-ln-brand">{eyebrow}</p>}
-      <h2 id={id} className="m-0 text-[28px] leading-9 font-bold tracking-[-0.025em] text-ln-ink md:text-4xl md:leading-[44px]">
+      {eyebrow && <p className="m-0 mb-3 text-[17px] leading-6 font-semibold text-ln-muted">{eyebrow}</p>}
+      <h2
+        id={id}
+        className="m-0 text-[32px] leading-[38px] font-semibold tracking-[-0.03em] text-balance text-ln-ink md:text-5xl md:leading-[54px]"
+      >
         {title}
       </h2>
-      {text && <p className="m-0 mt-4 text-lg leading-7 text-ln-ink-2">{text}</p>}
+      {text && <p className="m-0 mt-5 text-[19px] leading-[30px] text-pretty text-ln-ink-2">{text}</p>}
     </Reveal>
   );
 }
 
 type BtnProps = { children: ReactNode; to?: string; href?: string; size?: 'md' | 'lg'; className?: string };
 
+// Кнопки-«пилюли»: высота не меньше 44 px (рекомендованный размер цели касания)
 const base =
-  'ln-focus inline-flex items-center justify-center gap-2 rounded-lg text-sm leading-5 font-semibold no-underline transition-colors';
-const sizes = { md: 'h-10 px-4', lg: 'h-11 px-5' };
+  'ln-focus inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap no-underline transition-colors';
+const sizes = { md: 'h-11 px-5 text-[15px] leading-5', lg: 'h-12 px-6 text-[17px] leading-6' };
 
 function BtnLink({ to, href, className, children }: { to?: string; href?: string; className: string; children: ReactNode }) {
   if (to) {
@@ -136,8 +140,17 @@ export function SecondaryButton({ children, to, href, size = 'md', className = '
     <BtnLink
       to={to}
       href={href}
-      className={`${base} ${sizes[size]} border border-ln-border bg-ln-bg! text-ln-ink! hover:bg-ln-soft! hover:text-ln-ink! ${className}`}
+      className={`${base} ${sizes[size]} bg-ln-subtle! text-ln-ink! hover:bg-ln-border-soft! hover:text-ln-ink! ${className}`}
     >
+      {children}
+    </BtnLink>
+  );
+}
+
+/** Текстовая кнопка без фона — для второстепенных действий рядом с основной (например, «Кіру» в шапке). */
+export function GhostButton({ children, to, href, size = 'md', className = '' }: BtnProps) {
+  return (
+    <BtnLink to={to} href={href} className={`${base} ${sizes[size]} text-ln-ink! hover:bg-ln-subtle! hover:text-ln-ink! ${className}`}>
       {children}
     </BtnLink>
   );
