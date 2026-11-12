@@ -93,24 +93,24 @@ export function SectionHeading({
 }) {
   return (
     <Reveal className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-2xl'}>
-      {eyebrow && <p className="m-0 mb-3 text-[17px] leading-6 font-semibold text-ln-muted">{eyebrow}</p>}
+      {eyebrow && <p className="m-0 mb-3 text-[1.0625rem] leading-6 font-semibold text-ln-muted">{eyebrow}</p>}
       <h2
         id={id}
-        className="m-0 text-[32px] leading-[38px] font-semibold tracking-[-0.03em] text-balance text-ln-ink md:text-5xl md:leading-[54px]"
+        className="m-0 text-[2rem] leading-[2.375rem] font-semibold tracking-[-0.03em] text-balance text-ln-ink md:text-5xl md:leading-[3.375rem]"
       >
         {title}
       </h2>
-      {text && <p className="m-0 mt-5 text-[19px] leading-[30px] text-pretty text-ln-ink-2">{text}</p>}
+      {text && <p className="m-0 mt-5 text-[1.1875rem] leading-[1.875rem] text-pretty text-ln-ink-2">{text}</p>}
     </Reveal>
   );
 }
 
 type BtnProps = { children: ReactNode; to?: string; href?: string; size?: 'md' | 'lg'; className?: string };
 
-// Кнопки-«пилюли»: высота не меньше 44 px (рекомендованный размер цели касания)
+// Кнопки-«пилюли»: высота не меньше 44 px; отклик на нажатие — сразу, на pointer-down (.ln-press)
 const base =
-  'ln-focus inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap no-underline transition-colors';
-const sizes = { md: 'h-11 px-5 text-[15px] leading-5', lg: 'h-12 px-6 text-[17px] leading-6' };
+  'ln-focus ln-press inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap no-underline';
+const sizes = { md: 'h-11 px-5 text-[0.9375rem] leading-5', lg: 'h-12 px-6 text-[1.0625rem] leading-6' };
 
 function BtnLink({ to, href, className, children }: { to?: string; href?: string; className: string; children: ReactNode }) {
   if (to) {

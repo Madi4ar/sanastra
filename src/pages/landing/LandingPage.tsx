@@ -46,8 +46,33 @@ const NAV = [
 
 /* ---------------- Header ---------------- */
 
+/** Ориентирование: какая секция сейчас в центре экрана — её пункт меню подсвечивается. */
+function useActiveSection(ids: string[]) {
+  const [active, setActive] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) setActive(e.target.id);
+      },
+      // «Активна» секция, пересекающая узкую полосу посередине экрана
+      { rootMargin: '-45% 0px -50% 0px' },
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) io.observe(el);
+    });
+    return () => io.disconnect();
+  }, [ids]);
+  return active;
+}
+
+const NAV_IDS = NAV.map((n) => n.href.slice(1));
+
 function Header() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const active = useActiveSection(NAV_IDS);
   const { data: user } = useCurrentUser();
   const cabinet = user ? homeFor(user) : null;
 
@@ -58,20 +83,38 @@ function Header() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  // Край шапки проявляется, только когда под ней действительно прокручивается контент
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
-    <header className="ln-glass sticky top-0 z-40 border-b border-ln-border-soft">
+    <header
+      className={`ln-glass sticky top-0 z-40 border-b transition-colors duration-200 ${
+        scrolled || open ? 'border-ln-border-soft' : 'border-transparent'
+      }`}
+    >
       <Container className="flex h-16 items-center gap-6">
         <SanastraLogo />
         <nav aria-label="Негізгі навигация" className="ml-4 hidden items-center gap-1 lg:flex">
-          {NAV.map((n) => (
-            <a
-              key={n.href}
-              href={n.href}
-              className="ln-focus rounded-full px-3.5 py-2 text-[15px] text-ln-ink-2! no-underline transition-colors hover:text-ln-ink!"
-            >
-              {n.label}
-            </a>
-          ))}
+          {NAV.map((n) => {
+            const current = active === n.href.slice(1);
+            return (
+              <a
+                key={n.href}
+                href={n.href}
+                aria-current={current ? 'location' : undefined}
+                className={`ln-focus ln-press rounded-full px-3.5 py-2 text-[0.9375rem] no-underline hover:text-ln-ink! active:bg-ln-subtle ${
+                  current ? 'font-medium text-ln-ink!' : 'text-ln-ink-2!'
+                }`}
+              >
+                {n.label}
+              </a>
+            );
+          })}
         </nav>
         <div className="ml-auto hidden items-center gap-2 sm:flex">
           {cabinet ? (
@@ -85,7 +128,7 @@ function Header() {
         </div>
         <button
           type="button"
-          className="ln-focus ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-ln-ink hover:bg-ln-subtle sm:ml-0 lg:hidden"
+          className="ln-focus ln-press ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-ln-ink hover:bg-ln-subtle active:bg-ln-subtle sm:ml-0 lg:hidden"
           aria-label={open ? 'Мәзірді жабу' : 'Мәзірді ашу'}
           aria-expanded={open}
           aria-controls="mobile-nav"
@@ -94,26 +137,41 @@ function Header() {
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
       </Container>
-      {open && (
-        <nav id="mobile-nav" aria-label="Мобильді навигация" className="border-t border-ln-border-soft lg:hidden">
-          <Container className="flex flex-col gap-1 py-4">
-            {NAV.map((n) => (
-              <a
-                key={n.href}
-                href={n.href}
-                onClick={() => setOpen(false)}
-                className="ln-focus rounded-xl px-3 py-3 text-[17px] font-medium text-ln-ink! no-underline hover:bg-ln-subtle hover:text-ln-ink!"
-              >
-                {n.label}
-              </a>
-            ))}
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:hidden">
-              <SecondaryButton to="/login">Кіру</SecondaryButton>
-              <PrimaryButton to="/login">Бастау</PrimaryButton>
-            </div>
-          </Container>
-        </nav>
-      )}
+      {/* Меню выезжает из шапки и уходит обратно тем же путём; закрытое — недоступно (inert, aria-hidden) */}
+      <nav
+        id="mobile-nav"
+        aria-label="Мобильді навигация"
+        aria-hidden={!open}
+        inert={!open}
+        data-open={open}
+        className="ln-sheet absolute inset-x-0 top-full border-b border-ln-border-soft bg-ln-bg lg:hidden"
+      >
+        <Container className="flex flex-col gap-1 py-4">
+          {NAV.map((n) => (
+            <a
+              key={n.href}
+              href={n.href}
+              onClick={() => setOpen(false)}
+              aria-current={active === n.href.slice(1) ? 'location' : undefined}
+              className="ln-focus rounded-xl px-3 py-3 text-[1.0625rem] font-medium text-ln-ink! no-underline hover:bg-ln-subtle hover:text-ln-ink! active:bg-ln-subtle"
+            >
+              {n.label}
+            </a>
+          ))}
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:hidden">
+            {cabinet ? (
+              <PrimaryButton to={cabinet} className="col-span-2">
+                Кабинетке өту
+              </PrimaryButton>
+            ) : (
+              <>
+                <SecondaryButton to="/login">Кіру</SecondaryButton>
+                <PrimaryButton to="/login">Бастау</PrimaryButton>
+              </>
+            )}
+          </div>
+        </Container>
+      </nav>
     </header>
   );
 }
@@ -134,18 +192,18 @@ function Hero() {
       />
       <Container>
         <Reveal className="mx-auto max-w-4xl text-center">
-          <p className="m-0 mb-6 text-[17px] leading-6 font-medium text-pretty text-ln-accent md:text-[19px] md:leading-7">
+          <p className="m-0 mb-6 text-[1.0625rem] leading-6 font-medium text-pretty text-ln-accent md:text-[1.1875rem] md:leading-7">
             Білімді жандардың сана биігінде жолығуы
           </p>
           <h1
             id="hero-h"
-            className="m-0 text-[44px] leading-[48px] font-semibold tracking-[-0.035em] text-ln-ink sm:text-[64px] sm:leading-[68px] lg:text-[88px] lg:leading-[92px]"
+            className="m-0 text-[2.75rem] leading-[3rem] font-semibold tracking-[-0.035em] text-ln-ink sm:text-[4rem] sm:leading-[4.25rem] lg:text-[5.5rem] lg:leading-[5.75rem]"
           >
             Саналы білім.
             <br />
             <span className="text-ln-muted">Тұрақты даму.</span>
           </h1>
-          <p className="m-0 mx-auto mt-7 max-w-2xl text-[19px] leading-[30px] text-pretty text-ln-ink-2 md:text-[21px] md:leading-8">
+          <p className="m-0 mx-auto mt-7 max-w-2xl text-[1.1875rem] leading-[1.875rem] text-pretty text-ln-ink-2 md:text-[1.3125rem] md:leading-8">
             Курстарды, тапсырмаларды, бағалауды және оқу нәтижелерін бір платформада басқарыңыз.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -189,8 +247,8 @@ function FeatureCard({
     <Reveal className={className} delay={delay}>
       <article className="flex h-full flex-col rounded-[28px] bg-ln-soft p-7 md:p-9">
         <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
-        <h3 className="m-0 mt-6 text-[22px] leading-7 font-semibold tracking-[-0.02em] text-ln-ink md:text-[26px] md:leading-8">{title}</h3>
-        <p className="m-0 mt-3 text-[17px] leading-[26px] text-ln-ink-2">{text}</p>
+        <h3 className="m-0 mt-6 text-[1.375rem] leading-7 font-semibold tracking-[-0.02em] text-ln-ink md:text-[1.625rem] md:leading-8">{title}</h3>
+        <p className="m-0 mt-3 text-[1.0625rem] leading-[1.625rem] text-ln-ink-2">{text}</p>
         {children && <div className="mt-8 flex-1">{children}</div>}
       </article>
     </Reveal>
@@ -221,8 +279,8 @@ function Features() {
               ].map(([m, t, c]) => (
                 <div key={m} className="rounded-2xl bg-ln-bg p-4">
                   <p className="m-0 text-xs text-ln-muted">{m}</p>
-                  <p className="m-0 mt-1 text-[15px] font-semibold text-ln-ink">{t}</p>
-                  <p className="m-0 mt-2 text-[13px] text-ln-ink-2">{c}</p>
+                  <p className="m-0 mt-1 text-[0.9375rem] font-semibold text-ln-ink">{t}</p>
+                  <p className="m-0 mt-2 text-[0.8125rem] tracking-[0.01em] text-ln-ink-2">{c}</p>
                 </div>
               ))}
             </div>
@@ -258,7 +316,7 @@ function Features() {
           >
             <div className="flex flex-wrap gap-2" aria-hidden>
               {['Әкімші', 'Оқытушы', 'Тренер', 'Білім алушы', 'Ата-ана'].map((r) => (
-                <span key={r} className="rounded-full bg-ln-bg px-4 py-1.5 text-[15px] text-ln-ink-2">
+                <span key={r} className="rounded-full bg-ln-bg px-4 py-1.5 text-[0.9375rem] text-ln-ink-2">
                   {r}
                 </span>
               ))}
@@ -311,7 +369,7 @@ function LearningPath() {
                     </span>
                   )}
                   <span
-                    className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[17px] font-semibold ${
+                    className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[1.0625rem] font-semibold ${
                       done
                         ? 'bg-ln-brand text-white'
                         : current
@@ -323,14 +381,14 @@ function LearningPath() {
                     {done ? <Check size={20} strokeWidth={2.5} /> : i + 1}
                   </span>
                   <span className="flex flex-col gap-1 lg:items-center">
-                    <span className={`text-[17px] leading-6 font-medium ${done || current ? 'text-ln-ink' : 'text-ln-ink-2'}`}>
+                    <span className={`text-[1.0625rem] leading-6 font-medium ${done || current ? 'text-ln-ink' : 'text-ln-ink-2'}`}>
                       <span className="sr-only">
                         {i + 1}-қадам{done ? ', аяқталды' : current ? ', ағымдағы қадам' : ''}:{' '}
                       </span>
                       {s}
                     </span>
                     {current && (
-                      <span className="self-start rounded-full bg-ln-brand-soft px-2.5 py-0.5 text-[13px] font-medium text-ln-accent lg:self-center" aria-hidden>
+                      <span className="self-start rounded-full bg-ln-brand-soft px-2.5 py-0.5 text-[0.8125rem] tracking-[0.01em] font-medium text-ln-accent lg:self-center" aria-hidden>
                         Сіз осындасыз
                       </span>
                     )}
@@ -370,13 +428,13 @@ function Analytics() {
             <dl className="m-0 grid grid-cols-2 gap-3">
               {METRICS.map((m) => (
                 <div key={m.label} className="rounded-2xl bg-ln-soft p-4 md:p-5">
-                  <dt className="text-[13px] leading-[18px] text-ln-muted">{m.label}</dt>
-                  <dd className="tabular m-0 mt-2 text-[28px] leading-8 font-semibold tracking-[-0.02em] text-ln-ink md:text-[34px] md:leading-10">{m.value}</dd>
+                  <dt className="text-[0.8125rem] tracking-[0.01em] leading-[1.125rem] text-ln-muted">{m.label}</dt>
+                  <dd className="tabular m-0 mt-2 text-[1.75rem] leading-8 font-semibold tracking-[-0.02em] text-ln-ink md:text-[2.125rem] md:leading-10">{m.value}</dd>
                 </div>
               ))}
             </dl>
             <div className="mt-3 rounded-2xl bg-ln-soft p-4 md:p-5" role="img" aria-label="Соңғы 8 аптадағы курсты аяқтау деңгейі 52%-дан 86%-ға дейін өсті">
-              <p className="m-0 mb-4 text-[15px] font-medium text-ln-ink">Аяқтау деңгейі, апта бойынша</p>
+              <p className="m-0 mb-4 text-[0.9375rem] font-medium text-ln-ink">Аяқтау деңгейі, апта бойынша</p>
               <div className="flex h-28 items-end gap-2" aria-hidden>
                 {bars.map((b, i) => (
                   <div key={i} className="flex-1 rounded-md bg-ln-brand" style={{ height: `${b}%`, opacity: 0.35 + (i / bars.length) * 0.65 }} />
@@ -409,7 +467,7 @@ function Teacher() {
           <SectionHeading id="teacher-h" align="left" eyebrow="Оқытушыға" title="Оқытушыға — қарапайым жұмыс ортасы" />
           <ul className="m-0 mt-10 grid list-none gap-x-8 p-0 sm:grid-cols-2">
             {TEACHER.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-3 border-b border-ln-border py-4 text-[17px] text-ln-ink">
+              <li key={label} className="flex items-center gap-3 border-b border-ln-border py-4 text-[1.0625rem] text-ln-ink">
                 <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ln-ink-2" aria-hidden />
                 {label}
               </li>
@@ -488,8 +546,8 @@ function Integrations() {
                   <Icon size={22} strokeWidth={1.75} aria-hidden />
                 </span>
                 <div>
-                  <p className="m-0 text-[17px] font-semibold text-ln-ink">{name}</p>
-                  <p className="m-0 mt-0.5 text-[15px] text-ln-muted">{text}</p>
+                  <p className="m-0 text-[1.0625rem] font-semibold text-ln-ink">{name}</p>
+                  <p className="m-0 mt-0.5 text-[0.9375rem] text-ln-muted">{text}</p>
                 </div>
               </li>
             ))}
@@ -531,7 +589,7 @@ function Security() {
             {SECURITY.map(({ icon: Icon, label }) => (
               <li key={label} className="flex items-center gap-4 pl-5 [&:last-child>span]:border-b-0">
                 <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ln-ink-2" aria-hidden />
-                <span className="flex flex-1 items-center gap-4 border-b border-ln-border-soft py-4 pr-5 text-[17px] text-ln-ink">
+                <span className="flex flex-1 items-center gap-4 border-b border-ln-border-soft py-4 pr-5 text-[1.0625rem] text-ln-ink">
                   <span className="flex-1">{label}</span>
                   <Check size={20} strokeWidth={2.25} className="shrink-0 text-ln-success" aria-label="бар" />
                 </span>
@@ -562,8 +620,8 @@ function Organizations() {
           {AUDIENCES.map(({ icon: Icon, title, text }) => (
             <article key={title} className="flex h-full flex-col rounded-[28px] bg-ln-soft p-7">
               <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
-              <h3 className="m-0 mt-6 text-[20px] leading-[26px] font-semibold tracking-[-0.015em] text-ln-ink">{title}</h3>
-              <p className="m-0 mt-2 text-[17px] leading-[26px] text-ln-ink-2">{text}</p>
+              <h3 className="m-0 mt-6 text-[1.25rem] leading-[1.625rem] font-semibold tracking-[-0.015em] text-ln-ink">{title}</h3>
+              <p className="m-0 mt-2 text-[1.0625rem] leading-[1.625rem] text-ln-ink-2">{text}</p>
             </article>
           ))}
         </Reveal>
@@ -631,26 +689,26 @@ function Pricing() {
                 aria-label={`${p.name} тарифі${p.popular ? ', жиі таңдалады' : ''}`}
               >
                 {p.popular && (
-                  <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-ln-brand px-3 py-1 text-[13px] leading-5 font-medium whitespace-nowrap text-white">
+                  <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-ln-brand px-3 py-1 text-[0.8125rem] tracking-[0.01em] leading-5 font-medium whitespace-nowrap text-white">
                     <Star size={12} fill="currentColor" aria-hidden /> Жиі таңдалады
                   </span>
                 )}
-                <h3 className="m-0 text-[22px] leading-7 font-semibold tracking-[-0.015em] text-ln-ink">{p.name}</h3>
+                <h3 className="m-0 text-[1.375rem] leading-7 font-semibold tracking-[-0.015em] text-ln-ink">{p.name}</h3>
                 {/* Фиксированные высоты: цены и списки на соседних карточках стоят на одной линии */}
-                <p className="m-0 mt-1 min-h-12 text-[15px] leading-6 text-ln-muted">{p.text}</p>
+                <p className="m-0 mt-1 min-h-12 text-[0.9375rem] leading-6 text-ln-muted">{p.text}</p>
                 <p className="m-0 mt-4 flex min-h-16 flex-wrap items-end gap-x-1">
                   <span
                     className={`tabular font-semibold tracking-[-0.03em] text-ln-ink ${
-                      p.period ? 'text-[36px] leading-[44px]' : 'text-[24px] leading-8'
+                      p.period ? 'text-[2.25rem] leading-[2.75rem]' : 'text-[1.5rem] leading-8'
                     }`}
                   >
                     {p.price}
                   </span>
-                  {p.period && <span className="pb-1 text-[17px] text-ln-muted"> {p.period}</span>}
+                  {p.period && <span className="pb-1 text-[1.0625rem] text-ln-muted"> {p.period}</span>}
                 </p>
                 <ul className="m-0 mt-6 flex flex-1 list-none flex-col gap-3 border-t border-ln-border-soft p-0 pt-6">
                   {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-[15px] leading-6 text-ln-ink-2">
+                    <li key={f} className="flex items-start gap-2.5 text-[0.9375rem] leading-6 text-ln-ink-2">
                       <Check size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-ln-ink-2" aria-hidden />
                       {f}
                     </li>
@@ -686,17 +744,17 @@ function FinalCta() {
     <section aria-labelledby="cta-h" className="bg-ln-inverse py-20 md:py-28 lg:py-36">
       <Container>
         <Reveal className="mx-auto max-w-2xl text-center">
-          <h2 id="cta-h" className="m-0 text-[32px] leading-[38px] font-semibold tracking-[-0.03em] text-balance text-white md:text-5xl md:leading-[54px]">
+          <h2 id="cta-h" className="m-0 text-[2rem] leading-[2.375rem] font-semibold tracking-[-0.03em] text-balance text-white md:text-5xl md:leading-[3.375rem]">
             Саналы білімге бүгін қадам жасаңыз
           </h2>
-          <p className="m-0 mt-5 text-[19px] leading-[30px] text-white/80">Sanastra-мен оқу процесін бір жүйеге біріктіріңіз.</p>
+          <p className="m-0 mt-5 text-[1.1875rem] leading-[1.875rem] text-white/80">Sanastra-мен оқу процесін бір жүйеге біріктіріңіз.</p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <PrimaryButton to="/login" size="lg">
               Sanastra-ны бастау
             </PrimaryButton>
             <a
               href="mailto:hello@sanastra.kz"
-              className="ln-focus inline-flex h-12 items-center justify-center rounded-full bg-white/10 px-6 text-[17px] font-medium text-white! no-underline transition-colors hover:bg-white/20 hover:text-white!"
+              className="ln-focus ln-press inline-flex h-12 items-center justify-center rounded-full bg-white/10 px-6 text-[1.0625rem] font-medium text-white! no-underline transition-colors hover:bg-white/20 hover:text-white!"
             >
               Демо сұрау
             </a>
@@ -744,16 +802,16 @@ function Footer() {
         <div className="grid gap-10 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
             <SanastraLogo />
-            <p className="m-0 mt-4 max-w-xs text-[15px] leading-6 text-ln-ink-2">Білім беруді басқарудың қарапайым әрі заманауи жолы.</p>
+            <p className="m-0 mt-4 max-w-xs text-[0.9375rem] leading-6 text-ln-ink-2">Білім беруді басқарудың қарапайым әрі заманауи жолы.</p>
           </div>
           {/* Desktop: колонки */}
           {FOOTER.map((col) => (
             <nav key={col.title} aria-label={col.title} className="hidden md:block">
-              <p className="m-0 mb-3 text-[13px] font-semibold text-ln-ink">{col.title}</p>
+              <p className="m-0 mb-3 text-[0.8125rem] tracking-[0.01em] font-semibold text-ln-ink">{col.title}</p>
               <ul className="m-0 flex list-none flex-col gap-1 p-0">
                 {col.links.map((l) => (
                   <li key={l.label}>
-                    <a href={l.href} className="ln-focus inline-block rounded py-1 text-[13px] text-ln-ink-2! no-underline hover:text-ln-ink! hover:underline">
+                    <a href={l.href} className="ln-focus inline-block rounded py-1 text-[0.8125rem] tracking-[0.01em] text-ln-ink-2! no-underline hover:text-ln-ink! hover:underline">
                       {l.label}
                     </a>
                   </li>
@@ -765,14 +823,14 @@ function Footer() {
           <div className="divide-y divide-ln-border border-y border-ln-border md:hidden">
             {FOOTER.map((col) => (
               <details key={col.title} className="group">
-                <summary className="ln-focus flex min-h-11 cursor-pointer list-none items-center justify-between py-3 text-[17px] font-medium text-ln-ink">
+                <summary className="ln-focus flex min-h-11 cursor-pointer list-none items-center justify-between py-3 text-[1.0625rem] font-medium text-ln-ink">
                   {col.title}
                   <ChevronDown size={18} className="transition-transform group-open:rotate-180" aria-hidden />
                 </summary>
                 <ul className="m-0 flex list-none flex-col gap-3 p-0 pb-4">
                   {col.links.map((l) => (
                     <li key={l.label}>
-                      <a href={l.href} className="ln-focus inline-block rounded py-1 text-[17px] text-ln-ink-2! no-underline">
+                      <a href={l.href} className="ln-focus inline-block rounded py-1 text-[1.0625rem] text-ln-ink-2! no-underline">
                         {l.label}
                       </a>
                     </li>
@@ -782,7 +840,7 @@ function Footer() {
             ))}
           </div>
         </div>
-        <p className="m-0 mt-12 border-t border-ln-border pt-6 text-[13px] text-ln-muted">
+        <p className="m-0 mt-12 border-t border-ln-border pt-6 text-[0.8125rem] tracking-[0.01em] text-ln-muted">
           © 2026 Sanastra. Барлық құқықтар қорғалған.
         </p>
       </Container>

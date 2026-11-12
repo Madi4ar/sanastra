@@ -81,7 +81,7 @@ export function DashboardMockup() {
             {NAV.map(({ icon: Icon, label, active }) => (
               <div
                 key={label}
-                className={`mb-0.5 flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] ${
+                className={`mb-0.5 flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.8125rem] tracking-[0.01em] ${
                   active ? 'bg-ln-brand-soft font-semibold text-ln-accent' : 'text-ln-ink-2'
                 }`}
               >
@@ -94,7 +94,7 @@ export function DashboardMockup() {
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <p className="m-0 text-lg font-bold text-ln-ink sm:text-xl">Қайырлы күн, Айдана!</p>
-                <p className="m-0 mt-0.5 text-[13px] text-ln-muted">Бүгін 2 сабақ және 1 тапсырма бар</p>
+                <p className="m-0 mt-0.5 text-[0.8125rem] tracking-[0.01em] text-ln-muted">Бүгін 2 сабақ және 1 тапсырма бар</p>
               </div>
               <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-ln-border-soft text-ln-ink-2">
                 <Bell size={16} />
@@ -108,7 +108,7 @@ export function DashboardMockup() {
                   ['Python негіздері', 31],
                 ].map(([name, v]) => (
                   <div key={name} className="mb-2.5 last:mb-0">
-                    <div className="mb-1 flex justify-between text-[13px] text-ln-ink-2">
+                    <div className="mb-1 flex justify-between text-[0.8125rem] tracking-[0.01em] text-ln-ink-2">
                       <span>{name}</span>
                       <span className="tabular font-medium text-ln-ink">{v}%</span>
                     </div>
@@ -122,7 +122,7 @@ export function DashboardMockup() {
                   ['Essay: My city', '3 күн қалды', false],
                   ['Мини-жоба: калькулятор', '7 күн қалды', false],
                 ].map(([t, d, urgent]) => (
-                  <div key={String(t)} className="mb-2 flex items-center justify-between gap-2 text-[13px] last:mb-0">
+                  <div key={String(t)} className="mb-2 flex items-center justify-between gap-2 text-[0.8125rem] tracking-[0.01em] last:mb-0">
                     <span className="truncate text-ln-ink-2">{t}</span>
                     <span
                       className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
@@ -144,7 +144,7 @@ export function DashboardMockup() {
                     {WEEK.map(([d, v]) => (
                       <div key={d} className="flex flex-col items-center gap-1">
                         <div className="w-3 rounded-sm bg-ln-brand" style={{ height: `${v * 0.45}px`, opacity: 0.35 + v / 160 }} />
-                        <span className="text-[10px] text-ln-muted">{d}</span>
+                        <span className="text-[0.625rem] text-ln-muted">{d}</span>
                       </div>
                     ))}
                   </div>
@@ -156,14 +156,14 @@ export function DashboardMockup() {
                   ['Listening', 85],
                   ['Python quiz', 78],
                 ].map(([t, s]) => (
-                  <div key={String(t)} className="mb-2 flex items-center justify-between text-[13px] last:mb-0">
+                  <div key={String(t)} className="mb-2 flex items-center justify-between text-[0.8125rem] tracking-[0.01em] last:mb-0">
                     <span className="text-ln-ink-2">{t}</span>
                     <span className="tabular font-semibold text-ln-ink">{s}/100</span>
                   </div>
                 ))}
               </MockCard>
             </div>
-            <div className="mt-3 flex items-center gap-3 rounded-xl border border-ln-border-soft bg-ln-soft p-3 text-[13px]">
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-ln-border-soft bg-ln-soft p-3 text-[0.8125rem] tracking-[0.01em]">
               <CalendarDays size={16} className="shrink-0 text-ln-accent" />
               <span className="text-ln-ink-2">
                 <b className="font-semibold text-ln-ink">Бүгін, 14:00</b> · Алгебра · онлайн-сабақ
