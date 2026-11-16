@@ -6,6 +6,7 @@ export const API_DATE = 'YYYY-MM-DD';
 
 export const formatDate = (v?: string | null) => (v ? dayjs(v).format(UI_DATE) : '—');
 export const formatDateTime = (v?: string | null) => (v ? dayjs(v).format('DD.MM.YYYY, HH:mm') : '—');
+export const formatDateTimeSeconds = (v?: string | null) => (v ? dayjs(v).format('DD.MM.YYYY, HH:mm:ss') : '—');
 export const todayIso = () => dayjs().format(API_DATE);
 
 export const SOURCE_LABEL: Record<ChangeSource, string> = {

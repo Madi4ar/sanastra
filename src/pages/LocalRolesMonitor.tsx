@@ -1,28 +1,14 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Alert, Card, Empty, Input, Modal, Skeleton, Table, Tag, Tree, Typography } from 'antd';
+import { Alert, Card, Empty, Input, Modal, Skeleton, Table, Tag, Tree } from 'antd';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { AuditChange, AuditEntry, AuditEvent, LocalRoleRow, OrganizationStructure } from '@/api/types';
-import { formatDate, formatDateTime } from '@/shared/format';
+import type { LocalRoleRow, OrganizationStructure } from '@/api/types';
+import { formatDate } from '@/shared/format';
 import { ErrorState } from '@/shared/PageState';
 import { useDebouncedValue } from '@/shared/useDebouncedValue';
-
-const EVENT_LABEL: Record<AuditEvent, string> = {
-  ROLE_CREATED: 'Создание роли',
-  ROLE_DELETED: 'Удаление роли',
-  ROLE_MATRIX_CHANGED: 'Изменение матрицы привилегий',
-  USER_BOUND_TO_DEPARTMENT: 'Привязка пользователя к отделу',
-};
-
-const EVENT_COLOR: Record<AuditEvent, string> = {
-  ROLE_CREATED: 'green',
-  ROLE_DELETED: 'red',
-  ROLE_MATRIX_CHANGED: 'blue',
-  USER_BOUND_TO_DEPARTMENT: 'purple',
-};
 
 type Member = OrganizationStructure['members'][number];
 
@@ -112,89 +98,6 @@ function StructureModal({ row, onClose }: { row: LocalRoleRow; onClose: () => vo
         </div>
       )}
     </Modal>
-  );
-}
-
-const showValue = (v: string | null) => v ?? '—';
-
-function ChangeLine({ change }: { change: AuditChange }) {
-  return (
-    <div className="text-xs">
-      <span className="font-medium">{change.field}: </span>
-      <Typography.Text delete={Boolean(change.oldValue && change.newValue)} type="secondary" style={{ fontSize: 12 }}>
-        {showValue(change.oldValue)}
-      </Typography.Text>
-      {' → '}
-      <span className="break-all">{showValue(change.newValue)}</span>
-    </div>
-  );
-}
-
-function AuditTrail() {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const q = useQuery({
-    queryKey: queryKeys.localRolesAudit(page, pageSize),
-    queryFn: () => api.localRoles.audit({ page, pageSize }),
-    placeholderData: keepPreviousData,
-  });
-
-  return (
-    <Card title="Лог действий (Audit Trail)" styles={{ body: { padding: 0 } }} data-testid="audit-trail">
-      {q.isError ? (
-        <div className="p-6">
-          <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        </div>
-      ) : (
-        <Table<AuditEntry>
-          rowKey="id"
-          loading={q.isPending}
-          dataSource={q.data?.items}
-          scroll={{ x: 980 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: q.data?.total ?? 0,
-            showSizeChanger: true,
-            pageSizeOptions: [10, 20, 50],
-            onChange: (p, s) => {
-              setPage(s === pageSize ? p : 1);
-              setPageSize(s);
-            },
-          }}
-          columns={[
-            { title: 'Дата и время', key: 'at', width: 160, render: (_, e) => formatDateTime(e.at) },
-            {
-              title: 'Организация и администратор',
-              key: 'org',
-              width: 250,
-              render: (_, e) => (
-                <div>
-                  <div>{e.organizationName}</div>
-                  <div className="mono text-xs text-muted">ID: {e.adminId}</div>
-                </div>
-              ),
-            },
-            {
-              title: 'Тип события',
-              key: 'event',
-              width: 250,
-              render: (_, e) => (
-                <div>
-                  <Tag color={EVENT_COLOR[e.event]}>{EVENT_LABEL[e.event]}</Tag>
-                  <div className="mt-1 text-xs text-muted">{e.target}</div>
-                </div>
-              ),
-            },
-            {
-              title: 'Детали изменения (было → стало)',
-              key: 'changes',
-              render: (_, e) => e.changes.map((c) => <ChangeLine key={c.field} change={c} />),
-            },
-          ]}
-        />
-      )}
-    </Card>
   );
 }
 
@@ -296,7 +199,6 @@ export function LocalRolesMonitor() {
           />
         )}
       </Card>
-      <AuditTrail />
       {opened && <StructureModal row={opened} onClose={() => setOpened(null)} />}
     </div>
   );

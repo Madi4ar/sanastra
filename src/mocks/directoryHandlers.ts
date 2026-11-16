@@ -10,7 +10,7 @@ import { allCoursesUsing } from './content';
 import { effectiveModules, type OrgRecord } from './db';
 import { isVisibleItem, loadDirectories, saveDirectories, visibleItems, type DirectoryRecord } from './directories';
 import { err, latency, requireRole, subscriptionGuard, tenantContext } from './handlers';
-import { loadStructure, localMatrixOf } from './orgStructure';
+import { addAudit, loadStructure, localMatrixOf, saveStructure } from './orgStructure';
 import { matrixOf } from './roles';
 import { upgradeTariffFor } from './tenantAdminHandlers';
 import { loadUsers } from './users';
@@ -228,7 +228,15 @@ export const directoryHandlers = () => [
     const body = (await request.json().catch(() => ({}))) as Partial<DirectoryItemPayload>;
     const fe = validate(ctx.code, body, ctx.org.tenantId);
     if (Object.keys(fe).length) return fieldsError(fe);
-    return HttpResponse.json(toItem(create(ctx.code, body, ctx.org.tenantId), true), { status: 201 });
+    const created = create(ctx.code, body, ctx.org.tenantId);
+    const store = loadStructure();
+    addAudit(store, ctx.org, ctx.user, request, 'DIRECTORY_ITEM_CREATED', created.nameRu, [
+      { field: 'Справочник', oldValue: null, newValue: DIRECTORIES.find((d) => d.code === ctx.code)!.name },
+      { field: 'Название на русском', oldValue: null, newValue: created.nameRu },
+      { field: 'Название на казахском', oldValue: null, newValue: created.nameKz },
+    ]);
+    saveStructure(store);
+    return HttpResponse.json(toItem(created, true), { status: 201 });
   }),
 
   // Глобальные и чужие записи не находятся: менять можно только записи своей организации
@@ -242,7 +250,17 @@ export const directoryHandlers = () => [
     const body = (await request.json().catch(() => ({}))) as Partial<DirectoryItemPayload>;
     const fe = validate(ctx.code, body, ctx.org.tenantId, item.id);
     if (Object.keys(fe).length) return fieldsError(fe);
-    return HttpResponse.json(toItem(update(item.id, ctx.code, body), true));
+    const before = { ...item };
+    const updated = update(item.id, ctx.code, body);
+    const store = loadStructure();
+    const changes = [
+      { field: 'Название на русском', oldValue: before.nameRu, newValue: updated.nameRu },
+      { field: 'Название на казахском', oldValue: before.nameKz, newValue: updated.nameKz },
+      { field: 'Родительская запись', oldValue: before.parentId, newValue: updated.parentId },
+    ].filter((change) => change.oldValue !== change.newValue);
+    if (changes.length) addAudit(store, ctx.org, ctx.user, request, 'DIRECTORY_ITEM_UPDATED', updated.nameRu, changes);
+    saveStructure(store);
+    return HttpResponse.json(toItem(updated, true));
   }),
 
   http.delete('/api/tenant/directories/:code/items/:id', async ({ params, request }) => {
@@ -255,6 +273,13 @@ export const directoryHandlers = () => [
     const used = usageError(item);
     if (used) return err(400, 'VALIDATION_ERROR', `Нельзя удалить. ${used}`);
     saveDirectories(loadDirectories().filter((i) => i.id !== item.id));
+    const store = loadStructure();
+    addAudit(store, ctx.org, ctx.user, request, 'DIRECTORY_ITEM_DELETED', item.nameRu, [
+      { field: 'Справочник', oldValue: DIRECTORIES.find((d) => d.code === ctx.code)!.name, newValue: null },
+      { field: 'Название на русском', oldValue: item.nameRu, newValue: null },
+      { field: 'Название на казахском', oldValue: item.nameKz, newValue: null },
+    ]);
+    saveStructure(store);
     return new HttpResponse(null, { status: 204 });
   }),
 ];

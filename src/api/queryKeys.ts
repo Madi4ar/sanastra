@@ -13,7 +13,7 @@ export const queryKeys = {
   moduleRegistry: ['module-registry'] as const,
   globalRoles: ['global-roles'] as const,
   localRoles: (search: string, page: number, pageSize: number) => ['local-roles', search, page, pageSize] as const,
-  localRolesAudit: (page: number, pageSize: number) => ['local-roles-audit', page, pageSize] as const,
+  audit: (filters: import('./types').AuditFilters) => ['audit', filters] as const,
   organizationStructure: (tenantId: string) => ['organization-structure', tenantId] as const,
   roleAccess: (tenantId: string) => ['role-access', tenantId] as const,
   assignableRoles: (clientSlug: string) => ['assignable-roles', clientSlug] as const,

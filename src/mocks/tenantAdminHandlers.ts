@@ -112,12 +112,12 @@ const usersLimitReached = (org: OrgRecord) => (org.usage[USERS_LIMIT] ?? 0) >= e
 
 const limitError = () => err(403, 'LIMIT_REACHED', 'Достигнут лимит пользователей текущего тарифа.');
 
-function bindDepartment(store: ReturnType<typeof loadStructure>, ctx: Ctx, m: Member, departmentId: string | null) {
+function bindDepartment(store: ReturnType<typeof loadStructure>, ctx: Ctx, request: Request, m: Member, departmentId: string | null) {
   if (m.departmentId === departmentId) return;
   const previous = store.departments.find((d) => d.id === m.departmentId);
   const next = store.departments.find((d) => d.id === departmentId);
   m.departmentId = departmentId;
-  addAudit(store, ctx.org, ctx.user.id, 'USER_BOUND_TO_DEPARTMENT', m.fullName, [
+  addAudit(store, ctx.org, ctx.user, request, 'USER_BOUND_TO_DEPARTMENT', m.fullName, [
     { field: 'Отдел', oldValue: previous?.name ?? null, newValue: next?.name ?? null },
   ]);
 }
@@ -662,7 +662,7 @@ export const tenantAdminHandlers = () => [
     const store = syncMembers(ctx.org);
     const member = store.members.find((m) => m.userId === user.id)!;
     if (store.departments.some((d) => d.id === body.departmentId && d.tenantId === ctx.org.tenantId))
-      bindDepartment(store, ctx, member, body.departmentId!);
+      bindDepartment(store, ctx, request, member, body.departmentId!);
     member.localRoleIds = (body.localRoleIds ?? []).filter((id) => store.roles.some((r) => r.id === id && r.tenantId === ctx.org.tenantId));
     member.positionId = body.positionId ?? null;
     saveStructure(store);
@@ -698,7 +698,7 @@ export const tenantAdminHandlers = () => [
     saveUsers(users);
     member.fullName = fullNameOf(user);
     member.email = user.email;
-    bindDepartment(store, ctx, member, body.departmentId ?? null);
+    bindDepartment(store, ctx, request, member, body.departmentId ?? null);
     member.localRoleIds = (body.localRoleIds ?? []).filter((id) => store.roles.some((r) => r.id === id && r.tenantId === ctx.org.tenantId));
     member.positionId = body.positionId ?? null;
     saveStructure(store);
@@ -833,6 +833,10 @@ export const tenantAdminHandlers = () => [
       parentId: body.parentId ?? null,
       headMemberId: body.headMemberId ?? null,
     });
+    addAudit(store, ctx.org, ctx.user, request, 'DEPARTMENT_CREATED', body.name!.trim(), [
+      { field: 'Название', oldValue: null, newValue: body.name!.trim() },
+      { field: 'Тип', oldValue: null, newValue: body.kind! },
+    ]);
     saveStructure(store);
     return HttpResponse.json(toDepartment(id, store), { status: 201 });
   }),
@@ -847,7 +851,15 @@ export const tenantAdminHandlers = () => [
     const body = (await request.json().catch(() => ({}))) as Partial<OrgDepartmentPayload>;
     const fe = validateDepartment(body, ctx.org, store, dept.id);
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const before = { ...dept };
     Object.assign(dept, { name: body.name!.trim(), kind: body.kind!, parentId: body.parentId ?? null, headMemberId: body.headMemberId ?? null });
+    const changes = [
+      { field: 'Название', oldValue: before.name, newValue: dept.name },
+      { field: 'Тип', oldValue: before.kind, newValue: dept.kind },
+      { field: 'Родительский отдел', oldValue: before.parentId, newValue: dept.parentId },
+      { field: 'Руководитель', oldValue: before.headMemberId, newValue: dept.headMemberId },
+    ].filter((change) => change.oldValue !== change.newValue);
+    if (changes.length) addAudit(store, ctx.org, ctx.user, request, 'DEPARTMENT_UPDATED', dept.name, changes);
     saveStructure(store);
     return HttpResponse.json(toDepartment(dept.id, store));
   }),
@@ -862,7 +874,7 @@ export const tenantAdminHandlers = () => [
     if (store.departments.some((d) => d.parentId === dept.id))
       return err(400, 'VALIDATION_ERROR', 'Сначала удалите или перенесите вложенные подразделения.');
     store.departments = store.departments.filter((d) => d.id !== dept.id);
-    store.members.filter((m) => m.departmentId === dept.id).forEach((m) => bindDepartment(store, ctx, m, null));
+    store.members.filter((m) => m.departmentId === dept.id).forEach((m) => bindDepartment(store, ctx, request, m, null));
     store.groups.filter((g) => g.departmentId === dept.id).forEach((g) => (g.departmentId = null));
     store.roles
       .filter((r) => r.departmentId === dept.id)
@@ -870,6 +882,10 @@ export const tenantAdminHandlers = () => [
         r.departmentId = null;
         if (r.scope === 'DEPARTMENT') r.scope = 'MEMBERS';
       });
+    addAudit(store, ctx.org, ctx.user, request, 'DEPARTMENT_DELETED', dept.name, [
+      { field: 'Название', oldValue: dept.name, newValue: null },
+      { field: 'Тип', oldValue: dept.kind, newValue: null },
+    ]);
     saveStructure(store);
     return new HttpResponse(null, { status: 204 });
   }),
@@ -884,7 +900,7 @@ export const tenantAdminHandlers = () => [
     const { memberIds } = (await request.json().catch(() => ({}))) as { memberIds?: string[] };
     store.members
       .filter((m) => m.tenantId === ctx.org.tenantId && memberIds?.includes(m.id))
-      .forEach((m) => bindDepartment(store, ctx, m, dept.id));
+      .forEach((m) => bindDepartment(store, ctx, request, m, dept.id));
     saveStructure(store);
     return new HttpResponse(null, { status: 204 });
   }),
@@ -941,7 +957,7 @@ export const tenantAdminHandlers = () => [
     };
     store.roles.push(role);
     applyRoleMembers(store, role, ctx.org, body.memberIds ?? []);
-    addAudit(store, ctx.org, ctx.user.id, 'ROLE_CREATED', role.name, [
+    addAudit(store, ctx.org, ctx.user, request, 'ROLE_CREATED', role.name, [
       { field: 'Название', oldValue: null, newValue: role.name },
       { field: 'Отдел', oldValue: null, newValue: store.departments.find((d) => d.id === role.departmentId)?.name ?? null },
       { field: 'Включены опции', oldValue: null, newValue: matrix.join(', ') || null },
@@ -962,6 +978,7 @@ export const tenantAdminHandlers = () => [
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте настройки роли.', fe);
     const removed = role.matrix.filter((k) => !matrix.includes(k));
     const added = matrix.filter((k) => !role.matrix.includes(k));
+    const before = { name: role.name, nameKz: role.nameKz, description: role.description, scope: role.scope, departmentId: role.departmentId };
     Object.assign(role, {
       name: body.nameRu!.trim(),
       nameKz: body.nameKz!.trim(),
@@ -971,11 +988,17 @@ export const tenantAdminHandlers = () => [
       matrix,
     });
     applyRoleMembers(store, role, ctx.org, body.memberIds ?? []);
-    if (removed.length || added.length)
-      addAudit(store, ctx.org, ctx.user.id, 'ROLE_MATRIX_CHANGED', role.name, [
-        { field: 'Выключены опции', oldValue: removed.join(', ') || null, newValue: null },
-        { field: 'Включены опции', oldValue: null, newValue: added.join(', ') || null },
-      ]);
+    const changes = [
+      { field: 'Название', oldValue: before.name, newValue: role.name },
+      { field: 'Название на казахском', oldValue: before.nameKz, newValue: role.nameKz },
+      { field: 'Описание', oldValue: before.description || null, newValue: role.description || null },
+      { field: 'Область действия', oldValue: before.scope, newValue: role.scope },
+      { field: 'Отдел', oldValue: before.departmentId, newValue: role.departmentId },
+      { field: 'Выключены опции', oldValue: removed.join(', ') || null, newValue: null },
+      { field: 'Включены опции', oldValue: null, newValue: added.join(', ') || null },
+    ].filter((change) => change.oldValue !== change.newValue && (change.oldValue !== null || change.newValue !== null));
+    if (changes.length)
+      addAudit(store, ctx.org, ctx.user, request, removed.length || added.length ? 'ROLE_MATRIX_CHANGED' : 'ROLE_UPDATED', role.name, changes);
     saveStructure(store);
     return HttpResponse.json(toTenantRole(role, store, delegable(ctx.org)));
   }),
@@ -989,7 +1012,7 @@ export const tenantAdminHandlers = () => [
     if (!role) return err(404, 'NOT_FOUND');
     store.roles = store.roles.filter((r) => r.id !== role.id);
     store.members.forEach((m) => (m.localRoleIds = m.localRoleIds.filter((id) => id !== role.id)));
-    addAudit(store, ctx.org, ctx.user.id, 'ROLE_DELETED', role.name, [
+    addAudit(store, ctx.org, ctx.user, request, 'ROLE_DELETED', role.name, [
       { field: 'Название', oldValue: role.name, newValue: null },
       { field: 'Включены опции', oldValue: role.matrix.join(', ') || null, newValue: null },
     ]);

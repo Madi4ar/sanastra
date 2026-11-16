@@ -1,5 +1,5 @@
 import { Avatar, Breadcrumb, Button, Layout, Menu, Tooltip, Typography } from 'antd';
-import { Blocks, BookMarked, Building2, ShieldCheck, LogOut, Package, PanelLeftClose, PanelLeftOpen, UserRound, Users } from 'lucide-react';
+import { Blocks, BookMarked, Building2, History, ShieldCheck, LogOut, Package, PanelLeftClose, PanelLeftOpen, UserRound, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 import { tokens } from '@/app/theme';
@@ -47,7 +47,7 @@ export function AppLayout() {
       return { key: m.id, title: last ? node : <Link to={m.pathname}>{node}</Link> };
     });
 
-  const selected = ['profile', 'organizations', 'tariffs', 'modules', 'directories', 'roles', 'users'].filter((k) => location.pathname.startsWith(`/superadmin/${k}`));
+  const selected = ['profile', 'organizations', 'tariffs', 'modules', 'directories', 'roles', 'users', 'audit'].filter((k) => location.pathname.startsWith(`/superadmin/${k}`));
 
   return (
     <Layout style={{ minHeight: '100vh', minWidth: 1024 }}>
@@ -85,6 +85,7 @@ export function AppLayout() {
             { key: 'directories', icon: <BookMarked size={16} />, label: 'Справочники', onClick: () => navigate('/superadmin/directories') },
             { key: 'roles', icon: <ShieldCheck size={16} />, label: 'Роли и доступы', onClick: () => navigate('/superadmin/roles') },
             { key: 'users', icon: <Users size={16} />, label: 'Пользователи', onClick: () => navigate('/superadmin/users') },
+            { key: 'audit', icon: <History size={16} />, label: 'Лог действий', onClick: () => navigate('/superadmin/audit') },
           ]}
         />
       </Layout.Sider>

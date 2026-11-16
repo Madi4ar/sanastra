@@ -602,7 +602,30 @@ export interface OrganizationStructure {
   roles: { id: string; name: string; optionsTotal: number; optionsEffective: number }[];
 }
 
-export type AuditEvent = 'ROLE_CREATED' | 'ROLE_DELETED' | 'ROLE_MATRIX_CHANGED' | 'USER_BOUND_TO_DEPARTMENT';
+export type AuditModule = 'ROLES' | 'DEPARTMENTS' | 'USERS' | 'DIRECTORIES';
+
+export type AuditEvent =
+  | 'ROLE_CREATED'
+  | 'ROLE_UPDATED'
+  | 'ROLE_DELETED'
+  | 'ROLE_MATRIX_CHANGED'
+  | 'USER_BOUND_TO_DEPARTMENT'
+  | 'DEPARTMENT_CREATED'
+  | 'DEPARTMENT_UPDATED'
+  | 'DEPARTMENT_DELETED'
+  | 'DIRECTORY_ITEM_CREATED'
+  | 'DIRECTORY_ITEM_UPDATED'
+  | 'DIRECTORY_ITEM_DELETED';
+
+export interface AuditFilters {
+  search: string;
+  tenantId: string;
+  module: AuditModule | '';
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+  pageSize: number;
+}
 
 export interface AuditChange {
   field: string;
@@ -617,6 +640,10 @@ export interface AuditEntry {
   tenantId: string;
   organizationName: string;
   adminId: string;
+  adminName: string;
+  adminLogin: string;
+  ipAddress: string;
+  module: AuditModule;
   event: AuditEvent;
   /** Роль или сотрудник, к которым относится действие */
   target: string;

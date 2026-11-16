@@ -29,6 +29,7 @@ import { TenantLayout } from '@/pages/tenant/TenantLayout';
 import { AdminCabinet, RoleCabinet } from '@/pages/tenant/Cabinets';
 import { CourseBuilderPage, ProgramViewAsPage } from '@/pages/tenant/CourseBuilderPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { AuditLogPage } from '@/pages/AuditLogPage';
 
 function OrganizationCrumb({ tenantId }: { tenantId: string }) {
   const { data } = useQuery({
@@ -156,6 +157,7 @@ export const routes: RouteObject[] = [
         ],
       },
       { path: 'users', element: <UsersPage />, handle: crumb('Пользователи') },
+      { path: 'audit', element: <AuditLogPage />, handle: crumb('Лог действий') },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

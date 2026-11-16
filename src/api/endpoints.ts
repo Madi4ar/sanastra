@@ -52,6 +52,7 @@ import type {
   LocalRoleRow,
   OrganizationStructure,
   AuditEntry,
+  AuditFilters,
   RegistryPublishPayload,
   RegistryRenamePayload,
   RoleAssignment,
@@ -182,10 +183,22 @@ export const api = {
   localRoles: {
     list: (f: { search: string; page: number; pageSize: number }) =>
       request<Paginated<LocalRoleRow>>(`/api/superadmin/local-roles${toQueryString(f)}`),
-    audit: (f: { page: number; pageSize: number }) =>
-      request<Paginated<AuditEntry>>(`/api/superadmin/local-roles/audit${toQueryString(f)}`),
     structure: (tenantId: string) =>
       request<OrganizationStructure>(`/api/superadmin/organizations/${encodeURIComponent(tenantId)}/structure`),
+  },
+  audit: {
+    list: (f: AuditFilters) =>
+      request<Paginated<AuditEntry>>(
+        `/api/superadmin/audit${toQueryString({
+          search: f.search,
+          tenantId: f.tenantId,
+          module: f.module,
+          dateFrom: f.dateFrom,
+          dateTo: f.dateTo,
+          page: f.page,
+          pageSize: f.pageSize,
+        })}`,
+      ),
   },
   moduleRegistry: {
     list: () => request<RegistryModule[]>('/api/superadmin/module-registry'),

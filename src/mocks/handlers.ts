@@ -1119,13 +1119,26 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({ items: filtered.slice((page - 1) * pageSize, page * pageSize), total: filtered.length, page, pageSize });
   }),
 
-  http.get('/api/superadmin/local-roles/audit', async ({ request }) => {
+  http.get('/api/superadmin/audit', async ({ request }) => {
     await latency();
     const denied = requireRole('SUPERADMIN');
     if (denied) return denied;
-    const { page, pageSize } = pageOf(new URL(request.url));
+    const url = new URL(request.url);
+    const { page, pageSize } = pageOf(url);
+    const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
+    const tenantId = url.searchParams.get('tenantId') ?? '';
+    const module = url.searchParams.get('module') ?? '';
+    const dateFrom = url.searchParams.get('dateFrom') ?? '';
+    const dateTo = url.searchParams.get('dateTo') ?? '';
     const { audit } = loadStructure();
-    return HttpResponse.json({ items: audit.slice((page - 1) * pageSize, page * pageSize), total: audit.length, page, pageSize });
+    const filtered = audit
+      .filter((item) => !search || [item.organizationName, item.adminName, item.adminLogin, item.adminId].some((value) => value.toLowerCase().includes(search)))
+      .filter((item) => !tenantId || item.tenantId === tenantId)
+      .filter((item) => !module || item.module === module)
+      .filter((item) => !dateFrom || item.at >= dateFrom)
+      .filter((item) => !dateTo || item.at <= dateTo)
+      .sort((a, b) => b.at.localeCompare(a.at));
+    return HttpResponse.json({ items: filtered.slice((page - 1) * pageSize, page * pageSize), total: filtered.length, page, pageSize });
   }),
 
   http.get('/api/superadmin/organizations/:tenantId/structure', async ({ params }) => {

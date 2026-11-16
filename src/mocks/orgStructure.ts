@@ -4,7 +4,7 @@
  * Журнал неизменяем и сохраняется после удаления организации.
  */
 import dayjs from 'dayjs';
-import type { AuditChange, AuditEntry, AuditEvent, DepartmentKind, GroupStatus, PaymentOrder } from '@/api/types';
+import type { AuditChange, AuditEntry, AuditEvent, AuditModule, CurrentUser, DepartmentKind, GroupStatus, PaymentOrder } from '@/api/types';
 import { allLeafKeys } from '@/shared/access';
 import { load, type OrgRecord } from './db';
 import { loadRegistry } from './registry';
@@ -112,6 +112,24 @@ const ROLE_TEMPLATES: { name: string; nameKz: string; department: number; module
 
 export const adminIdOf = (slug: string) => (slug === 'academy' ? 'u-2' : `adm-${slug}`);
 
+export const moduleOfEvent = (event: AuditEvent): AuditModule => {
+  if (event.startsWith('ROLE_')) return 'ROLES';
+  if (event.startsWith('DIRECTORY_')) return 'DIRECTORIES';
+  if (event === 'USER_BOUND_TO_DEPARTMENT') return 'USERS';
+  return 'DEPARTMENTS';
+};
+
+export const ipOf = (request: Request) =>
+  request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || '127.0.0.1';
+
+function actorFields(adminId: string) {
+  const actor = loadUsers().find((u) => u.id === adminId);
+  return {
+    adminName: actor ? [actor.lastName, actor.firstName, actor.middleName].filter(Boolean).join(' ') : adminId,
+    adminLogin: actor?.email ?? adminId,
+  };
+}
+
 const entry = (
   at: string,
   org: { tenantId: string; name: string; clientSlug: string },
@@ -124,6 +142,9 @@ const entry = (
   tenantId: org.tenantId,
   organizationName: org.name,
   adminId: adminIdOf(org.clientSlug),
+  ...actorFields(adminIdOf(org.clientSlug)),
+  ipAddress: '127.0.0.1',
+  module: moduleOfEvent(event),
   event,
   target,
   changes,
@@ -218,6 +239,16 @@ export function loadStructure(): Store {
     const raw = storage()?.getItem(STORAGE_KEY);
     if (raw) {
       memory = JSON.parse(raw) as Store;
+      memory.audit = memory.audit.map((item) => {
+        const actor = actorFields(item.adminId);
+        return {
+          ...item,
+          adminName: item.adminName ?? actor.adminName,
+          adminLogin: item.adminLogin ?? actor.adminLogin,
+          ipAddress: item.ipAddress ?? '127.0.0.1',
+          module: item.module ?? moduleOfEvent(item.event),
+        };
+      });
       return memory;
     }
   } catch {
@@ -249,7 +280,8 @@ export function resetOrgStructure() {
 export function addAudit(
   store: Store,
   org: { tenantId: string; name: string },
-  adminId: string,
+  actor: Pick<CurrentUser, 'id' | 'fullName' | 'email'>,
+  request: Request,
   event: AuditEvent,
   target: string,
   changes: AuditChange[],
@@ -259,7 +291,11 @@ export function addAudit(
     at: new Date().toISOString(),
     tenantId: org.tenantId,
     organizationName: org.name,
-    adminId,
+    adminId: actor.id,
+    adminName: actor.fullName,
+    adminLogin: actor.email,
+    ipAddress: ipOf(request),
+    module: moduleOfEvent(event),
     event,
     target,
     // Параметры без значений до и после не несут информации
