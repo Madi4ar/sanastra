@@ -3,6 +3,7 @@ import type {
   Course,
   GroupFormOptions,
   GroupListener,
+  InviteEnrollmentResult,
   ProgramPayload,
   DirectoryItem,
   DirectoryItemPayload,
@@ -65,6 +66,10 @@ import type {
   TenantModule,
   TenantUsage,
   Webinar,
+  ShowcaseApplication,
+  ShowcaseApplicationPayload,
+  ShowcaseCourse,
+  ShowcaseSubmissionResult,
 } from './types';
 
 export interface ModuleData {
@@ -80,6 +85,17 @@ export interface ModuleData {
 }
 
 export const api = {
+  showcase: {
+    list: (clientSlug: string) => request<ShowcaseCourse[]>(`/api/public/showcase${toQueryString({ clientSlug })}`),
+    get: (clientSlug: string, courseId: string) =>
+      request<ShowcaseCourse>(`/api/public/showcase/${encodeURIComponent(courseId)}${toQueryString({ clientSlug })}`),
+    apply: (clientSlug: string, groupId: string, payload: ShowcaseApplicationPayload) =>
+      request<ShowcaseSubmissionResult>(`/api/public/showcase/groups/${encodeURIComponent(groupId)}/applications${toQueryString({ clientSlug })}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    invite: (hash: string) => request<InviteEnrollmentResult>(`/api/invite/group/${encodeURIComponent(hash)}`, { method: 'POST' }),
+  },
   auth: {
     me: () => request<CurrentUser>('/api/auth/me'),
     /** Шаг 1 входа: поиск ИИН в базе */
@@ -279,6 +295,11 @@ export const api = {
         request<GroupListener[]>(`/api/tenant/groups/${id}/candidates${toQueryString({ clientSlug, q })}`),
       addListeners: (id: string, memberIds: string[]) => send<OrgGroup>(`/groups/${id}/listeners`, 'POST', { memberIds }),
       removeListener: (id: string, memberId: string) => send<OrgGroup>(`/groups/${id}/listeners/${memberId}`, 'DELETE'),
+      groupApplications: (id: string) => send<ShowcaseApplication[]>(`/groups/${id}/applications`, 'GET'),
+      confirmApplication: (id: string, applicationId: string) =>
+        send<ShowcaseApplication>(`/groups/${id}/applications/${applicationId}/confirm`, 'POST'),
+      rejectApplication: (id: string, applicationId: string) =>
+        send<ShowcaseApplication>(`/groups/${id}/applications/${applicationId}/reject`, 'POST'),
       report: (type: ReportType, f: { groupId?: string; courseId?: string; positionId?: string }) =>
         request<ReportResult>(`/api/tenant/reports/${type}${toQueryString({ clientSlug, ...f })}`),
       createProgram: (payload: ProgramPayload) => send<Course>('/programs', 'POST', payload),

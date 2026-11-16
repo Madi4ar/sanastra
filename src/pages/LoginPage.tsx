@@ -169,7 +169,7 @@ export function LoginPage() {
             showIcon
             title={check.error?.message}
             action={
-              <Button size="small" onClick={() => navigate('/register')}>
+              <Button size="small" onClick={() => navigate(params.get('redirect') ? `/register?redirect=${encodeURIComponent(params.get('redirect')!)}` : '/register')}>
                 Зарегистрироваться
               </Button>
             }

@@ -4,7 +4,7 @@
  * Журнал неизменяем и сохраняется после удаления организации.
  */
 import dayjs from 'dayjs';
-import type { AuditChange, AuditEntry, AuditEvent, AuditModule, CurrentUser, DepartmentKind, GroupStatus, PaymentOrder } from '@/api/types';
+import type { AuditChange, AuditEntry, AuditEvent, AuditModule, CurrentUser, DepartmentKind, GroupStatus, PaymentOrder, ShowcaseApplication } from '@/api/types';
 import { allLeafKeys } from '@/shared/access';
 import { load, type OrgRecord } from './db';
 import { loadRegistry } from './registry';
@@ -86,6 +86,7 @@ interface Store {
   groups: GroupRecord[];
   /** Заказы на оплату: одна оплата продлевает подписку один раз */
   payments: (PaymentOrder & { tenantId: string; status: 'PENDING' | 'PAID' | 'DECLINED'; annualAmount: number; monthlyAmount: number })[];
+  applications: ShowcaseApplication[];
   /** Новые записи сверху */
   audit: AuditEntry[];
 }
@@ -152,7 +153,7 @@ const entry = (
 
 /** Начальные данные: каждая вторая организация уже настроила структуру (Academy — всегда) */
 function seed(): Store {
-  const store: Store = { departments: [], members: [], roles: [], trainers: [], groups: [], payments: [], audit: [] };
+  const store: Store = { departments: [], members: [], roles: [], trainers: [], groups: [], payments: [], applications: [], audit: [] };
   const options = allLeafKeys(loadRegistry());
   const orgs = [...load().organizations].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const now = dayjs();
@@ -239,6 +240,7 @@ export function loadStructure(): Store {
     const raw = storage()?.getItem(STORAGE_KEY);
     if (raw) {
       memory = JSON.parse(raw) as Store;
+      memory.applications ??= [];
       memory.audit = memory.audit.map((item) => {
         const actor = actorFields(item.adminId);
         return {
@@ -312,6 +314,7 @@ export function removeStructure(tenantId: string) {
   store.trainers = store.trainers.filter((t) => t.tenantId !== tenantId);
   store.groups = store.groups.filter((g) => g.tenantId !== tenantId);
   store.payments = store.payments.filter((p) => p.tenantId !== tenantId);
+  store.applications = store.applications.filter((application) => application.tenantId !== tenantId);
   saveStructure(store);
 }
 
@@ -349,7 +352,7 @@ export function isDeactivated(userId: string, clientSlug: string): boolean {
   return loadStructure().members.some((m) => m.tenantId === org.tenantId && m.userId === userId && !m.active);
 }
 
-function nextIin(taken: Set<string>): string {
+export function nextIin(taken: Set<string>): string {
   for (let n = taken.size; ; n++) {
     const digits = `9001014${String(n % 10000).padStart(4, '0')}`;
     const d = [...digits].map(Number);

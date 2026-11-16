@@ -28,15 +28,18 @@ import type {
   SystemOrgRole,
   TenantRole,
   TenantRolePayload,
+  ShowcaseApplicationPayload,
+  ShowcaseCourse,
 } from '@/api/types';
+import { EMAIL_PATTERN, isValidKzPhone, phoneDigits } from '@/features/auth/validation';
 import { inTariff, TARIFF_MODULE_OF } from '@/shared/access';
 import { finalPrice, planAmount } from '@/shared/pricing';
 import { richTextToPlain, sanitizeRichText } from '@/shared/richText';
-import { computeStatus, effectiveLimitValues, effectiveModules, load, MODULES, save, type OrgRecord } from './db';
+import { computeStatus, effectiveLimitValues, effectiveModules, getSession, load, MODULES, save, type OrgRecord } from './db';
 import { addCourse, courseCount, findCourse, listCourses, removeCourse, updateCourse } from './content';
 import { removeCourseContent } from './courseBuilder';
 import { err, latency, profileFields, publishChanges, recordSubscriptionChange, subscriptionGuard, tenantContext, validateUserProfile } from './handlers';
-import { addAudit, loadStructure, roleHolders, saveStructure, syncMembers, type GroupRecord, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
+import { addAudit, loadStructure, nextIin, roleHolders, saveStructure, syncMembers, type GroupRecord, type LocalRole, type Member, type TrainerEntry } from './orgStructure';
 import { canContinue, currentMonths, markPaid, newSchedule, planFor, scheduleEndDate } from './paymentSchedule';
 import { publish } from './eventBus';
 import { isVisibleItem, itemName } from './directories';
@@ -353,6 +356,9 @@ function toGroup(g: GroupRecord, org: OrgRecord, user: CurrentUser): OrgGroup {
     inviteHash: canInvite ? g.inviteHash : null,
     inviteUrl: canInvite ? `https://${org.clientSlug}.beyim.kz/invite/group/${g.inviteHash}` : null,
     listenerIds: g.listenerIds,
+    newApplicationsCount: user.access.includes('lms_showcase_applications.view')
+      ? store.applications.filter((application) => application.groupId === g.id && application.status === 'NEW').length
+      : 0,
     createdAt: g.createdAt,
   };
 }
@@ -404,6 +410,65 @@ const toListener = (m: Member, users: UserRecord[]): GroupListener => {
   const u = users.find((x) => x.id === m.userId);
   return { id: m.id, fullName: u ? fullNameOf(u) : m.fullName, iin: u?.iin ?? '', email: u?.email ?? m.email };
 };
+
+function trainerNames(group: GroupRecord, store: ReturnType<typeof loadStructure>) {
+  const users = loadUsers();
+  return group.trainerIds.flatMap((id) => {
+    const trainer = store.trainers.find((item) => item.id === id);
+    const user = trainer && users.find((item) => item.id === trainer.userId);
+    return user ? [fullNameOf(user)] : [];
+  });
+}
+
+function showcaseCourses(org: OrgRecord): ShowcaseCourse[] {
+  const store = loadStructure();
+  return listCourses(org)
+    .filter((course) => course.status === 'PUBLISHED')
+    .flatMap((course) => {
+      const groups = store.groups
+        .filter((group) => group.tenantId === org.tenantId && group.courseId === course.id && group.status === 'RECRUITING')
+        .map((group) => ({
+          id: group.id,
+          name: group.name,
+          startDate: group.startDate,
+          endDate: group.endDate,
+          trainerNames: trainerNames(group, store),
+          placesLeft: Math.max(0, group.listenersLimit - group.listenerIds.length),
+        }));
+      if (!groups.length) return [];
+      return [{
+        id: course.id,
+        organizationName: org.name,
+        clientSlug: org.clientSlug,
+        title: course.titleRu || course.title,
+        description: richTextToPlain(course.descriptionRu),
+        coverUrl: course.coverUrl,
+        formatName: itemName(course.formatIds[0]),
+        hoursTheory: course.hoursTheory,
+        hoursPractice: course.hoursPractice,
+        teacher: course.teacher,
+        groups,
+      }];
+    });
+}
+
+function addUserToGroup(org: OrgRecord, group: GroupRecord, user: UserRecord) {
+  if (!user.roles.some((role) => role.role === 'LEARNER' && role.clientSlug === org.clientSlug)) {
+    user.roles.push({ role: 'LEARNER', clientSlug: org.clientSlug });
+    const users = loadUsers().map((item) => (item.id === user.id ? user : item));
+    saveUsers(users);
+  }
+  const store = syncMembers(org);
+  const storedGroup = store.groups.find((item) => item.id === group.id && item.tenantId === org.tenantId)!;
+  const member = store.members.find((item) => item.userId === user.id && item.tenantId === org.tenantId)!;
+  member.active = true;
+  if (!storedGroup.listenerIds.includes(member.id)) {
+    if (storedGroup.listenerIds.length >= storedGroup.listenersLimit) return false;
+    storedGroup.listenerIds.push(member.id);
+  }
+  saveStructure(store);
+  return true;
+}
 
 // ---------- отчёты ----------
 
@@ -501,6 +566,72 @@ function buildReport(type: ReportType, org: OrgRecord, f: { groupId: string | nu
 }
 
 export const tenantAdminHandlers = () => [
+  http.get('/api/public/showcase', async ({ request }) => {
+    await latency();
+    const clientSlug = new URL(request.url).searchParams.get('clientSlug') ?? '';
+    const org = load().organizations.find((item) => item.clientSlug === clientSlug);
+    if (!org || computeStatus(org) !== 'ACTIVE' || !effectiveModules(org).includes('COURSE_SHOWCASE')) return err(404, 'NOT_FOUND');
+    return HttpResponse.json(showcaseCourses(org));
+  }),
+
+  http.get('/api/public/showcase/:courseId', async ({ params, request }) => {
+    await latency();
+    const clientSlug = new URL(request.url).searchParams.get('clientSlug') ?? '';
+    const org = load().organizations.find((item) => item.clientSlug === clientSlug);
+    if (!org || computeStatus(org) !== 'ACTIVE' || !effectiveModules(org).includes('COURSE_SHOWCASE')) return err(404, 'NOT_FOUND');
+    const course = showcaseCourses(org).find((item) => item.id === params.courseId);
+    return course ? HttpResponse.json(course) : err(404, 'NOT_FOUND');
+  }),
+
+  http.post('/api/public/showcase/groups/:groupId/applications', async ({ params, request }) => {
+    await latency();
+    const clientSlug = new URL(request.url).searchParams.get('clientSlug') ?? '';
+    const org = load().organizations.find((item) => item.clientSlug === clientSlug);
+    if (!org || computeStatus(org) !== 'ACTIVE' || !effectiveModules(org).includes('COURSE_SHOWCASE')) return err(404, 'NOT_FOUND');
+    const store = loadStructure();
+    const group = store.groups.find((item) => item.id === params.groupId && item.tenantId === org.tenantId && item.status === 'RECRUITING');
+    const course = group?.courseId && findCourse(org, group.courseId);
+    if (!group || !course || course.status !== 'PUBLISHED') return err(404, 'NOT_FOUND');
+    const body = (await request.json().catch(() => ({}))) as Partial<ShowcaseApplicationPayload>;
+    const fullName = (body.fullName ?? '').trim();
+    const email = (body.email ?? '').trim().toLowerCase();
+    const phone = phoneDigits(body.phone ?? '');
+    const fieldErrors: Record<string, string> = {};
+    if (!fullName) fieldErrors.fullName = 'Укажите ФИО';
+    if (!EMAIL_PATTERN.test(email)) fieldErrors.email = 'Укажите корректный Email';
+    if (!isValidKzPhone(phone)) fieldErrors.phone = 'Укажите номер в формате +7 (7XX) XXX-XX-XX';
+    if (Object.keys(fieldErrors).length) return err(400, 'VALIDATION_ERROR', 'Проверьте заполнение формы.', fieldErrors);
+    if (!effectiveModules(org).includes('SHOWCASE_APPLICATIONS')) {
+      return HttpResponse.json({ delivery: 'EMAIL' as const }, { status: 201 });
+    }
+    store.applications.unshift({
+      id: crypto.randomUUID(),
+      tenantId: org.tenantId,
+      groupId: group.id,
+      courseId: course.id,
+      fullName,
+      email,
+      phone,
+      createdAt: new Date().toISOString(),
+      status: 'NEW',
+    });
+    saveStructure(store);
+    return HttpResponse.json({ delivery: 'REGISTRY' as const }, { status: 201 });
+  }),
+
+  http.post('/api/invite/group/:hash', async ({ params }) => {
+    await latency();
+    const session = getSession();
+    if (!session) return err(401, 'UNAUTHORIZED');
+    const store = loadStructure();
+    const group = store.groups.find((item) => item.inviteHash === params.hash);
+    const org = group && load().organizations.find((item) => item.tenantId === group.tenantId);
+    const user = loadUsers().find((item) => item.id === session.id);
+    if (!group || !org || !user) return err(404, 'NOT_FOUND');
+    const courseTitle = group.courseId ? (findCourse(org, group.courseId)?.title ?? '') : '';
+    if (!addUserToGroup(org, group, user)) return err(400, 'VALIDATION_ERROR', 'В группе нет свободных мест.');
+    return HttpResponse.json({ groupName: group.name, courseTitle, enrolled: true });
+  }),
   // ---------- Каталог модулей: рабочие и демо ----------
   http.get('/api/tenant/module-catalog', async ({ request }) => {
     await latency();
@@ -1105,6 +1236,7 @@ export const tenantAdminHandlers = () => [
     const store = loadStructure();
     if (!store.groups.some((g) => g.id === params.id && g.tenantId === ctx.org.tenantId)) return err(404, 'NOT_FOUND');
     store.groups = store.groups.filter((g) => g.id !== params.id);
+    store.applications = store.applications.filter((application) => application.groupId !== params.id);
     saveStructure(store);
     return new HttpResponse(null, { status: 204 });
   }),
@@ -1167,6 +1299,76 @@ export const tenantAdminHandlers = () => [
     group.listenerIds = group.listenerIds.filter((id) => id !== params.memberId);
     saveStructure(store);
     return HttpResponse.json(toGroup(group, ctx.org, ctx.user));
+  }),
+
+  http.get('/api/tenant/groups/:id/applications', async ({ params, request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_showcase_applications.view');
+    if (ctx instanceof Response) return ctx;
+    const store = loadStructure();
+    if (!store.groups.some((group) => group.id === params.id && group.tenantId === ctx.org.tenantId)) return err(404, 'NOT_FOUND');
+    return HttpResponse.json(
+      store.applications
+        .filter((application) => application.groupId === params.id && application.tenantId === ctx.org.tenantId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    );
+  }),
+
+  http.post('/api/tenant/groups/:id/applications/:applicationId/confirm', async ({ params, request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_showcase_applications.confirm');
+    if (ctx instanceof Response) return ctx;
+    const store = loadStructure();
+    const group = store.groups.find((item) => item.id === params.id && item.tenantId === ctx.org.tenantId);
+    const application = store.applications.find((item) => item.id === params.applicationId && item.groupId === params.id);
+    if (!group || !application) return err(404, 'NOT_FOUND');
+    if (application.status !== 'NEW') return err(400, 'VALIDATION_ERROR', 'Заявка уже обработана.');
+    if (group.listenerIds.length >= group.listenersLimit) return err(400, 'VALIDATION_ERROR', 'В группе нет свободных мест.');
+    const users = loadUsers();
+    const normalizedName = application.fullName.toLowerCase();
+    let user = users.find(
+      (item) => item.email.toLowerCase() === application.email.toLowerCase() || fullNameOf(item).toLowerCase() === normalizedName,
+    );
+    if (!user) {
+      const [lastName = '', firstName = '', ...middle] = application.fullName.split(/\s+/);
+      user = {
+        id: crypto.randomUUID(),
+        iin: nextIin(new Set(users.map((item) => item.iin))),
+        lastName,
+        firstName,
+        middleName: middle.join(' ') || undefined,
+        region: 'г. Астана',
+        phone: application.phone,
+        email: application.email,
+        passwordHash: hashPassword('Sanastra1'),
+        roles: [{ role: 'LEARNER', clientSlug: ctx.org.clientSlug }],
+        failedAttempts: 0,
+        profileCompleted: false,
+      };
+      users.push(user);
+      saveUsers(users);
+    }
+    if (!addUserToGroup(ctx.org, group, user)) return err(400, 'VALIDATION_ERROR', 'В группе нет свободных мест.');
+    const updatedStore = loadStructure();
+    const updatedApplication = updatedStore.applications.find((item) => item.id === application.id)!;
+    updatedApplication.status = 'CONFIRMED';
+    saveStructure(updatedStore);
+    return HttpResponse.json(updatedApplication);
+  }),
+
+  http.post('/api/tenant/groups/:id/applications/:applicationId/reject', async ({ params, request }) => {
+    await latency();
+    const ctx = sectionContext(request, 'lms_showcase_applications.reject');
+    if (ctx instanceof Response) return ctx;
+    const store = loadStructure();
+    const application = store.applications.find(
+      (item) => item.id === params.applicationId && item.groupId === params.id && item.tenantId === ctx.org.tenantId,
+    );
+    if (!application) return err(404, 'NOT_FOUND');
+    if (application.status !== 'NEW') return err(400, 'VALIDATION_ERROR', 'Заявка уже обработана.');
+    application.status = 'REJECTED';
+    saveStructure(store);
+    return HttpResponse.json(application);
   }),
 
   // ---------- Конструктор отчётов ----------

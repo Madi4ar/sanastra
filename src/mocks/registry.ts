@@ -8,7 +8,7 @@ import type { RegistryModule, RegistryOption, RegistryPublishOption, RegistryPub
 import { elementModuleKey } from '@/shared/access';
 import { DIRECTORIES, directoryModuleKey } from '@/shared/directories';
 
-const STORAGE_KEY = 'superadmin-mock-registry-v8';
+const STORAGE_KEY = 'superadmin-mock-registry-v9';
 
 /** Элемент начального наполнения: [сегмент ключа, системное название, коммерческое название, вложенные опции] */
 type SeedOption = [string, string, string, SeedOption[]?];
@@ -207,6 +207,16 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
     options: [
       ['catalog_view', 'catalog_view', 'Просмотр каталога'],
       ['submit_application', 'submit_application', 'Оставление заявки к курсу/группе'],
+    ],
+  },
+  {
+    key: 'lms_showcase_applications',
+    displayName: 'Заявки из витрины',
+    versions: ['1.0.0'],
+    options: [
+      ['view', 'view', 'Просмотр списка заявок группы'],
+      ['confirm', 'confirm', 'Подтверждение и автозачисление в группу'],
+      ['reject', 'reject', 'Отклонение заявки'],
     ],
   },
 ];

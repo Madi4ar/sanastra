@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Input, Select, Typography } from 'antd';
 import { Controller, useForm, type FieldPath } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
@@ -17,6 +17,7 @@ type TextField = 'iin' | 'lastName' | 'firstName' | 'middleName' | 'email';
 export function RegisterPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const regions = useQuery({ queryKey: queryKeys.regions, queryFn: api.dictionaries.regions, staleTime: Infinity });
 
   const { control, handleSubmit, setError, formState } = useForm<RegisterFormValues>({
@@ -42,7 +43,8 @@ export function RegisterPage() {
       qc.clear();
       qc.setQueryData(queryKeys.me, user);
       // После регистрации — личный кабинет, раздел «Профиль»
-      navigate(`${homeFor(user)}/profile`, { replace: true });
+      const redirect = params.get('redirect');
+      navigate(redirect && redirect.startsWith('/') ? redirect : `${homeFor(user)}/profile`, { replace: true });
     },
     onError: (e) => {
       if (isApiError(e))

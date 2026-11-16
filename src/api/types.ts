@@ -859,6 +859,7 @@ export interface OrgGroup {
   inviteHash: string | null;
   inviteUrl: string | null;
   listenerIds: string[];
+  newApplicationsCount: number;
   createdAt: string;
 }
 
@@ -889,6 +890,56 @@ export interface GroupListener {
   fullName: string;
   iin: string;
   email: string;
+}
+
+export interface ShowcaseGroup {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  trainerNames: string[];
+  placesLeft: number;
+}
+
+export interface ShowcaseCourse {
+  id: string;
+  organizationName: string;
+  clientSlug: string;
+  title: string;
+  description: string;
+  coverUrl: string | null;
+  formatName: string | null;
+  hoursTheory: number | null;
+  hoursPractice: number | null;
+  teacher: string;
+  groups: ShowcaseGroup[];
+}
+
+export interface ShowcaseApplicationPayload {
+  fullName: string;
+  email: string;
+  phone: string;
+}
+
+export type ShowcaseApplicationStatus = 'NEW' | 'CONFIRMED' | 'REJECTED';
+
+export interface ShowcaseApplication extends ShowcaseApplicationPayload {
+  id: string;
+  tenantId: string;
+  groupId: string;
+  courseId: string;
+  createdAt: string;
+  status: ShowcaseApplicationStatus;
+}
+
+export interface ShowcaseSubmissionResult {
+  delivery: 'EMAIL' | 'REGISTRY';
+}
+
+export interface InviteEnrollmentResult {
+  groupName: string;
+  courseTitle: string;
+  enrolled: boolean;
 }
 
 export type ReportType = 'PERFORMANCE' | 'COMPLETION' | 'ATTENDANCE' | 'ACTIVITY';

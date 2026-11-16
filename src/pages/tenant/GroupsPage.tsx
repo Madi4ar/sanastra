@@ -1,16 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Card, DatePicker, Input, InputNumber, Modal, Select, Table, Tag } from 'antd';
+import { Alert, App, Badge, Button, Card, DatePicker, Input, InputNumber, Modal, Select, Table, Tabs, Tag } from 'antd';
 import dayjs from 'dayjs';
-import { Copy, Pencil, Plus, RefreshCw, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Check, ClipboardList, Copy, Pencil, Plus, RefreshCw, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { isApiError } from '@/api/client';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import type { GroupStatus, OrgGroup, OrgGroupPayload } from '@/api/types';
+import type { GroupStatus, OrgGroup, OrgGroupPayload, ShowcaseApplication, ShowcaseApplicationStatus } from '@/api/types';
 import { useCurrentUser } from '@/auth/auth';
 import { useDirectoryOptions } from '@/features/directories/useDirectoryOptions';
 import { useCabinet } from '@/features/tenant/cabinet';
-import { API_DATE, formatDate, UI_DATE } from '@/shared/format';
+import { API_DATE, formatDate, formatDateTime, UI_DATE } from '@/shared/format';
 import { Field } from '@/shared/FormField';
 import { IconButton } from '@/shared/IconButton';
 import { ErrorState } from '@/shared/PageState';
@@ -264,13 +264,76 @@ function GroupModal({ group, onClose }: { group: OrgGroup | null; onClose: () =>
 }
 
 /** Ведомость: состав участников группы */
-function ListenersModal({ group, canManage, onClose }: { group: OrgGroup; canManage: boolean; onClose: () => void }) {
+const APPLICATION_STATUS: Record<ShowcaseApplicationStatus, { label: string; color: string }> = {
+  NEW: { label: 'Новая', color: 'blue' },
+  CONFIRMED: { label: 'Подтверждена', color: 'green' },
+  REJECTED: { label: 'Отклонена', color: 'red' },
+};
+
+function ApplicationsTable({ group }: { group: OrgGroup }) {
   const { clientSlug } = useCabinet();
+  const { data: user } = useCurrentUser();
+  const qc = useQueryClient();
+  const { message } = App.useApp();
+  const admin = api.tenantAdmin(clientSlug);
+  const key = queryKeys.tenantAdmin(clientSlug, `group-applications:${group.id}`);
+  const query = useQuery({ queryKey: key, queryFn: () => admin.groupApplications(group.id) });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: key });
+    void qc.invalidateQueries({ queryKey: queryKeys.tenantAdmin(clientSlug, `group-listeners:${group.id}`) });
+    void qc.invalidateQueries({ queryKey: queryKeys.tenantAdmin(clientSlug, 'groups') });
+  };
+  const confirm = useMutation({
+    mutationFn: (application: ShowcaseApplication) => admin.confirmApplication(group.id, application.id),
+    onSuccess: () => { refresh(); message.success('Заявка подтверждена, слушатель зачислен в группу'); },
+    onError: (error) => message.error(error.message),
+  });
+  const reject = useMutation({
+    mutationFn: (application: ShowcaseApplication) => admin.rejectApplication(group.id, application.id),
+    onSuccess: () => { refresh(); message.success('Заявка отклонена'); },
+    onError: (error) => message.error(error.message),
+  });
+  const access = user?.access ?? [];
+
+  if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  return (
+    <Table<ShowcaseApplication>
+      rowKey="id"
+      size="small"
+      loading={query.isPending}
+      dataSource={query.data}
+      pagination={false}
+      scroll={{ x: 900, y: 400 }}
+      locale={{ emptyText: 'Заявок на группу пока нет' }}
+      columns={[
+        { title: 'ФИО', dataIndex: 'fullName', key: 'name' },
+        { title: 'Email', dataIndex: 'email', key: 'email' },
+        { title: 'Телефон', dataIndex: 'phone', key: 'phone', width: 140 },
+        { title: 'Дата и время подачи', key: 'createdAt', width: 170, render: (_, item) => formatDateTime(item.createdAt) },
+        { title: 'Статус', key: 'status', width: 130, render: (_, item) => <Tag color={APPLICATION_STATUS[item.status].color}>{APPLICATION_STATUS[item.status].label}</Tag> },
+        {
+          title: '', key: 'actions', width: 90, render: (_, item) => item.status === 'NEW' ? (
+            <span className="inline-flex gap-1">
+              {access.includes('lms_showcase_applications.confirm') && <IconButton type="text" label={`Подтвердить заявку: ${item.fullName}`} icon={<Check size={15} />} loading={confirm.isPending && confirm.variables?.id === item.id} onClick={() => confirm.mutate(item)} />}
+              {access.includes('lms_showcase_applications.reject') && <IconButton type="text" danger label={`Отклонить заявку: ${item.fullName}`} icon={<X size={15} />} loading={reject.isPending && reject.variables?.id === item.id} onClick={() => reject.mutate(item)} />}
+            </span>
+          ) : null,
+        },
+      ]}
+    />
+  );
+}
+
+function ListenersModal({ group, canManage, initialTab, onClose }: { group: OrgGroup; canManage: boolean; initialTab: 'listeners' | 'applications'; onClose: () => void }) {
+  const { clientSlug } = useCabinet();
+  const { data: user } = useCurrentUser();
   const qc = useQueryClient();
   const { message } = App.useApp();
   const admin = api.tenantAdmin(clientSlug);
   const key = queryKeys.tenantAdmin(clientSlug, `group-listeners:${group.id}`);
-  const q = useQuery({ queryKey: key, queryFn: () => admin.groupListeners(group.id) });
+  const canViewListeners = Boolean(user?.access.includes('lms_groups.listeners_view'));
+  const canViewApplications = Boolean(user?.access.includes('lms_showcase_applications.view'));
+  const q = useQuery({ queryKey: key, queryFn: () => admin.groupListeners(group.id), enabled: canViewListeners });
   const remove = useMutation({
     mutationFn: (id: string) => admin.removeListener(group.id, id),
     onSuccess: () => {
@@ -280,8 +343,9 @@ function ListenersModal({ group, canManage, onClose }: { group: OrgGroup; canMan
     onError: (e) => message.error(e.message),
   });
   return (
-    <Modal open width={720} title={`Слушатели: ${group.name}`} footer={null} onCancel={onClose} destroyOnHidden>
-      <div className="pt-2" data-testid="group-listeners">
+    <Modal open width={1000} title={group.name} footer={null} onCancel={onClose} destroyOnHidden>
+      <Tabs defaultActiveKey={initialTab} items={[
+        ...(canViewListeners ? [{ key: 'listeners', label: 'Слушатели', children: <div data-testid="group-listeners">
         {q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : (
@@ -312,7 +376,9 @@ function ListenersModal({ group, canManage, onClose }: { group: OrgGroup; canMan
             ]}
           />
         )}
-      </div>
+        </div> }] : []),
+        ...(canViewApplications ? [{ key: 'applications', label: <Badge count={group.newApplicationsCount} size="small" offset={[8, 0]}>Заявки на группу</Badge>, children: <ApplicationsTable group={group} /> }] : []),
+      ]} />
     </Modal>
   );
 }
@@ -379,7 +445,7 @@ export function GroupsPage() {
   const options = useGroupOptions(clientSlug);
   const formats = useDirectoryOptions(clientSlug, 'course_format');
   const [editing, setEditing] = useState<OrgGroup | 'new' | null>(null);
-  const [listeners, setListeners] = useState<OrgGroup | null>(null);
+  const [details, setDetails] = useState<{ group: OrgGroup; tab: 'listeners' | 'applications' } | null>(null);
   const [adding, setAdding] = useState<OrgGroup | null>(null);
   const [f, setF] = useState<{ year?: string; department?: string; format?: string; course?: string; status?: GroupStatus; trainer?: string }>({});
   const groups = q.data ?? [];
@@ -459,7 +525,12 @@ export function GroupsPage() {
                 render: (_, g) => (
                   <span className="inline-flex gap-1">
                     {access.includes('lms_groups.listeners_view') && (
-                      <IconButton type="text" label={`Список слушателей: ${g.name}`} icon={<Users size={16} />} onClick={() => setListeners(g)} />
+                      <IconButton type="text" label={`Список слушателей: ${g.name}`} icon={<Users size={16} />} onClick={() => setDetails({ group: g, tab: 'listeners' })} />
+                    )}
+                    {access.includes('lms_showcase_applications.view') && (
+                      <Badge count={g.newApplicationsCount} size="small" offset={[-2, 2]}>
+                        <IconButton type="text" label={`Заявки на группу: ${g.name}`} icon={<ClipboardList size={16} />} onClick={() => setDetails({ group: g, tab: 'applications' })} />
+                      </Badge>
                     )}
                     {access.includes('lms_groups.add_members_manual') && (
                       <IconButton type="text" label={`Добавить слушателя: ${g.name}`} icon={<UserPlus size={16} />} onClick={() => setAdding(g)} />
@@ -493,7 +564,7 @@ export function GroupsPage() {
         </Card>
       )}
       {editing && <GroupModal group={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-      {listeners && <ListenersModal group={listeners} canManage={access.includes('lms_groups.add_members_manual')} onClose={() => setListeners(null)} />}
+      {details && <ListenersModal group={details.group} initialTab={details.tab} canManage={access.includes('lms_groups.add_members_manual')} onClose={() => setDetails(null)} />}
       {adding && <AddListenerModal group={adding} onClose={() => setAdding(null)} />}
     </>
   );

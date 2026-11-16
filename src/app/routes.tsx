@@ -30,6 +30,8 @@ import { AdminCabinet, RoleCabinet } from '@/pages/tenant/Cabinets';
 import { CourseBuilderPage, ProgramViewAsPage } from '@/pages/tenant/CourseBuilderPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { AuditLogPage } from '@/pages/AuditLogPage';
+import { ShowcasePage } from '@/pages/ShowcasePage';
+import { InviteGroupPage } from '@/pages/InviteGroupPage';
 
 function OrganizationCrumb({ tenantId }: { tenantId: string }) {
   const { data } = useQuery({
@@ -120,6 +122,9 @@ export const routes: RouteObject[] = [
   { path: '/app', element: <HomeRedirect /> },
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
+  { path: '/:clientSlug/learn', element: <ShowcasePage /> },
+  { path: '/:clientSlug/learn/:courseId', element: <ShowcasePage /> },
+  { path: '/invite/group/:hash', element: <InviteGroupPage /> },
   { path: '/403', element: <ForbiddenPage /> },
   {
     path: '/superadmin',
