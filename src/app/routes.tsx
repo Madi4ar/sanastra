@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Navigate, Outlet, type RouteObject } from 'react-router';
 import { api } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
-import { HomeRedirect, RequireAuth } from '@/auth/auth';
+import { HomeRedirect, RequireAuth, useCurrentUser } from '@/auth/auth';
 import { AppLayout, type CrumbHandle } from '@/layout/AppLayout';
 import { LandingPage } from '@/pages/landing/LandingPage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -32,6 +32,29 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { AuditLogPage } from '@/pages/AuditLogPage';
 import { ShowcasePage } from '@/pages/ShowcasePage';
 import { InviteGroupPage } from '@/pages/InviteGroupPage';
+import { ProfileFieldsRegistryPage } from '@/pages/ProfileFieldsRegistryPage';
+import { ProfileFieldBuilderPage } from '@/pages/tenant/ProfileFieldBuilderPage';
+import { LearnerCoursePage, LearnerCoursesPage, LearnerProfilePage } from '@/pages/tenant/LearnerPages';
+import { TrainerCoursePage, TrainerCoursesPage, TrainerProfilePage } from '@/pages/tenant/TrainerPages';
+
+function CabinetHome() {
+  const { data: user } = useCurrentUser();
+  if (user?.role === 'LEARNER') return <LearnerCoursesPage />;
+  if (user?.role === 'TRAINER') return <TrainerCoursesPage />;
+  return <DashboardPage />;
+}
+
+function CabinetProfile() {
+  const { data: user } = useCurrentUser();
+  if (user?.role === 'LEARNER') return <LearnerProfilePage />;
+  if (user?.role === 'TRAINER') return <TrainerProfilePage />;
+  return <ProfilePage />;
+}
+
+function CabinetCourse() {
+  const { data: user } = useCurrentUser();
+  return user?.role === 'TRAINER' ? <TrainerCoursePage /> : <LearnerCoursePage />;
+}
 
 function OrganizationCrumb({ tenantId }: { tenantId: string }) {
   const { data } = useQuery({
@@ -58,7 +81,7 @@ function cabinetRoutes(): RouteObject[] {
     {
       element: <TenantLayout />,
       children: [
-        { index: true, element: <DashboardPage /> },
+        { index: true, element: <CabinetHome /> },
         {
           path: 'organization',
           handle: crumb('Организация'),
@@ -74,7 +97,8 @@ function cabinetRoutes(): RouteObject[] {
             { path: 'usage', element: <UsagePage />, handle: crumb('Лимиты и использование') },
           ],
         },
-        { path: 'profile', element: <ProfilePage /> },
+        { path: 'profile', element: <CabinetProfile /> },
+        { path: 'courses/:groupId', element: <CabinetCourse /> },
         { path: 'directories', element: <TenantDirectoriesPage /> },
         {
           path: 'trainers',
@@ -107,6 +131,10 @@ function cabinetRoutes(): RouteObject[] {
               <GroupsPage />
             </RequireOption>
           ),
+        },
+        {
+          path: 'profile-fields',
+          element: <RequireOption option="lms_profile_field_builder.schemes"><ProfileFieldBuilderPage /></RequireOption>,
         },
         { path: 'feature-unavailable', element: <FeatureUnavailablePage /> },
         { path: 'm/:moduleCode', element: <ModulePage /> },
@@ -153,6 +181,7 @@ export const routes: RouteObject[] = [
       { path: 'tariffs', element: <TariffPlansPage />, handle: crumb('Тарифные планы') },
       { path: 'modules', element: <ModuleRegistryPage />, handle: crumb('Модули') },
       { path: 'directories', element: <SuperadminDirectoriesPage />, handle: crumb('Справочники') },
+      { path: 'profile-fields', element: <ProfileFieldsRegistryPage />, handle: crumb('Поля профиля') },
       {
         path: 'roles',
         handle: crumb('Роли и доступы'),

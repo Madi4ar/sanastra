@@ -45,6 +45,7 @@ import { publish } from './eventBus';
 import { isVisibleItem, itemName } from './directories';
 import { loadRegistry } from './registry';
 import { loadRoles, matrixOf, SYSTEM_ROLE_CODE } from './roles';
+import { schemesForTenant } from './profileFields';
 import { accessFor, fullNameOf, hashPassword, loadUsers, saveUsers, type UserRecord } from './users';
 
 const SYSTEM_ORG_ROLES: SystemOrgRole[] = ['ORGANIZATION_ADMIN', 'TRAINER', 'LEARNER'];
@@ -347,6 +348,8 @@ function toGroup(g: GroupRecord, org: OrgRecord, user: CurrentUser): OrgGroup {
     assessmentName: itemName(g.assessmentId),
     courseId: g.courseId,
     courseTitle: g.courseId ? (findCourse(org, g.courseId)?.title ?? null) : null,
+    profileSchemeId: g.profileSchemeId ?? schemesForTenant(org.tenantId)[0]!.id,
+    profileSchemeName: schemesForTenant(org.tenantId).find((s) => s.id === g.profileSchemeId)?.name ?? schemesForTenant(org.tenantId)[0]!.name,
     trainerIds: trainers.map((t) => t.id),
     trainerNames: trainers.map((t) => t.name),
     listenersLimit: g.listenersLimit,
@@ -375,6 +378,7 @@ function validateGroup(body: Partial<OrgGroupPayload>, org: OrgRecord, current?:
   else if (!isVisibleItem(body.assessmentId, 'course_assessment', org.tenantId)) fe.assessmentId = 'Значение справочника недоступно';
   if (!body.courseId) fe.courseId = 'Выберите учебную программу';
   else if (!findCourse(org, body.courseId)) fe.courseId = 'Программа не найдена';
+  if (!body.profileSchemeId || !schemesForTenant(org.tenantId).some((s) => s.id === body.profileSchemeId)) fe.profileSchemeId = 'Выберите схему анкеты слушателя';
   const trainerIds = body.trainerIds ?? [];
   if (new Set(trainerIds).size !== trainerIds.length) fe.trainerIds = 'Тренер выбран несколько раз';
   // Уже назначенный и позже деактивированный тренер остаётся; нового можно выбрать только из активных
@@ -399,6 +403,7 @@ const groupFields = (b: Partial<OrgGroupPayload>) => ({
   formatId: b.formatId!,
   assessmentId: b.assessmentId!,
   courseId: b.courseId!,
+  profileSchemeId: b.profileSchemeId!,
   trainerIds: b.trainerIds ?? [],
   listenersLimit: b.listenersLimit!,
   startDate: b.startDate!,
@@ -1176,6 +1181,7 @@ export const tenantAdminHandlers = () => [
           const u = users.find((x) => x.id === t.userId);
           return { id: t.id, fullName: u ? fullNameOf(u) : '', active: t.active };
         }),
+      profileSchemes: schemesForTenant(ctx.org.tenantId).map((s) => ({ id: s.id, name: s.name })),
     };
     return HttpResponse.json(result);
   }),

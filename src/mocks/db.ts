@@ -5,6 +5,7 @@
 import dayjs from 'dayjs';
 import { resetContent } from './content';
 import { resetCourseContent } from './courseBuilder';
+import { resetProfileFields } from './profileFields';
 import { resetOrgStructure } from './orgStructure';
 import type { StoredSchedule } from './paymentSchedule';
 import { resetDirectories } from './directories';
@@ -46,6 +47,7 @@ export const MODULES: ModuleDef[] = [
   { code: 'COURSES', name: 'Курсы', description: 'Создание и прохождение учебных курсов', icon: 'BookOpen', permission: 'courses.view' },
   { code: 'COURSE_SHOWCASE', name: 'Витрина курсов', description: 'Публичный каталог программ и открытых групп', icon: 'BookOpen', permission: 'courses.view' },
   { code: 'SHOWCASE_APPLICATIONS', name: 'Заявки из витрины', description: 'Обработка заявок и автозачисление в группы', icon: 'Users', permission: 'courses.view' },
+  { code: 'PROFILE_FIELD_BUILDER', name: 'Конструктор полей профиля', description: 'Поля и схемы анкеты слушателя', icon: 'ListChecks', permission: 'users.manage' },
   { code: 'SCHEDULE', name: 'Расписание', description: 'Календарь занятий и событий', icon: 'CalendarDays', permission: 'schedule.view' },
   { code: 'REPORTS', name: 'Отчёты', description: 'Аналитика успеваемости и активности', icon: 'ChartColumn', permission: 'reports.view' },
   { code: 'CHAT', name: 'Сообщения', description: 'Чаты между участниками', icon: 'MessageSquare', permission: 'chat.view' },
@@ -81,7 +83,7 @@ export const TARIFFS: TariffRecord[] = [
     name: 'Базовый',
     description: 'Для небольших учебных центров',
     annualPrice: 100_000,
-    modules: { USERS: true, COURSES: true, COURSE_SHOWCASE: true, SHOWCASE_APPLICATIONS: false, SCHEDULE: true, REPORTS: false, CHAT: false, WEBINARS: false, ADV_DIRECTORIES: false, ADV_CONTENT: false, CERTIFICATES: false },
+    modules: { USERS: true, COURSES: true, COURSE_SHOWCASE: true, SHOWCASE_APPLICATIONS: false, PROFILE_FIELD_BUILDER: false, SCHEDULE: true, REPORTS: false, CHAT: false, WEBINARS: false, ADV_DIRECTORIES: false, ADV_CONTENT: false, CERTIFICATES: false },
     limits: { USERS_COUNT: 150, COURSES_COUNT: 10, STORAGE_GB: 10 },
     overridePolicies: ['RESET'],
   },
@@ -91,7 +93,7 @@ export const TARIFFS: TariffRecord[] = [
     name: 'Стандарт',
     description: 'Оптимальный набор для школ',
     annualPrice: 200_000,
-    modules: { USERS: true, COURSES: true, COURSE_SHOWCASE: true, SHOWCASE_APPLICATIONS: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: false, ADV_DIRECTORIES: true, ADV_CONTENT: true, CERTIFICATES: false },
+    modules: { USERS: true, COURSES: true, COURSE_SHOWCASE: true, SHOWCASE_APPLICATIONS: true, PROFILE_FIELD_BUILDER: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: false, ADV_DIRECTORIES: true, ADV_CONTENT: true, CERTIFICATES: false },
     limits: { USERS_COUNT: 100, COURSES_COUNT: 50, STORAGE_GB: 100 },
     overridePolicies: ['KEEP_COMPATIBLE', 'RESET'],
   },
@@ -101,7 +103,7 @@ export const TARIFFS: TariffRecord[] = [
     name: 'Бизнес',
     description: 'Все модули и расширенные лимиты',
     annualPrice: 300_000,
-    modules: { USERS: true, COURSES: true, COURSE_SHOWCASE: true, SHOWCASE_APPLICATIONS: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: true, ADV_DIRECTORIES: true, ADV_CONTENT: true, CERTIFICATES: true },
+    modules: { USERS: true, COURSES: true, COURSE_SHOWCASE: true, SHOWCASE_APPLICATIONS: true, PROFILE_FIELD_BUILDER: true, SCHEDULE: true, REPORTS: true, CHAT: true, WEBINARS: true, ADV_DIRECTORIES: true, ADV_CONTENT: true, CERTIFICATES: true },
     limits: { USERS_COUNT: 1000, COURSES_COUNT: 500, STORAGE_GB: 1000 },
     overridePolicies: ['KEEP_COMPATIBLE', 'RESET'],
   },
@@ -139,7 +141,7 @@ interface DbState {
   organizations: OrgRecord[];
 }
 
-const STORAGE_KEY = 'superadmin-mock-db-v6';
+const STORAGE_KEY = 'superadmin-mock-db-v7';
 const SESSION_KEY = 'superadmin-mock-session';
 
 /** За сколько дней предупреждать об окончании подписки — «конфигурация backend». */
@@ -317,6 +319,7 @@ export function resetDb() {
   resetUsers();
   resetRegistry();
   resetCourseContent();
+  resetProfileFields();
   resetRoles();
   resetOrgStructure();
   resetDirectories();

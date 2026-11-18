@@ -40,14 +40,16 @@ describe('Кабинет: навигация и права', () => {
     renderApp('/learn');
     expect(await screen.findByTestId('nav-skeleton')).toBeInTheDocument();
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
-    await waitFor(() => expect(menuItem('Курсы')).toBeInTheDocument());
+    await waitFor(() => expect(menuItem('Мои курсы')).toBeInTheDocument());
+    expect(menuItem('Профиль')).toBeInTheDocument();
     expect(screen.queryByTestId('nav-skeleton')).not.toBeInTheDocument();
   });
 
   it('права роли и права организации применяются совместно', async () => {
     loginAs('LEARNER');
     renderApp('/learn');
-    await waitFor(() => expect(menuItem('Курсы')).toBeInTheDocument());
+    await waitFor(() => expect(menuItem('Мои курсы')).toBeInTheDocument());
+    expect(within(menu()).getAllByRole('menuitem')).toHaveLength(2);
     expect(menuItem('Вебинары')).not.toBeInTheDocument(); // страница временно скрыта
     expect(menuItem('Сообщения')).not.toBeInTheDocument(); // право есть, модуль отключён тарифом
     expect(menuItem('Пользователи')).not.toBeInTheDocument(); // модуль включён, права нет
@@ -66,7 +68,7 @@ describe('Кабинет: навигация и права', () => {
   it('обычный пользователь не видит технические данные', async () => {
     loginAs('LEARNER');
     renderApp('/learn');
-    await screen.findByTestId('quick-actions');
+    await screen.findByRole('heading', { name: 'Мои курсы' });
     const text = document.body.textContent ?? '';
     ['COURSES', 'USERS_COUNT', ACADEMY_ID, 'Тариф', 'override', 'Индивидуально'].forEach((t) =>
       expect(text).not.toContain(t),

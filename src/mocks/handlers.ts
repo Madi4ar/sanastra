@@ -477,7 +477,7 @@ const withRoleName = <T extends { role: Role; customRole?: string }>(r: T): T & 
 
 function activeRoles(user: UserRecord): RoleAssignment[] {
   const orgs = load().organizations;
-  return user.roles.flatMap((r) => {
+  const roles = user.roles.flatMap((r) => {
     if (!r.clientSlug) return [withRoleName(r)];
     const org = orgs.find((o) => o.clientSlug === r.clientSlug);
     if (!org || isDeactivated(user.id, org.clientSlug)) return [];
@@ -488,6 +488,9 @@ function activeRoles(user: UserRecord): RoleAssignment[] {
     const allowed = status === 'ACTIVE' || (status === 'EXPIRED' && r.role === 'ORGANIZATION_ADMIN');
     return allowed ? [{ ...withRoleName(r), organizationName: org.name }] : [];
   });
+  return roles.some((role) => role.role === 'LEARNER' && role.clientSlug)
+    ? roles.filter((role) => role.role !== 'LEARNER' || Boolean(role.clientSlug))
+    : roles;
 }
 
 function lockedError(lockedUntil: string, now: number) {

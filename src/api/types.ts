@@ -849,6 +849,8 @@ export interface OrgGroup {
   assessmentName: string | null;
   courseId: string | null;
   courseTitle: string | null;
+  profileSchemeId: string;
+  profileSchemeName: string;
   trainerIds: string[];
   trainerNames: string[];
   listenersLimit: number;
@@ -869,6 +871,7 @@ export interface OrgGroupPayload {
   formatId: string | null;
   assessmentId: string | null;
   courseId: string | null;
+  profileSchemeId: string | null;
   trainerIds: string[];
   listenersLimit: number | null;
   startDate: string | null;
@@ -883,6 +886,21 @@ export interface GroupFormOptions {
   departments: { id: string; name: string }[];
   programs: { id: string; title: string; formatIds: string[]; assessmentIds: string[] }[];
   trainers: { id: string; fullName: string; active: boolean }[];
+  profileSchemes: { id: string; name: string }[];
+}
+
+export type ProfileFieldType = 'TEXT' | 'DROPDOWN';
+export interface ProfileFieldOption { id: string; labelKz: string; labelRu: string; labelEn: string }
+export interface ProfileFieldDefinition {
+  id: string; tenantId: string | null; system: boolean; active: boolean;
+  labelKz: string; labelRu: string; labelEn: string; type: ProfileFieldType; options: ProfileFieldOption[];
+}
+export interface ProfileFieldScheme {
+  id: string; tenantId: string; name: string; fields: { fieldId: string; required: boolean }[];
+}
+export interface LearnerCourseProgress {
+  groupId: string; userId: string; completedElementIds: string[];
+  answers: Record<string, unknown>; grades: Record<string, number>;
 }
 
 export interface GroupListener {

@@ -57,6 +57,7 @@ export interface GroupRecord {
   formatId: string | null;
   assessmentId: string | null;
   courseId: string | null;
+  profileSchemeId?: string;
   trainerIds: string[];
   listenersLimit: number;
   startDate: string;

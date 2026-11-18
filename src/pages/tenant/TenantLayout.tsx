@@ -30,6 +30,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   LayoutGrid,
+  ListChecks,
   LogOut,
   Menu as MenuIcon,
   Search,
@@ -116,7 +117,10 @@ function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boo
     access.includes(option) ? [{ key, label, icon, to: `${base}/${key}` }] : [];
   const SECTION_MODULES = ['USERS', 'COURSES'];
   const inMenu = (m: { code: string }) => !HIDDEN_FROM_MENU.includes(m.code);
-  const main: NavItem[] = [
+  const main: NavItem[] = user?.role === 'LEARNER' || user?.role === 'TRAINER' ? [
+    { key: 'my-courses', label: 'Мои курсы', icon: <BookMarked size={16} />, to: base, exact: true },
+    { key: 'profile', label: 'Профиль', icon: <UserRound size={16} />, to: `${base}/profile` },
+  ] : [
     { key: 'profile', label: 'Профиль', icon: <UserRound size={16} />, to: `${base}/profile` },
     { key: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={16} />, to: base, exact: true },
     ...(isAdmin
@@ -139,7 +143,8 @@ function useNavigation(): { main: NavItem[]; organization: NavItem[]; ready: boo
     ...section('lms_roles.view', 'roles', 'Роли и доступы', <ShieldCheck size={16} />),
     ...available('COURSES'),
     ...section('lms_groups.view', 'groups', 'Группы', <UsersRound size={16} />),
-    ...availableModules.filter((m) => inMenu(m) && !SECTION_MODULES.includes(m.code)).map(moduleItem),
+    ...section('lms_profile_field_builder.schemes', 'profile-fields', 'Конструктор полей профиля', <ListChecks size={16} />),
+    ...availableModules.filter((m) => inMenu(m) && ![...SECTION_MODULES, 'PROFILE_FIELD_BUILDER'].includes(m.code)).map(moduleItem),
     // Администратор видит все модули платформы; закрытые — в демо-режиме
     ...(isAdmin ? (catalog.data ?? []).filter((m) => !m.enabled && inMenu(m)).map((m) => ({ ...moduleItem(m), demo: m })) : []),
   ];

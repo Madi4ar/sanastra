@@ -8,7 +8,7 @@ import type { RegistryModule, RegistryOption, RegistryPublishOption, RegistryPub
 import { elementModuleKey } from '@/shared/access';
 import { DIRECTORIES, directoryModuleKey } from '@/shared/directories';
 
-const STORAGE_KEY = 'superadmin-mock-registry-v9';
+const STORAGE_KEY = 'superadmin-mock-registry-v10';
 
 /** Элемент начального наполнения: [сегмент ключа, системное название, коммерческое название, вложенные опции] */
 type SeedOption = [string, string, string, SeedOption[]?];
@@ -217,6 +217,17 @@ const SEED: { key: string; displayName: string | null; versions: string[]; optio
       ['view', 'view', 'Просмотр списка заявок группы'],
       ['confirm', 'confirm', 'Подтверждение и автозачисление в группу'],
       ['reject', 'reject', 'Отклонение заявки'],
+    ],
+  },
+  {
+    key: 'lms_profile_field_builder',
+    displayName: 'Конструктор полей профиля',
+    versions: ['1.0.0'],
+    options: [
+      ['custom_fields', 'custom_fields', 'Создание пользовательских полей'],
+      ['multilingual_directories', 'multilingual_directories', 'Трёхъязычные справочники значений полей'],
+      ['schemes', 'schemes', 'Создание схем полей'],
+      ['attach_to_group', 'attach_to_group', 'Привязка схемы к учебной группе'],
     ],
   },
 ];

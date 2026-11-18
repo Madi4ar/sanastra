@@ -59,6 +59,7 @@ function GroupModal({ group, onClose }: { group: OrgGroup | null; onClose: () =>
     formatId: group?.formatId ?? null,
     assessmentId: group?.assessmentId ?? null,
     courseId: group?.courseId ?? null,
+    profileSchemeId: group?.profileSchemeId ?? null,
     trainerIds: group?.trainerIds.length ? group.trainerIds : [''],
     listenersLimit: group?.listenersLimit ?? null,
     startDate: group?.startDate ?? null,
@@ -159,6 +160,18 @@ function GroupModal({ group, onClose }: { group: OrgGroup | null; onClose: () =>
             value={values.formatId ?? undefined}
             options={formats.data ?? []}
             onChange={(formatId) => set({ formatId })}
+          />
+        </Field>
+        <Field label="Схема анкеты слушателя" htmlFor="group-profile-scheme" required error={fe.profileSchemeId}>
+          <Select
+            id="group-profile-scheme"
+            aria-label="Схема анкеты слушателя"
+            style={{ width: '100%' }}
+            placeholder="Выберите схему"
+            status={fe.profileSchemeId ? 'error' : undefined}
+            value={values.profileSchemeId ?? undefined}
+            options={options.data?.profileSchemes.map((scheme) => ({ value: scheme.id, label: scheme.name })) ?? []}
+            onChange={(profileSchemeId) => set({ profileSchemeId })}
           />
         </Field>
         <Field label="Тип оценивания" htmlFor="group-assessment" required error={fe.assessmentId}>
