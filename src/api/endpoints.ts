@@ -1,5 +1,20 @@
 import { request, toQueryString } from './client';
 import type {
+  AttendanceSheet,
+  ElementProgress,
+  GlobalProfileField,
+  GlobalProfileFieldPayload,
+  LearnerCourseCard,
+  LearnerCourseView,
+  ProfileFieldBuilderData,
+  ProfileFieldPayload,
+  ProfileFieldSchemePayload,
+  ProfileForm,
+  ProgressMatrix,
+  TestAnswers,
+  TestResult,
+  TrainerCourseCard,
+  TrainerCourseView,
   Course,
   GroupFormOptions,
   GroupListener,
@@ -209,6 +224,7 @@ export const api = {
           search: f.search,
           tenantId: f.tenantId,
           module: f.module,
+          event: f.event,
           dateFrom: f.dateFrom,
           dateTo: f.dateTo,
           page: f.page,
@@ -329,6 +345,62 @@ export const api = {
       updateElement: (id: string, payload: ElementPayload) => send<CourseElement>(`/elements/${id}`, 'PUT', payload),
       removeElement: (id: string) => send<CourseContent>(`/elements/${id}`, 'DELETE'),
       moveElement: (id: string, direction: StructureMove) => send<CourseContent>(`/elements/${id}/move`, 'POST', { direction }),
+    };
+  },
+  /** Реестр глобальных полей профиля (суперадминистратор) */
+  profileFieldsRegistry: {
+    list: () => request<GlobalProfileField[]>('/api/superadmin/profile-fields'),
+    create: (payload: GlobalProfileFieldPayload) =>
+      request<GlobalProfileField>('/api/superadmin/profile-fields', { method: 'POST', body: JSON.stringify(payload) }),
+    update: (id: string, payload: GlobalProfileFieldPayload) =>
+      request<GlobalProfileField>(`/api/superadmin/profile-fields/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  },
+  /** Конструктор полей профиля организации */
+  profileFields: (clientSlug: string) => {
+    const q = toQueryString({ clientSlug });
+    const send = <T>(path: string, method: string, body?: unknown) =>
+      request<T>(`/api/tenant/profile-fields${path}${q}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+    return {
+      get: () => send<ProfileFieldBuilderData>('', 'GET'),
+      toggleGlobal: (id: string, active: boolean) => send<ProfileFieldBuilderData>(`/globals/${encodeURIComponent(id)}`, 'PUT', { active }),
+      createField: (payload: ProfileFieldPayload) => send<ProfileFieldBuilderData>('/custom', 'POST', payload),
+      updateField: (id: string, payload: ProfileFieldPayload) => send<ProfileFieldBuilderData>(`/custom/${encodeURIComponent(id)}`, 'PUT', payload),
+      removeField: (id: string) => send<ProfileFieldBuilderData>(`/custom/${encodeURIComponent(id)}`, 'DELETE'),
+      createScheme: (payload: ProfileFieldSchemePayload) => send<ProfileFieldBuilderData>('/schemes', 'POST', payload),
+      updateScheme: (id: string, payload: ProfileFieldSchemePayload) =>
+        send<ProfileFieldBuilderData>(`/schemes/${encodeURIComponent(id)}`, 'PUT', payload),
+      removeScheme: (id: string) => send<ProfileFieldBuilderData>(`/schemes/${encodeURIComponent(id)}`, 'DELETE'),
+      setTrainerScheme: (schemeId: string | null) => send<ProfileFieldBuilderData>('/trainer-scheme', 'PUT', { schemeId }),
+    };
+  },
+  /** Кабинеты слушателя и тренера */
+  cabinet: (clientSlug: string) => {
+    const q = toQueryString({ clientSlug });
+    const send = <T>(path: string, method = 'GET', body?: unknown) =>
+      request<T>(`/api/tenant${path}${q}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+    const id = encodeURIComponent;
+    return {
+      profileForm: () => send<ProfileForm>('/profile-form'),
+      saveProfileForm: (values: Record<string, string>) => send<ProfileForm>('/profile-form', 'PUT', { values }),
+      learnerCourses: () => send<LearnerCourseCard[]>('/learner/courses'),
+      learnerCourse: (groupId: string) => send<LearnerCourseView>(`/learner/courses/${id(groupId)}`),
+      viewElement: (groupId: string, elementId: string) =>
+        send<LearnerCourseView>(`/learner/courses/${id(groupId)}/elements/${id(elementId)}/view`, 'POST', {}),
+      submitTest: (groupId: string, elementId: string, answers: TestAnswers) =>
+        send<TestResult>(`/learner/courses/${id(groupId)}/elements/${id(elementId)}/test`, 'POST', { answers }),
+      submitWork: (groupId: string, elementId: string, answer: string) =>
+        send<LearnerCourseView>(`/learner/courses/${id(groupId)}/elements/${id(elementId)}/work`, 'POST', { answer }),
+      trainerCourses: () => send<TrainerCourseCard[]>('/trainer/courses'),
+      trainerCourse: (groupId: string) => send<TrainerCourseView>(`/trainer/courses/${id(groupId)}`),
+      /** Пробное прохождение теста тренером: в прогресс не записывается */
+      dryRunTest: (groupId: string, elementId: string, answers: TestAnswers) =>
+        send<TestResult>(`/trainer/courses/${id(groupId)}/elements/${id(elementId)}/test`, 'POST', { answers }),
+      attendance: (groupId: string) => send<AttendanceSheet>(`/trainer/groups/${id(groupId)}/attendance`),
+      markAttendance: (groupId: string, memberId: string, dayId: string, present: boolean) =>
+        send<void>(`/trainer/groups/${id(groupId)}/attendance`, 'PUT', { memberId, dayId, present }),
+      progress: (groupId: string) => send<ProgressMatrix>(`/trainer/groups/${id(groupId)}/progress`),
+      acceptWork: (groupId: string, memberId: string, elementId: string) =>
+        send<ElementProgress>(`/trainer/groups/${id(groupId)}/progress/${id(memberId)}/elements/${id(elementId)}/accept`, 'POST', {}),
     };
   },
   tenant: {

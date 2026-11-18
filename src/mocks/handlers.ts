@@ -73,6 +73,7 @@ import { isDeactivated, isTrainerDeactivated, loadStructure, localMatrixOf, remo
 import { directoryHandlers } from './directoryHandlers';
 import { removeDirectoriesOf, visibleItems } from './directories';
 import { tenantAdminHandlers, upgradeTariffFor } from './tenantAdminHandlers';
+import { cabinetHandlers } from './cabinetHandlers';
 import { loadRegistry, publishModule, renameNode, validatePublish } from './registry';
 import { findCustomRole, loadRoles, matrixOf, saveRoles, type GlobalRoleRecord } from './roles';
 import { allLeafKeys, canElement, effectiveAccess, elementModuleKey, inTariff, modulesOf, TARIFF_MODULE_OF } from '@/shared/access';
@@ -1131,6 +1132,7 @@ export const handlers: HttpHandler[] = [
     const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
     const tenantId = url.searchParams.get('tenantId') ?? '';
     const module = url.searchParams.get('module') ?? '';
+    const event = url.searchParams.get('event') ?? '';
     const dateFrom = url.searchParams.get('dateFrom') ?? '';
     const dateTo = url.searchParams.get('dateTo') ?? '';
     const { audit } = loadStructure();
@@ -1138,6 +1140,7 @@ export const handlers: HttpHandler[] = [
       .filter((item) => !search || [item.organizationName, item.adminName, item.adminLogin, item.adminId].some((value) => value.toLowerCase().includes(search)))
       .filter((item) => !tenantId || item.tenantId === tenantId)
       .filter((item) => !module || item.module === module)
+      .filter((item) => !event || item.event === event)
       .filter((item) => !dateFrom || item.at >= dateFrom)
       .filter((item) => !dateTo || item.at <= dateTo)
       .sort((a, b) => b.at.localeCompare(a.at));
@@ -1711,7 +1714,7 @@ export const handlers: HttpHandler[] = [
   }),
 ];
 
-handlers.push(...tenantAdminHandlers(), ...directoryHandlers());
+handlers.push(...tenantAdminHandlers(), ...directoryHandlers(), ...cabinetHandlers());
 
 /**
  * SSE: только события своей организации, только авторизованным участникам.

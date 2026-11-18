@@ -13,7 +13,8 @@ describe('Суперадмин: отдельный раздел «Лог дей�
     expect(await screen.findByRole('heading', { name: 'Лог действий' })).toBeInTheDocument();
     expect(screen.getByLabelText('Поиск по организации или администратору')).toBeInTheDocument();
     expect(screen.getByLabelText('Фильтр по организации')).toBeInTheDocument();
-    expect(screen.getByLabelText('Фильтр по модулю или событию')).toBeInTheDocument();
+    expect(screen.getByLabelText('Фильтр по модулю')).toBeInTheDocument();
+    expect(screen.getByLabelText('Фильтр по типу события')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Фильтр по датам')).toHaveLength(2);
 
     const table = await screen.findByRole('table');

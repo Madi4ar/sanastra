@@ -117,7 +117,13 @@ export const adminIdOf = (slug: string) => (slug === 'academy' ? 'u-2' : `adm-${
 export const moduleOfEvent = (event: AuditEvent): AuditModule => {
   if (event.startsWith('ROLE_')) return 'ROLES';
   if (event.startsWith('DIRECTORY_')) return 'DIRECTORIES';
-  if (event === 'USER_BOUND_TO_DEPARTMENT') return 'USERS';
+  if (event.startsWith('USER_')) return 'USERS';
+  if (event.startsWith('PROGRAM_')) return 'PROGRAMS';
+  if (event.startsWith('GROUP_')) return 'GROUPS';
+  if (event.startsWith('TRAINER_SCHEME')) return 'PROFILE_FIELDS';
+  if (event.startsWith('TRAINER_')) return 'TRAINERS';
+  if (event.startsWith('APPLICATION_')) return 'SHOWCASE';
+  if (event.startsWith('PROFILE_')) return 'PROFILE_FIELDS';
   return 'DEPARTMENTS';
 };
 

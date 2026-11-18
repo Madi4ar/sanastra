@@ -45,7 +45,7 @@ import { publish } from './eventBus';
 import { isVisibleItem, itemName } from './directories';
 import { loadRegistry } from './registry';
 import { loadRoles, matrixOf, SYSTEM_ROLE_CODE } from './roles';
-import { schemesForTenant } from './profileFields';
+import { ensureDefaultScheme, schemesForTenant } from './profileFields';
 import { accessFor, fullNameOf, hashPassword, loadUsers, saveUsers, type UserRecord } from './users';
 
 const SYSTEM_ORG_ROLES: SystemOrgRole[] = ['ORGANIZATION_ADMIN', 'TRAINER', 'LEARNER'];
@@ -53,6 +53,18 @@ const KINDS: DepartmentKind[] = ['DEPARTMENT', 'MANAGEMENT', 'BRANCH', 'UNIT'];
 const USERS_LIMIT = 'USERS_COUNT';
 
 type Ctx = { org: OrgRecord; user: CurrentUser };
+
+const ROLE_TITLE: Record<SystemOrgRole, string> = { ORGANIZATION_ADMIN: 'Администратор организации', TRAINER: 'Тренер', LEARNER: 'Слушатель' };
+const yesNo = (value: boolean) => (value ? 'Активен' : 'Деактивирован');
+
+/** Привязка схемы анкеты к группе: модуль «Конструктор полей профиля» и опция в итоговом доступе */
+const canAttachScheme = (user: CurrentUser) => user.access.includes('lms_profile_field_builder.attach_to_group');
+
+/** Без права привязки группа сохраняет текущую схему, новая получает основную */
+function schemeFor(body: Partial<OrgGroupPayload>, ctx: Ctx, current?: GroupRecord) {
+  if (canAttachScheme(ctx.user)) return body.profileSchemeId ?? null;
+  return current?.profileSchemeId ?? ensureDefaultScheme(ctx.org.tenantId).id;
+}
 
 /** Раздел доступен при наличии опции в итоговом доступе. Суперадминистратор не управляет структурой компании. */
 function sectionContext(request: Request, option: string): Ctx | Response {
@@ -397,6 +409,39 @@ function validateGroup(body: Partial<OrgGroupPayload>, org: OrgRecord, current?:
   return fe;
 }
 
+/** Запись в журнал вне операций со структурой (программы) */
+function auditOnly(ctx: Ctx, request: Request, event: Parameters<typeof addAudit>[4], target: string, changes: Parameters<typeof addAudit>[6]) {
+  const store = loadStructure();
+  addAudit(store, ctx.org, ctx.user, request, event, target, changes);
+  saveStructure(store);
+}
+
+function groupChanges(before: GroupRecord | null, after: GroupRecord, org: OrgRecord) {
+  const store = loadStructure();
+  const users = loadUsers();
+  const trainers = (g: GroupRecord | null) =>
+    g
+      ? g.trainerIds
+          .map((id) => {
+            const t = store.trainers.find((x) => x.id === id);
+            const u = t && users.find((x) => x.id === t.userId);
+            return u ? fullNameOf(u) : id;
+          })
+          .join(', ') || null
+      : null;
+  const course = (g: GroupRecord | null) => (g?.courseId ? (findCourse(org, g.courseId)?.title ?? g.courseId) : null);
+  const scheme = (g: GroupRecord | null) => (g ? (schemesForTenant(org.tenantId).find((s) => s.id === g.profileSchemeId)?.name ?? null) : null);
+  return [
+    { field: 'Программа', oldValue: course(before), newValue: course(after) },
+    { field: 'Учебный год', oldValue: before?.academicYear ?? null, newValue: after.academicYear },
+    { field: 'Период', oldValue: before ? `${before.startDate} — ${before.endDate}` : null, newValue: `${after.startDate} — ${after.endDate}` },
+    { field: 'Тренеры', oldValue: trainers(before), newValue: trainers(after) },
+    { field: 'Лимит слушателей', oldValue: before ? String(before.listenersLimit) : null, newValue: String(after.listenersLimit) },
+    { field: 'Статус', oldValue: before?.status ?? null, newValue: after.status },
+    { field: 'Схема анкеты', oldValue: scheme(before), newValue: scheme(after) },
+  ].filter((c) => c.oldValue !== c.newValue);
+}
+
 const groupFields = (b: Partial<OrgGroupPayload>) => ({
   academicYear: b.academicYear!,
   departmentId: b.departmentId || null,
@@ -606,6 +651,7 @@ export const tenantAdminHandlers = () => [
     if (!EMAIL_PATTERN.test(email)) fieldErrors.email = 'Укажите корректный Email';
     if (!isValidKzPhone(phone)) fieldErrors.phone = 'Укажите номер в формате +7 (7XX) XXX-XX-XX';
     if (Object.keys(fieldErrors).length) return err(400, 'VALIDATION_ERROR', 'Проверьте заполнение формы.', fieldErrors);
+    if (group.listenerIds.length >= group.listenersLimit) return err(400, 'VALIDATION_ERROR', 'В группе нет свободных мест.');
     if (!effectiveModules(org).includes('SHOWCASE_APPLICATIONS')) {
       return HttpResponse.json({ delivery: 'EMAIL' as const }, { status: 201 });
     }
@@ -801,6 +847,10 @@ export const tenantAdminHandlers = () => [
       bindDepartment(store, ctx, request, member, body.departmentId!);
     member.localRoleIds = (body.localRoleIds ?? []).filter((id) => store.roles.some((r) => r.id === id && r.tenantId === ctx.org.tenantId));
     member.positionId = body.positionId ?? null;
+    addAudit(store, ctx.org, ctx.user, request, 'USER_CREATED', fullNameOf(user), [
+      { field: 'Роль', oldValue: null, newValue: ROLE_TITLE[body.role as SystemOrgRole] },
+      { field: 'Email', oldValue: null, newValue: user.email },
+    ]);
     saveStructure(store);
     changeUsersUsage(ctx.org.tenantId, 1);
     return HttpResponse.json(toMember(member, ctx.org, loadUsers(), ctx.user.id), { status: 201 });
@@ -824,6 +874,7 @@ export const tenantAdminHandlers = () => [
     if (body.positionId && !isVisibleItem(body.positionId, 'position', ctx.org.tenantId)) fe.positionId = 'Значение справочника недоступно';
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
     const previous = orgRoleOf(user, ctx.org.clientSlug);
+    const before = { name: fullNameOf(user), email: user.email, phone: user.phone };
     Object.assign(user, profileFields(body));
     if (body.password) user.passwordHash = hashPassword(body.password);
     // Основная роль заменяется; кастомные глобальные роли сохраняются
@@ -837,6 +888,14 @@ export const tenantAdminHandlers = () => [
     bindDepartment(store, ctx, request, member, body.departmentId ?? null);
     member.localRoleIds = (body.localRoleIds ?? []).filter((id) => store.roles.some((r) => r.id === id && r.tenantId === ctx.org.tenantId));
     member.positionId = body.positionId ?? null;
+    const changes = [
+      { field: 'ФИО', oldValue: before.name, newValue: fullNameOf(user) },
+      { field: 'Email', oldValue: before.email, newValue: user.email },
+      { field: 'Телефон', oldValue: before.phone, newValue: user.phone },
+      { field: 'Роль', oldValue: previous ? ROLE_TITLE[previous] : null, newValue: ROLE_TITLE[body.role as SystemOrgRole] },
+      ...(body.password ? [{ field: 'Пароль', oldValue: null, newValue: 'изменён' }] : []),
+    ].filter((c) => c.oldValue !== c.newValue);
+    if (changes.length) addAudit(store, ctx.org, ctx.user, request, 'USER_UPDATED', member.fullName, changes);
     saveStructure(store);
     return HttpResponse.json(toMember(member, ctx.org, users, ctx.user.id));
   }),
@@ -853,6 +912,9 @@ export const tenantAdminHandlers = () => [
     if (Boolean(active) !== member.active) {
       if (active && usersLimitReached(ctx.org)) return limitError();
       member.active = Boolean(active);
+      addAudit(store, ctx.org, ctx.user, request, active ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', member.fullName, [
+        { field: 'Статус', oldValue: yesNo(!active), newValue: yesNo(Boolean(active)) },
+      ]);
       saveStructure(store);
       changeUsersUsage(ctx.org.tenantId, active ? 1 : -1);
     }
@@ -918,6 +980,10 @@ export const tenantAdminHandlers = () => [
     if (isNewMember) changeUsersUsage(ctx.org.tenantId, 1);
     const trainer = store.trainers.find((t) => t.tenantId === ctx.org.tenantId && t.userId === user.id)!;
     trainer.categoryId = categoryId ?? null;
+    addAudit(store, ctx.org, ctx.user, request, 'TRAINER_ADDED', fullNameOf(user), [
+      { field: 'Категория', oldValue: null, newValue: categoryId ? (itemName(categoryId) ?? categoryId) : null },
+      { field: 'Тренерский состав', oldValue: null, newValue: 'Добавлен' },
+    ]);
     saveStructure(store);
     return HttpResponse.json(toTrainer(trainer, users), { status: 201 });
   }),
@@ -931,6 +997,12 @@ export const tenantAdminHandlers = () => [
     const trainer = store.trainers.find((t) => t.id === params.id && t.tenantId === ctx.org.tenantId);
     if (!trainer) return err(404, 'NOT_FOUND');
     const { active } = (await request.json().catch(() => ({}))) as { active?: boolean };
+    if (trainer.active !== Boolean(active)) {
+      const trainerUser = loadUsers().find((u) => u.id === trainer.userId);
+      addAudit(store, ctx.org, ctx.user, request, active ? 'TRAINER_ACTIVATED' : 'TRAINER_DEACTIVATED', trainerUser ? fullNameOf(trainerUser) : trainer.id, [
+        { field: 'Статус', oldValue: yesNo(trainer.active), newValue: yesNo(Boolean(active)) },
+      ]);
+    }
     trainer.active = Boolean(active);
     saveStructure(store);
     publish({
@@ -1181,7 +1253,8 @@ export const tenantAdminHandlers = () => [
           const u = users.find((x) => x.id === t.userId);
           return { id: t.id, fullName: u ? fullNameOf(u) : '', active: t.active };
         }),
-      profileSchemes: schemesForTenant(ctx.org.tenantId).map((s) => ({ id: s.id, name: s.name })),
+      profileSchemes: canAttachScheme(ctx.user) ? schemesForTenant(ctx.org.tenantId).map((s) => ({ id: s.id, name: s.name })) : [],
+      canAttachProfileScheme: canAttachScheme(ctx.user),
     };
     return HttpResponse.json(result);
   }),
@@ -1190,7 +1263,8 @@ export const tenantAdminHandlers = () => [
     await latency();
     const ctx = sectionContext(request, 'lms_groups.create');
     if (ctx instanceof Response) return ctx;
-    const body = (await request.json().catch(() => ({}))) as Partial<OrgGroupPayload>;
+    const raw = (await request.json().catch(() => ({}))) as Partial<OrgGroupPayload>;
+    const body = { ...raw, profileSchemeId: schemeFor(raw, ctx) };
     const store = syncMembers(ctx.org);
     const fe = validateGroup(body, ctx.org);
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
@@ -1207,6 +1281,7 @@ export const tenantAdminHandlers = () => [
       createdAt: new Date().toISOString(),
     };
     store.groups.push(group);
+    addAudit(store, ctx.org, ctx.user, request, 'GROUP_CREATED', group.name, groupChanges(null, group, ctx.org));
     saveStructure(store);
     return HttpResponse.json(toGroup(group, ctx.org, ctx.user), { status: 201 });
   }),
@@ -1218,9 +1293,11 @@ export const tenantAdminHandlers = () => [
     const store = syncMembers(ctx.org);
     const group = store.groups.find((g) => g.id === params.id && g.tenantId === ctx.org.tenantId);
     if (!group) return err(404, 'NOT_FOUND');
-    const body = (await request.json().catch(() => ({}))) as Partial<OrgGroupPayload>;
+    const raw = (await request.json().catch(() => ({}))) as Partial<OrgGroupPayload>;
+    const body = { ...raw, profileSchemeId: schemeFor(raw, ctx, group) };
     const fe = validateGroup(body, ctx.org, group);
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const before = { ...group };
     Object.assign(group, groupFields(body));
     const nextHash = body.inviteHash;
     if (
@@ -1231,6 +1308,8 @@ export const tenantAdminHandlers = () => [
       !store.groups.some((g) => g.inviteHash === nextHash)
     )
       group.inviteHash = nextHash;
+    const changes = groupChanges(before, group, ctx.org);
+    if (changes.length) addAudit(store, ctx.org, ctx.user, request, 'GROUP_UPDATED', group.name, changes);
     saveStructure(store);
     return HttpResponse.json(toGroup(group, ctx.org, ctx.user));
   }),
@@ -1240,7 +1319,9 @@ export const tenantAdminHandlers = () => [
     const ctx = sectionContext(request, 'lms_groups.delete');
     if (ctx instanceof Response) return ctx;
     const store = loadStructure();
-    if (!store.groups.some((g) => g.id === params.id && g.tenantId === ctx.org.tenantId)) return err(404, 'NOT_FOUND');
+    const removed = store.groups.find((g) => g.id === params.id && g.tenantId === ctx.org.tenantId);
+    if (!removed) return err(404, 'NOT_FOUND');
+    addAudit(store, ctx.org, ctx.user, request, 'GROUP_DELETED', removed.name, [{ field: 'Группа', oldValue: removed.name, newValue: null }]);
     store.groups = store.groups.filter((g) => g.id !== params.id);
     store.applications = store.applications.filter((application) => application.groupId !== params.id);
     saveStructure(store);
@@ -1290,7 +1371,12 @@ export const tenantAdminHandlers = () => [
     const next = [...new Set([...group.listenerIds, ...valid])];
     if (next.length > group.listenersLimit)
       return err(400, 'VALIDATION_ERROR', `В группе лимит ${group.listenersLimit} слушателей. Увеличьте его в настройках группы.`);
+    const added = valid.filter((id) => !group.listenerIds.includes(id));
     group.listenerIds = next;
+    if (added.length)
+      addAudit(store, ctx.org, ctx.user, request, 'GROUP_LISTENERS_ADDED', group.name, [
+        { field: 'Слушатели', oldValue: null, newValue: added.map((id) => store.members.find((m) => m.id === id)?.fullName ?? id).join(', ') },
+      ]);
     saveStructure(store);
     return HttpResponse.json(toGroup(group, ctx.org, ctx.user));
   }),
@@ -1302,6 +1388,10 @@ export const tenantAdminHandlers = () => [
     const store = loadStructure();
     const group = store.groups.find((g) => g.id === params.id && g.tenantId === ctx.org.tenantId);
     if (!group) return err(404, 'NOT_FOUND');
+    if (group.listenerIds.includes(String(params.memberId)))
+      addAudit(store, ctx.org, ctx.user, request, 'GROUP_LISTENER_REMOVED', group.name, [
+        { field: 'Слушатель', oldValue: store.members.find((m) => m.id === params.memberId)?.fullName ?? String(params.memberId), newValue: null },
+      ]);
     group.listenerIds = group.listenerIds.filter((id) => id !== params.memberId);
     saveStructure(store);
     return HttpResponse.json(toGroup(group, ctx.org, ctx.user));
@@ -1331,10 +1421,8 @@ export const tenantAdminHandlers = () => [
     if (application.status !== 'NEW') return err(400, 'VALIDATION_ERROR', 'Заявка уже обработана.');
     if (group.listenerIds.length >= group.listenersLimit) return err(400, 'VALIDATION_ERROR', 'В группе нет свободных мест.');
     const users = loadUsers();
-    const normalizedName = application.fullName.toLowerCase();
-    let user = users.find(
-      (item) => item.email.toLowerCase() === application.email.toLowerCase() || fullNameOf(item).toLowerCase() === normalizedName,
-    );
+    // Поиск только по Email: совпадение ФИО у однофамильцев зачислило бы в группу чужую учётную запись
+    let user = users.find((item) => item.email.toLowerCase() === application.email.toLowerCase());
     if (!user) {
       const [lastName = '', firstName = '', ...middle] = application.fullName.split(/\s+/);
       user = {
@@ -1343,7 +1431,7 @@ export const tenantAdminHandlers = () => [
         lastName,
         firstName,
         middleName: middle.join(' ') || undefined,
-        region: 'г. Астана',
+        region: '',
         phone: application.phone,
         email: application.email,
         passwordHash: hashPassword('Sanastra1'),
@@ -1358,6 +1446,10 @@ export const tenantAdminHandlers = () => [
     const updatedStore = loadStructure();
     const updatedApplication = updatedStore.applications.find((item) => item.id === application.id)!;
     updatedApplication.status = 'CONFIRMED';
+    addAudit(updatedStore, ctx.org, ctx.user, request, 'APPLICATION_CONFIRMED', group.name, [
+      { field: 'Заявитель', oldValue: null, newValue: `${application.fullName}, ${application.email}` },
+      { field: 'Статус заявки', oldValue: 'Новая', newValue: 'Подтверждена' },
+    ]);
     saveStructure(updatedStore);
     return HttpResponse.json(updatedApplication);
   }),
@@ -1373,6 +1465,10 @@ export const tenantAdminHandlers = () => [
     if (!application) return err(404, 'NOT_FOUND');
     if (application.status !== 'NEW') return err(400, 'VALIDATION_ERROR', 'Заявка уже обработана.');
     application.status = 'REJECTED';
+    addAudit(store, ctx.org, ctx.user, request, 'APPLICATION_REJECTED', store.groups.find((g) => g.id === application.groupId)?.name ?? '', [
+      { field: 'Заявитель', oldValue: null, newValue: `${application.fullName}, ${application.email}` },
+      { field: 'Статус заявки', oldValue: 'Новая', newValue: 'Отклонена' },
+    ]);
     saveStructure(store);
     return HttpResponse.json(application);
   }),
@@ -1406,6 +1502,7 @@ export const tenantAdminHandlers = () => [
     org.usage.COURSES_COUNT = courseCount(ctx.org);
     save(db);
     publish({ type: 'limits.updated', tenantId: org.tenantId, version: org.version, changed: ['limits'], occurredAt: new Date().toISOString() });
+    auditOnly(ctx, request, 'PROGRAM_CREATED', course.titleRu || course.title, [{ field: 'Программа', oldValue: null, newValue: course.titleRu || course.title }]);
     return HttpResponse.json(course, { status: 201 });
   }),
 
@@ -1416,17 +1513,28 @@ export const tenantAdminHandlers = () => [
     const body = (await request.json().catch(() => ({}))) as Partial<ProgramPayload>;
     const { fe, fields } = validateProgram(body, ctx.org);
     if (Object.keys(fe).length) return err(400, 'VALIDATION_ERROR', 'Проверьте правильность заполнения полей.', fe);
+    const previous = findCourse(ctx.org, String(params.id));
     const course = updateCourse(ctx.org, String(params.id), fields);
-    return course ? HttpResponse.json(course) : err(404, 'NOT_FOUND');
+    if (!course) return err(404, 'NOT_FOUND');
+    const changes = [
+      { field: 'Название', oldValue: previous ? previous.titleRu || previous.title : null, newValue: course.titleRu || course.title },
+      { field: 'Статус', oldValue: previous?.status ?? null, newValue: course.status },
+      { field: 'Часы (теория + практика)', oldValue: previous ? `${previous.hoursTheory ?? 0} + ${previous.hoursPractice ?? 0}` : null, newValue: `${course.hoursTheory ?? 0} + ${course.hoursPractice ?? 0}` },
+    ].filter((c) => c.oldValue !== c.newValue);
+    auditOnly(ctx, request, 'PROGRAM_UPDATED', course.titleRu || course.title, changes.length ? changes : [{ field: 'Описание программы', oldValue: null, newValue: 'изменено' }]);
+    return HttpResponse.json(course);
   }),
 
   http.delete('/api/tenant/courses/:id', async ({ params, request }) => {
     await latency();
     const ctx = sectionContext(request, 'lms_prog_core.delete');
     if (ctx instanceof Response) return ctx;
+    const removedCourse = findCourse(ctx.org, String(params.id));
     if (!removeCourse(ctx.org, String(params.id))) return err(404, 'NOT_FOUND');
     removeCourseContent(String(params.id));
     const store = loadStructure();
+    const title = removedCourse ? removedCourse.titleRu || removedCourse.title : String(params.id);
+    addAudit(store, ctx.org, ctx.user, request, 'PROGRAM_DELETED', title, [{ field: 'Программа', oldValue: title, newValue: null }]);
     store.groups.filter((g) => g.courseId === params.id).forEach((g) => (g.courseId = null));
     saveStructure(store);
     const db = load();

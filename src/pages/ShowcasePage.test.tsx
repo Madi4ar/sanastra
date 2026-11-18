@@ -6,6 +6,7 @@ import { listCourses } from '@/mocks/content';
 import { load, save, TARIFFS } from '@/mocks/db';
 import { loadStructure, saveStructure } from '@/mocks/orgStructure';
 import { loadRegistry } from '@/mocks/registry';
+import { fullNameOf, loadUsers } from '@/mocks/users';
 import { loginAs, renderApp } from '@/test/utils';
 
 const GROUP_ID = 'showcase-group';
@@ -93,6 +94,36 @@ describe('Витрина курсов и заявки', () => {
 
     await waitFor(() => expect(loadStructure().applications[0]?.status).toBe('CONFIRMED'));
     expect(loadStructure().groups.find((group) => group.id === GROUP_ID)?.listenerIds).toHaveLength(1);
+  });
+
+  it('подтверждение ищет пользователя только по Email: однофамилец не зачисляется', async () => {
+    const { org } = prepareGroup();
+    const db = load();
+    db.organizations.find((item) => item.tenantId === org.tenantId)!.tariffPlanId = TARIFFS.find((tariff) => tariff.code === 'business')!.id;
+    save(db);
+    const namesake = loadUsers().find((u) => u.id === 'u-3')!;
+    await api.showcase.apply('academy', GROUP_ID, { fullName: fullNameOf(namesake), email: 'another-person@example.com', phone: '7012223344' });
+
+    loginAs('ORGANIZATION_ADMIN');
+    const admin = api.tenantAdmin('academy');
+    const [application] = await admin.groupApplications(GROUP_ID);
+    await admin.confirmApplication(GROUP_ID, application!.id);
+
+    const created = loadUsers().find((u) => u.email === 'another-person@example.com');
+    expect(created).toBeDefined();
+    expect(created!.id).not.toBe(namesake.id);
+    const store = loadStructure();
+    const listener = store.members.find((m) => m.id === store.groups.find((g) => g.id === GROUP_ID)!.listenerIds[0]);
+    expect(listener?.userId).toBe(created!.id);
+    expect(store.audit[0]).toMatchObject({ event: 'APPLICATION_CONFIRMED', module: 'SHOWCASE' });
+  });
+
+  it('не принимает заявку в заполненную группу', async () => {
+    prepareGroup();
+    const store = loadStructure();
+    store.groups.find((g) => g.id === GROUP_ID)!.listenersLimit = 0;
+    saveStructure(store);
+    await expect(api.showcase.apply('academy', GROUP_ID, { fullName: 'Петров Пётр', email: 'p@example.com', phone: '7012223344' })).rejects.toThrow('В группе нет свободных мест.');
   });
 
   it('по прямой ссылке зачисляет авторизованного слушателя без заявки', async () => {

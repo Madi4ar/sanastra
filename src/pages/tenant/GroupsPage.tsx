@@ -162,18 +162,21 @@ function GroupModal({ group, onClose }: { group: OrgGroup | null; onClose: () =>
             onChange={(formatId) => set({ formatId })}
           />
         </Field>
-        <Field label="Схема анкеты слушателя" htmlFor="group-profile-scheme" required error={fe.profileSchemeId}>
-          <Select
-            id="group-profile-scheme"
-            aria-label="Схема анкеты слушателя"
-            style={{ width: '100%' }}
-            placeholder="Выберите схему"
-            status={fe.profileSchemeId ? 'error' : undefined}
-            value={values.profileSchemeId ?? undefined}
-            options={options.data?.profileSchemes.map((scheme) => ({ value: scheme.id, label: scheme.name })) ?? []}
-            onChange={(profileSchemeId) => set({ profileSchemeId })}
-          />
-        </Field>
+        {/* Без модуля «Конструктор полей профиля» группе назначается основная схема анкеты */}
+        {options.data?.canAttachProfileScheme && (
+          <Field label="Схема анкеты слушателя" htmlFor="group-profile-scheme" required error={fe.profileSchemeId}>
+            <Select
+              id="group-profile-scheme"
+              aria-label="Схема анкеты слушателя"
+              style={{ width: '100%' }}
+              placeholder="Выберите схему"
+              status={fe.profileSchemeId ? 'error' : undefined}
+              value={values.profileSchemeId ?? undefined}
+              options={options.data.profileSchemes.map((scheme) => ({ value: scheme.id, label: scheme.name }))}
+              onChange={(profileSchemeId) => set({ profileSchemeId })}
+            />
+          </Field>
+        )}
         <Field label="Тип оценивания" htmlFor="group-assessment" required error={fe.assessmentId}>
           <Select
             id="group-assessment"

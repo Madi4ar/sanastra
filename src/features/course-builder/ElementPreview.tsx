@@ -578,3 +578,8 @@ export function ElementPreview({ element, onClose }: { element: CourseElement; o
     </Modal>
   );
 }
+
+/** Содержимое элемента без окна: для прохождения курса слушателем и песочницы тренера */
+export function ElementContent({ element, lang = 'ru' }: { element: CourseElement; lang?: Lang }) {
+  return <Body el={element} lang={lang} />;
+}

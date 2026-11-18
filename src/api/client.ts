@@ -69,7 +69,7 @@ function codeFromStatus(status: number, body: ApiErrorBody): ApiErrorCode {
 }
 
 /** Бизнес-ошибки, текст которых предназначен пользователю (например, запрет удаления роли) */
-const USER_FACING_CODES = ['ROLE_IN_USE', 'SYSTEM_ROLE'];
+const USER_FACING_CODES = ['ROLE_IN_USE', 'SYSTEM_ROLE', 'COURSE_NOT_STARTED', 'PROFILE_INCOMPLETE', 'COURSE_ARCHIVED'];
 
 /** Сообщение из backend показывается для 400, блокировки входа и бизнес-ошибок из USER_FACING_CODES. Сырые исключения 5xx скрываются. */
 function messageFor(code: ApiErrorCode, body: ApiErrorBody): string {

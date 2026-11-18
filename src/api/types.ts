@@ -602,7 +602,16 @@ export interface OrganizationStructure {
   roles: { id: string; name: string; optionsTotal: number; optionsEffective: number }[];
 }
 
-export type AuditModule = 'ROLES' | 'DEPARTMENTS' | 'USERS' | 'DIRECTORIES';
+export type AuditModule =
+  | 'ROLES'
+  | 'DEPARTMENTS'
+  | 'USERS'
+  | 'DIRECTORIES'
+  | 'PROGRAMS'
+  | 'GROUPS'
+  | 'TRAINERS'
+  | 'SHOWCASE'
+  | 'PROFILE_FIELDS';
 
 export type AuditEvent =
   | 'ROLE_CREATED'
@@ -615,12 +624,38 @@ export type AuditEvent =
   | 'DEPARTMENT_DELETED'
   | 'DIRECTORY_ITEM_CREATED'
   | 'DIRECTORY_ITEM_UPDATED'
-  | 'DIRECTORY_ITEM_DELETED';
+  | 'DIRECTORY_ITEM_DELETED'
+  | 'USER_CREATED'
+  | 'USER_UPDATED'
+  | 'USER_ACTIVATED'
+  | 'USER_DEACTIVATED'
+  | 'PROGRAM_CREATED'
+  | 'PROGRAM_UPDATED'
+  | 'PROGRAM_DELETED'
+  | 'GROUP_CREATED'
+  | 'GROUP_UPDATED'
+  | 'GROUP_DELETED'
+  | 'GROUP_LISTENERS_ADDED'
+  | 'GROUP_LISTENER_REMOVED'
+  | 'TRAINER_ADDED'
+  | 'TRAINER_ACTIVATED'
+  | 'TRAINER_DEACTIVATED'
+  | 'APPLICATION_CONFIRMED'
+  | 'APPLICATION_REJECTED'
+  | 'PROFILE_FIELD_CREATED'
+  | 'PROFILE_FIELD_UPDATED'
+  | 'PROFILE_FIELD_DELETED'
+  | 'PROFILE_FIELD_TOGGLED'
+  | 'PROFILE_SCHEME_CREATED'
+  | 'PROFILE_SCHEME_UPDATED'
+  | 'PROFILE_SCHEME_DELETED'
+  | 'TRAINER_SCHEME_CHANGED';
 
 export interface AuditFilters {
   search: string;
   tenantId: string;
   module: AuditModule | '';
+  event: AuditEvent | '';
   dateFrom: string;
   dateTo: string;
   page: number;
@@ -886,21 +921,224 @@ export interface GroupFormOptions {
   departments: { id: string; name: string }[];
   programs: { id: string; title: string; formatIds: string[]; assessmentIds: string[] }[];
   trainers: { id: string; fullName: string; active: boolean }[];
+  /** Пусто, если привязка схемы к группе недоступна: тогда группе назначается основная схема */
   profileSchemes: { id: string; name: string }[];
+  canAttachProfileScheme: boolean;
 }
 
+// ---------- Конструктор динамических полей профиля ----------
+
 export type ProfileFieldType = 'TEXT' | 'DROPDOWN';
-export interface ProfileFieldOption { id: string; labelKz: string; labelRu: string; labelEn: string }
+
+/** Значение справочника поля на трёх языках */
+export interface ProfileFieldOption {
+  id: string;
+  labelKz: string;
+  labelRu: string;
+  labelEn: string;
+}
+
 export interface ProfileFieldDefinition {
-  id: string; tenantId: string | null; system: boolean; active: boolean;
-  labelKz: string; labelRu: string; labelEn: string; type: ProfileFieldType; options: ProfileFieldOption[];
+  id: string;
+  /** null — глобальное поле суперадминистратора */
+  tenantId: string | null;
+  system: boolean;
+  active: boolean;
+  labelKz: string;
+  labelRu: string;
+  labelEn: string;
+  type: ProfileFieldType;
+  /** Справочник вариантов выпадающего поля (глобальный или локальный справочник организации) */
+  directoryId: string | null;
+  /** Значения справочника — для отображения */
+  options: ProfileFieldOption[];
 }
+
+export interface ProfileFieldSchemeRow {
+  fieldId: string;
+  required: boolean;
+}
+
 export interface ProfileFieldScheme {
-  id: string; tenantId: string; name: string; fields: { fieldId: string; required: boolean }[];
+  id: string;
+  tenantId: string;
+  name: string;
+  fields: ProfileFieldSchemeRow[];
+  /** Основная схема создаётся автоматически и не удаляется */
+  isDefault: boolean;
+  /** Число групп, к которым привязана схема */
+  groupsCount: number;
 }
-export interface LearnerCourseProgress {
-  groupId: string; userId: string; completedElementIds: string[];
-  answers: Record<string, unknown>; grades: Record<string, number>;
+
+export interface ProfileFieldPayload {
+  labelKz: string;
+  labelRu: string;
+  labelEn: string;
+  type: ProfileFieldType;
+  /** Значения справочника для DROPDOWN */
+  options: ProfileFieldOption[];
+}
+
+export interface ProfileFieldSchemePayload {
+  name: string;
+  fields: ProfileFieldSchemeRow[];
+}
+
+/** Глобальное поле в реестре суперадминистратора */
+export interface GlobalProfileField extends ProfileFieldDefinition {
+  /** Выводится в анкете тренера во всех организациях */
+  inTrainerProfile: boolean;
+  trainerRequired: boolean;
+  /** Значение берётся из учётной записи (ИИН, ФИО, Email, телефон, область): тип не меняется */
+  accountField: boolean;
+}
+
+export interface GlobalProfileFieldPayload extends ProfileFieldPayload {
+  active: boolean;
+  inTrainerProfile: boolean;
+  trainerRequired: boolean;
+}
+
+/** Данные конструктора полей профиля организации */
+export interface ProfileFieldBuilderData {
+  globals: (ProfileFieldDefinition & { activeForTenant: boolean })[];
+  custom: ProfileFieldDefinition[];
+  schemes: ProfileFieldScheme[];
+  trainerSchemeId: string | null;
+}
+
+/** Поле анкеты пользователя со значением */
+export interface ProfileFormField {
+  id: string;
+  label: string;
+  type: ProfileFieldType;
+  required: boolean;
+  value: string;
+  options: { id: string; label: string }[];
+  /** Значение берётся из учётной записи и в анкете не меняется */
+  readonly: boolean;
+}
+
+export interface ProfileFormSection {
+  /** id группы (анкета слушателя) или 'trainer' */
+  id: string;
+  title: string;
+  fields: ProfileFormField[];
+  missing: number;
+}
+
+/** Анкета: значения общие для пользователя в организации, состав полей — по схеме группы */
+export interface ProfileForm {
+  sections: ProfileFormSection[];
+  missing: number;
+}
+
+// ---------- Кабинеты слушателя и тренера ----------
+
+/** NOT_STARTED — дата начала не наступила; NEW — прогресс 0 %; IN_PROGRESS — прогресс больше 0 %; ARCHIVE — через 14 дней после окончания */
+export type LearnerCourseState = 'NOT_STARTED' | 'NEW' | 'IN_PROGRESS' | 'ARCHIVE';
+
+export interface LearnerCourseCard {
+  groupId: string;
+  groupName: string;
+  courseId: string;
+  courseTitle: string;
+  coverUrl: string | null;
+  startDate: string;
+  endDate: string;
+  trainerNames: string[];
+  formatName: string | null;
+  percent: number;
+  state: LearnerCourseState;
+  /** Незаполненные обязательные поля анкеты группы */
+  missingProfileFields: number;
+}
+
+export type ElementProgressStatus =
+  | 'NOT_VIEWED'
+  | 'VIEWED'
+  | 'TEST_NOT_PASSED'
+  | 'TEST_IN_PROGRESS'
+  | 'TEST_PASSED'
+  | 'WORK_NOT_STARTED'
+  | 'WORK_ON_REVIEW'
+  | 'WORK_DONE';
+
+export interface ElementProgress {
+  status: ElementProgressStatus;
+  score: number | null;
+  maxScore: number | null;
+  /** Ответ на практическую работу или рефлексию */
+  answer: string | null;
+}
+
+export interface CourseAbout {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+  description: string;
+  goal: string;
+  result: string;
+}
+
+export interface LearnerCourseView {
+  groupId: string;
+  groupName: string;
+  course: CourseAbout;
+  startDate: string;
+  endDate: string;
+  /** Архивная группа: только обзор материалов */
+  readonly: boolean;
+  percent: number;
+  modules: CourseModule[];
+  progress: Record<string, ElementProgress>;
+}
+
+/** Ответы на тест: id вопроса → id варианта, список id или текст */
+export type TestAnswers = Record<string, string | string[]>;
+
+export interface TestResult {
+  score: number;
+  maxScore: number;
+  percent: number;
+  passed: boolean;
+  /** Вопросы, которые проверяет тренер: в автоматический балл не входят */
+  manualQuestions: number;
+  /** Пробное прохождение тренера: результат не сохранён */
+  dryRun: boolean;
+}
+
+export interface TrainerCourseCard {
+  groupId: string;
+  groupCode: string;
+  courseId: string;
+  courseTitle: string;
+  coverUrl: string | null;
+  formatName: string | null;
+  listenersCount: number;
+  startDate: string;
+  endDate: string;
+  academicYear: string;
+}
+
+export interface TrainerCourseView {
+  groupId: string;
+  course: CourseAbout;
+  modules: CourseModule[];
+  /** Группы тренера по этой программе, от самой новой */
+  groups: { id: string; code: string; startDate: string }[];
+}
+
+export interface AttendanceSheet {
+  groupId: string;
+  days: { id: string; title: string }[];
+  rows: { memberId: string; fullName: string; marks: Record<string, boolean> }[];
+}
+
+export interface ProgressMatrix {
+  groupId: string;
+  elements: { id: string; title: string; type: ElementType }[];
+  rows: { memberId: string; userId: string; fullName: string; cells: Record<string, ElementProgress> }[];
 }
 
 export interface GroupListener {

@@ -16,6 +16,11 @@ const MODULE_LABEL: Record<AuditModule, string> = {
   DEPARTMENTS: 'Отделы',
   USERS: 'Пользователи',
   DIRECTORIES: 'Справочники',
+  PROGRAMS: 'Учебные программы',
+  GROUPS: 'Учебные группы',
+  TRAINERS: 'Тренерский состав',
+  SHOWCASE: 'Заявки из витрины',
+  PROFILE_FIELDS: 'Конструктор полей профиля',
 };
 
 const EVENT_LABEL: Record<AuditEvent, string> = {
@@ -30,20 +35,53 @@ const EVENT_LABEL: Record<AuditEvent, string> = {
   DIRECTORY_ITEM_CREATED: 'Добавление локального справочника',
   DIRECTORY_ITEM_UPDATED: 'Изменение локального справочника',
   DIRECTORY_ITEM_DELETED: 'Удаление локального справочника',
+  USER_CREATED: 'Создание пользователя',
+  USER_UPDATED: 'Изменение пользователя',
+  USER_ACTIVATED: 'Активация пользователя',
+  USER_DEACTIVATED: 'Деактивация пользователя',
+  PROGRAM_CREATED: 'Создание программы',
+  PROGRAM_UPDATED: 'Изменение программы',
+  PROGRAM_DELETED: 'Удаление программы',
+  GROUP_CREATED: 'Создание группы',
+  GROUP_UPDATED: 'Изменение группы',
+  GROUP_DELETED: 'Удаление группы',
+  GROUP_LISTENERS_ADDED: 'Зачисление слушателей',
+  GROUP_LISTENER_REMOVED: 'Исключение слушателя',
+  TRAINER_ADDED: 'Добавление тренера',
+  TRAINER_ACTIVATED: 'Активация тренера',
+  TRAINER_DEACTIVATED: 'Деактивация тренера',
+  APPLICATION_CONFIRMED: 'Подтверждение заявки',
+  APPLICATION_REJECTED: 'Отклонение заявки',
+  PROFILE_FIELD_CREATED: 'Создание поля профиля',
+  PROFILE_FIELD_UPDATED: 'Изменение поля профиля',
+  PROFILE_FIELD_DELETED: 'Удаление поля профиля',
+  PROFILE_FIELD_TOGGLED: 'Включение / выключение глобального поля',
+  PROFILE_SCHEME_CREATED: 'Создание набора полей',
+  PROFILE_SCHEME_UPDATED: 'Изменение набора полей',
+  PROFILE_SCHEME_DELETED: 'Удаление набора полей',
+  TRAINER_SCHEME_CHANGED: 'Смена анкеты тренера',
 };
 
-const EVENT_COLOR: Record<AuditEvent, string> = {
-  ROLE_CREATED: 'green',
-  ROLE_UPDATED: 'blue',
-  ROLE_DELETED: 'red',
-  ROLE_MATRIX_CHANGED: 'blue',
-  USER_BOUND_TO_DEPARTMENT: 'purple',
-  DEPARTMENT_CREATED: 'green',
-  DEPARTMENT_UPDATED: 'blue',
-  DEPARTMENT_DELETED: 'red',
-  DIRECTORY_ITEM_CREATED: 'green',
-  DIRECTORY_ITEM_UPDATED: 'blue',
-  DIRECTORY_ITEM_DELETED: 'red',
+/** Цвет метки по виду действия: создание, удаление, привязка, изменение */
+function eventColor(event: AuditEvent) {
+  if (/CREATED|ADDED|ACTIVATED$|CONFIRMED/.test(event) && !event.endsWith('DEACTIVATED')) return 'green';
+  if (/DELETED|REMOVED|DEACTIVATED|REJECTED/.test(event)) return 'red';
+  if (event === 'USER_BOUND_TO_DEPARTMENT') return 'purple';
+  return 'blue';
+}
+
+/** Модуль события — для фильтра типов событий внутри выбранного модуля */
+const moduleOf = (event: AuditEvent): AuditModule => {
+  if (event.startsWith('ROLE_')) return 'ROLES';
+  if (event.startsWith('DIRECTORY_')) return 'DIRECTORIES';
+  if (event.startsWith('USER_')) return 'USERS';
+  if (event.startsWith('PROGRAM_')) return 'PROGRAMS';
+  if (event.startsWith('GROUP_')) return 'GROUPS';
+  if (event.startsWith('TRAINER_SCHEME')) return 'PROFILE_FIELDS';
+  if (event.startsWith('TRAINER_')) return 'TRAINERS';
+  if (event.startsWith('APPLICATION_')) return 'SHOWCASE';
+  if (event.startsWith('PROFILE_')) return 'PROFILE_FIELDS';
+  return 'DEPARTMENTS';
 };
 
 const showValue = (value: string | null) => value ?? '—';
@@ -65,6 +103,7 @@ export function AuditLogPage() {
   const [search, setSearch] = useState('');
   const [tenantId, setTenantId] = useState('');
   const [module, setModule] = useState<AuditModule | ''>('');
+  const [event, setEvent] = useState<AuditEvent | ''>('');
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -74,12 +113,13 @@ export function AuditLogPage() {
       search: debouncedSearch,
       tenantId,
       module,
+      event,
       dateFrom: range?.[0]?.startOf('day').toISOString() ?? '',
       dateTo: range?.[1]?.endOf('day').toISOString() ?? '',
       page,
       pageSize,
     }),
-    [debouncedSearch, tenantId, module, range, page, pageSize],
+    [debouncedSearch, tenantId, module, event, range, page, pageSize],
   );
   const logs = useQuery({
     queryKey: queryKeys.audit(filters),
@@ -98,7 +138,7 @@ export function AuditLogPage() {
         Лог действий
       </Typography.Title>
       <Card styles={{ body: { padding: 0 } }} data-testid="audit-trail">
-        <div className="grid grid-cols-4 gap-3 p-4">
+        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-5">
           <Input
             allowClear
             prefix={<Search size={14} className="text-muted" aria-hidden />}
@@ -127,11 +167,27 @@ export function AuditLogPage() {
           <Select
             allowClear
             placeholder="Все модули"
-            aria-label="Фильтр по модулю или событию"
+            aria-label="Фильтр по модулю"
             value={module || undefined}
             options={(Object.entries(MODULE_LABEL) as [AuditModule, string][]).map(([value, label]) => ({ value, label }))}
             onChange={(value) => {
               setModule(value ?? '');
+              if (value && event && moduleOf(event) !== value) setEvent('');
+              resetPage();
+            }}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder="Все события"
+            aria-label="Фильтр по типу события"
+            value={event || undefined}
+            options={(Object.entries(EVENT_LABEL) as [AuditEvent, string][])
+              .filter(([value]) => !module || moduleOf(value) === module)
+              .map(([value, label]) => ({ value, label }))}
+            onChange={(value) => {
+              setEvent(value ?? '');
               resetPage();
             }}
           />
@@ -196,7 +252,7 @@ export function AuditLogPage() {
                 width: 250,
                 render: (_, entry) => (
                   <div>
-                    <Tag color={EVENT_COLOR[entry.event]}>{EVENT_LABEL[entry.event]}</Tag>
+                    <Tag color={eventColor(entry.event)}>{EVENT_LABEL[entry.event]}</Tag>
                     <div className="mt-1 text-xs text-muted">{entry.target}</div>
                   </div>
                 ),
