@@ -8,10 +8,13 @@ import {
   Clock,
   FileText,
   LayoutDashboard,
+  MessageSquare,
   PlayCircle,
+  Table2,
   Video,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { BrandMark } from './primitives';
 
 /** Карточка-рамка макета: radius 20, тень из токенов темы. */
 export function MockFrame({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -61,22 +64,22 @@ const WEEK = [
   ['Жс', 20],
 ] as const;
 
-/** Большой макет LMS-дашборда для hero (ТЗ, раздел 7). Декоративный: скрыт от скринридеров, описан через aria-label. */
+/** Большой макет LMS-дашборда для hero. Декоративный: скрыт от скринридеров, описан через aria-label. Данные — демонстрационные. */
 export function DashboardMockup() {
   return (
     <MockFrame>
-      <div role="img" aria-label="Sanastra платформасының басты беті: курстар, тапсырмалар, оқу прогресі және нәтижелер">
+      <div role="img" aria-label="Zuie платформасындағы білім алушының басты беті: курстар, тапсырмалар, оқу прогресі және нәтижелер (демонстрациялық деректер)">
         <div className="flex items-center gap-2 border-b border-ln-border-soft bg-ln-soft px-4 py-3" aria-hidden>
           <span className="h-3 w-3 rounded-full bg-ln-border" />
           <span className="h-3 w-3 rounded-full bg-ln-border" />
           <span className="h-3 w-3 rounded-full bg-ln-border" />
-          <span className="ml-3 hidden rounded-md bg-ln-bg px-3 py-1 text-xs text-ln-muted sm:inline">app.sanastra.kz</span>
+          <span className="ml-3 hidden rounded-md bg-ln-bg px-3 py-1 text-xs text-ln-muted sm:inline">Zuie · Білім алушы кабинеті</span>
         </div>
         <div className="flex text-left" aria-hidden>
           <aside className="hidden w-52 shrink-0 border-r border-ln-border-soft bg-ln-soft p-3 md:block">
             <div className="mb-4 flex items-center gap-2 px-2 pt-1">
-              <img src="/brand/sanastra-icon-32.png" width={22} height={22} alt="" className="rounded-md" />
-              <span className="text-sm font-bold text-ln-ink">Sanastra</span>
+              <BrandMark size={22} />
+              <span className="text-sm font-bold text-ln-ink">Zuie</span>
             </div>
             {NAV.map(({ icon: Icon, label, active }) => (
               <div
@@ -268,70 +271,126 @@ export function LearnerMockup() {
   );
 }
 
-function Phone({ title, label, children }: { title: string; label: string; children: ReactNode }) {
+/** Подпись под продуктовыми макетами: цифры на них не являются показателями компании. */
+export function DemoNote({ className = '' }: { className?: string }) {
   return (
-    <div
-      className="ln-shadow w-full max-w-[260px] rounded-[40px] bg-ln-bezel p-2.5"
-      role="img"
-      aria-label={label}
-    >
-      <div className="overflow-hidden rounded-[31px] bg-ln-bg" aria-hidden>
-        <div className="flex justify-center pt-2">
-          <span className="h-1.5 w-16 rounded-full bg-ln-subtle" />
+    <p className={`m-0 inline-flex items-center gap-1.5 rounded-full bg-ln-subtle px-3 py-1 text-[0.8125rem] tracking-[0.01em] text-ln-ink-2 ${className}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-ln-muted" aria-hidden />
+      Демонстрациялық деректер
+    </p>
+  );
+}
+
+/** Кабинет администратора организации: подписка, тариф, лимиты и разделы (по реальному экрану продукта). */
+export function AdminMockup() {
+  const sections = ['Курстар', 'Топтар', 'Тренерлер', 'Бөлімдер', 'Рөлдер', 'Есептер'];
+  const usage = [
+    ['Білім алушылар', 64, '64 / 100'],
+    ['Курстар', 36, '18 / 50'],
+    ['Қойма', 22, '22 / 100 ГБ'],
+  ] as const;
+  return (
+    <MockFrame>
+      <div className="p-5 sm:p-6" role="img" aria-label="Әкімші кабинеті: жазылым, тариф, лимиттерді пайдалану және ұйым бөлімдері">
+        <div aria-hidden>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="m-0 text-xs font-medium text-ln-muted">«Білім» оқу орталығы</p>
+              <p className="m-0 font-semibold text-ln-ink">Ұйым кабинеті</p>
+            </div>
+            <span className="rounded-md bg-ln-success-soft px-2 py-1 text-xs font-semibold text-ln-success">Стандарт · белсенді</span>
+          </div>
+          <div className="mb-3 rounded-xl border border-ln-border-soft p-4">
+            <p className="m-0 mb-3 text-sm font-semibold text-ln-ink">Лимиттерді пайдалану</p>
+            {usage.map(([label, v, text]) => (
+              <div key={label} className="mb-2.5 last:mb-0">
+                <div className="mb-1 flex justify-between text-[0.8125rem] tracking-[0.01em] text-ln-ink-2">
+                  <span>{label}</span>
+                  <span className="tabular font-medium text-ln-ink">{text}</span>
+                </div>
+                <Bar value={v} />
+              </div>
+            ))}
+          </div>
+          <p className="m-0 mb-2 text-sm font-semibold text-ln-ink">Жылдам әрекеттер</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {sections.map((t) => (
+              <span key={t} className="rounded-lg bg-ln-soft px-3 py-2 text-[0.8125rem] tracking-[0.01em] text-ln-ink-2">
+                {t}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="flex h-[440px] flex-col p-4">
-          <p className="m-0 mb-3 text-base font-bold text-ln-ink">{title}</p>
-          {children}
-        </div>
+      </div>
+    </MockFrame>
+  );
+}
+
+/** Конструктор курса: структура «модуль → күн → элемент», обязательные элементы и разные типы контента. */
+export function CourseBuilderMockup() {
+  const items = [
+    { icon: Video, label: 'Бейнесабақ', required: true },
+    { icon: FileText, label: 'Конспект (PDF)', required: false },
+    { icon: ClipboardList, label: 'Тест: 10 сұрақ', required: true },
+  ];
+  return (
+    <div className="rounded-2xl bg-ln-bg p-4" aria-hidden>
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-[0.8125rem] tracking-[0.01em]">
+        <span className="rounded-md bg-ln-subtle px-2 py-0.5 font-medium text-ln-ink-2">1-модуль</span>
+        <span className="font-semibold text-ln-ink">Кіріспе</span>
+        <span className="ml-auto text-ln-muted">1-күн / 3</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {items.map(({ icon: Icon, label, required }) => (
+          <div key={label} className="flex items-center gap-2.5 rounded-xl border border-ln-border-soft px-3 py-2.5 text-[0.8125rem] tracking-[0.01em]">
+            <Icon size={16} className="shrink-0 text-ln-accent" />
+            <span className="min-w-0 flex-1 truncate text-ln-ink">{label}</span>
+            {required && <span className="rounded-md bg-ln-brand-soft px-2 py-0.5 text-xs font-medium text-ln-accent">Міндетті</span>}
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-/** Три экрана мобильного приложения (ТЗ, раздел 14). */
-export function PhoneScreens() {
+const SCATTERED = [
+  { icon: FileText, title: 'Материалдар', where: 'Бөлек папкаларда' },
+  { icon: MessageSquare, title: 'Тапсырмалар', where: 'Мессенджерде' },
+  { icon: CalendarDays, title: 'Кесте', where: 'Басқа сервисте' },
+  { icon: Table2, title: 'Есептер', where: 'Excel-де' },
+];
+
+const UNIFIED = ['Курстар мен материалдар', 'Топтар мен кесте', 'Тапсырмалар мен бағалар', 'Прогресс пен есептер'];
+
+/** «До / после»: разрозненные инструменты против единого экрана. На мобильном — друг под другом, без анимации. */
+export function BeforeAfter() {
   return (
-    <div className="flex flex-col items-center justify-center gap-6 sm:flex-row sm:items-end">
-      <Phone title="Бүгін" label="Мобильді қосымша: бүгінгі жоспар">
-        <div className="mb-3 rounded-2xl bg-ln-brand p-4 text-white">
-          <p className="m-0 text-xs opacity-80">Келесі сабақ · 14:00</p>
-          <p className="m-0 mt-1 font-semibold">Алгебра</p>
-          <p className="m-0 mt-3 inline-flex rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-ln-brand">Қосылу</p>
-        </div>
-        {['Квадрат теңдеулер', 'Essay: My city'].map((t, i) => (
-          <div key={t} className="mb-2 rounded-xl border border-ln-border-soft p-3">
-            <p className="m-0 text-sm font-medium text-ln-ink">{t}</p>
-            <p className="m-0 text-xs text-ln-muted">{i ? '3 күн қалды' : 'Ертең, 18:00'}</p>
-          </div>
-        ))}
-      </Phone>
-      <Phone title="Курс" label="Мобильді қосымша: курс беті">
-        <div className="mb-3 flex h-24 items-center justify-center rounded-2xl bg-ln-brand-soft text-ln-accent">
-          <BookOpen size={32} />
-        </div>
-        <p className="m-0 font-semibold text-ln-ink">Python негіздері</p>
-        <p className="m-0 mb-2 text-xs text-ln-muted">12 сабақ · 31% аяқталды</p>
-        <Bar value={31} />
-        <div className="mt-3 flex flex-col gap-2">
-          {['1. Айнымалылар', '2. Шарттар', '3. Циклдар', '4. Функциялар'].map((l, i) => (
-            <div key={l} className="flex items-center gap-2 text-sm text-ln-ink-2">
-              {i < 2 ? <CheckCircle2 size={16} className="text-ln-success" /> : <PlayCircle size={16} className="text-ln-muted" />}
-              {l}
-            </div>
+    <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+      <figure className="m-0 rounded-[28px] border border-dashed border-ln-border bg-ln-bg p-6 md:p-8">
+        <figcaption className="mb-5 text-[0.9375rem] font-semibold text-ln-muted">Бұрын — бірнеше жүйе</figcaption>
+        <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0">
+          {SCATTERED.map(({ icon: Icon, title, where }, i) => (
+            <li key={title} className={`rounded-2xl bg-ln-soft p-4 ${i % 2 ? 'md:translate-y-3 md:rotate-1' : 'md:-rotate-1'}`}>
+              <Icon size={20} strokeWidth={1.75} className="text-ln-muted" aria-hidden />
+              <p className="m-0 mt-3 text-[0.9375rem] font-semibold text-ln-ink">{title}</p>
+              <p className="m-0 mt-0.5 text-[0.8125rem] tracking-[0.01em] text-ln-muted">{where}</p>
+            </li>
           ))}
-        </div>
-      </Phone>
-      <Phone title="Тапсырма" label="Мобильді қосымша: тапсырма беті">
-        <span className="mb-2 inline-flex self-start rounded-md bg-ln-warning-soft px-2 py-0.5 text-xs font-medium text-ln-warning">
-          2 сағат қалды
-        </span>
-        <p className="m-0 font-semibold text-ln-ink">Квадрат теңдеулер</p>
-        <p className="m-0 mt-1 text-sm text-ln-ink-2">5 есепті шығарып, шешімнің суретін жүктеңіз.</p>
-        <div className="mt-4 flex h-24 items-center justify-center rounded-xl border border-dashed border-ln-border text-xs text-ln-muted">
-          Файлды жүктеу
-        </div>
-        <p className="m-0 mt-auto rounded-lg bg-ln-brand py-2.5 text-center text-sm font-semibold text-white">Жіберу</p>
-      </Phone>
+        </ul>
+      </figure>
+      <figure className="ln-shadow m-0 rounded-[28px] bg-ln-bg p-6 ring-2 ring-ln-brand md:p-8">
+        <figcaption className="mb-5 flex items-center gap-2 text-[0.9375rem] font-semibold text-ln-ink">
+          <BrandMark size={22} /> Қазір — бір платформа
+        </figcaption>
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {UNIFIED.map((t) => (
+            <li key={t} className="flex items-center gap-3 rounded-xl bg-ln-soft px-4 py-3 text-[0.9375rem] text-ln-ink">
+              <CheckCircle2 size={18} className="shrink-0 text-ln-success" aria-hidden />
+              {t}
+            </li>
+          ))}
+        </ul>
+      </figure>
     </div>
   );
 }

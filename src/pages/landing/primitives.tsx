@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState, type ElementType, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
-/** Логотип Sanastra: знак из брендбука + словесная часть. */
-export function SanastraLogo({ inverted = false, to = '/' }: { inverted?: boolean; to?: string }) {
+/** Знак Zuie: буква в бренд-плашке — используется в шапке, подвале и продуктовых макетах. */
+export function BrandMark({ size = 32 }: { size?: number }) {
   return (
-    <Link to={to} className="ln-focus flex items-center gap-2.5 rounded-md no-underline" aria-label="Sanastra — басты бет">
-      <img src="/brand/sanastra-icon-64.png" width={32} height={32} alt="" className="rounded-lg" />
-      <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Sanastra</span>
+    <span
+      aria-hidden
+      className="flex shrink-0 items-center justify-center rounded-lg bg-ln-brand font-bold text-white"
+      style={{ width: size, height: size, fontSize: size * 0.56, lineHeight: 1 }}
+    >
+      Z
+    </span>
+  );
+}
+
+/** Логотип Zuie: знак + словесная часть. */
+export function BrandLogo({ inverted = false, to = '/' }: { inverted?: boolean; to?: string }) {
+  return (
+    <Link to={to} className="ln-focus flex items-center gap-2.5 rounded-md no-underline" aria-label="Zuie — басты бет">
+      <BrandMark />
+      <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Zuie</span>
     </Link>
   );
 }
@@ -105,41 +118,50 @@ export function SectionHeading({
   );
 }
 
-type BtnProps = { children: ReactNode; to?: string; href?: string; size?: 'md' | 'lg'; className?: string };
+type BtnProps = {
+  children: ReactNode;
+  to?: string;
+  href?: string;
+  size?: 'md' | 'lg';
+  className?: string;
+  /** Место кнопки на странице — для события landing_cta_click (ловится делегированно на корне лендинга). */
+  cta?: string;
+  onClick?: () => void;
+};
 
 // Кнопки-«пилюли»: высота не меньше 44 px; отклик на нажатие — сразу, на pointer-down (.ln-press)
 const base =
   'ln-focus ln-press inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap no-underline';
 const sizes = { md: 'h-11 px-5 text-[0.9375rem] leading-5', lg: 'h-12 px-6 text-[1.0625rem] leading-6' };
 
-function BtnLink({ to, href, className, children }: { to?: string; href?: string; className: string; children: ReactNode }) {
+function BtnLink({ to, href, className, children, cta, onClick }: Omit<BtnProps, 'size'> & { className: string }) {
+  const extra = { className, onClick, 'data-cta': cta };
   if (to) {
     return (
-      <Link to={to} className={className}>
+      <Link to={to} {...extra}>
         {children}
       </Link>
     );
   }
   return (
-    <a href={href} className={className}>
+    <a href={href} {...extra}>
       {children}
     </a>
   );
 }
 
-export function PrimaryButton({ children, to, href, size = 'md', className = '' }: BtnProps) {
+export function PrimaryButton({ children, size = 'md', className = '', ...rest }: BtnProps) {
   return (
-    <BtnLink to={to} href={href} className={`${base} ${sizes[size]} bg-ln-brand! text-white! hover:bg-ln-brand-hover! hover:text-white! ${className}`}>
+    <BtnLink {...rest} className={`${base} ${sizes[size]} bg-ln-brand! text-white! hover:bg-ln-brand-hover! hover:text-white! ${className}`}>
       {children}
     </BtnLink>
   );
 }
 
-export function SecondaryButton({ children, to, href, size = 'md', className = '' }: BtnProps) {
+export function SecondaryButton({ children, size = 'md', className = '', ...rest }: BtnProps) {
   return (
     <BtnLink
-      to={to}
-      href={href}
+      {...rest}
       className={`${base} ${sizes[size]} bg-ln-subtle! text-ln-ink! hover:bg-ln-border-soft! hover:text-ln-ink! ${className}`}
     >
       {children}
@@ -148,9 +170,9 @@ export function SecondaryButton({ children, to, href, size = 'md', className = '
 }
 
 /** Текстовая кнопка без фона — для второстепенных действий рядом с основной (например, «Кіру» в шапке). */
-export function GhostButton({ children, to, href, size = 'md', className = '' }: BtnProps) {
+export function GhostButton({ children, size = 'md', className = '', ...rest }: BtnProps) {
   return (
-    <BtnLink to={to} href={href} className={`${base} ${sizes[size]} text-ln-ink! hover:bg-ln-subtle! hover:text-ln-ink! ${className}`}>
+    <BtnLink {...rest} className={`${base} ${sizes[size]} text-ln-ink! hover:bg-ln-subtle! hover:text-ln-ink! ${className}`}>
       {children}
     </BtnLink>
   );

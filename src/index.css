@@ -54,6 +54,7 @@
   --color-ln-success-soft: var(--ln-success-soft);
   --color-ln-warning: var(--ln-warning);
   --color-ln-warning-soft: var(--ln-warning-soft);
+  --color-ln-danger: var(--ln-danger);
   --color-ln-inverse: var(--ln-inverse);
   --color-ln-bezel: var(--ln-bezel);
 }
@@ -145,6 +146,7 @@ body {
   --ln-success-soft: #e3f5ea;
   --ln-warning: #a35200;
   --ln-warning-soft: #fdf0e3;
+  --ln-danger: #c2362b;
   --ln-inverse: #121826;
   --ln-bezel: #121826;
   --ln-glass: rgba(255, 255, 255, 0.72);
@@ -171,6 +173,7 @@ body {
     --ln-success-soft: #10291d;
     --ln-warning: #f5a25d;
     --ln-warning-soft: #2e1e0e;
+    --ln-danger: #ff8a80;
     --ln-inverse: #1c2433;
     --ln-bezel: #2a3344;
     --ln-glass: rgba(11, 15, 23, 0.72);
