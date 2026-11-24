@@ -15,9 +15,9 @@ export function BrandMark({ size = 32 }: { size?: number }) {
 }
 
 /** Логотип Zuie: знак + словесная часть. */
-export function BrandLogo({ inverted = false, to = '/' }: { inverted?: boolean; to?: string }) {
+export function BrandLogo({ inverted = false, to = '/', ariaLabel }: { inverted?: boolean; to?: string; ariaLabel: string }) {
   return (
-    <Link to={to} className="ln-focus flex items-center gap-2.5 rounded-md no-underline" aria-label="Zuie — басты бет">
+    <Link to={to} className="ln-focus flex items-center gap-2.5 rounded-md no-underline" aria-label={ariaLabel}>
       <BrandMark />
       <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Zuie</span>
     </Link>
@@ -175,5 +175,59 @@ export function GhostButton({ children, size = 'md', className = '', ...rest }: 
     <BtnLink {...rest} className={`${base} ${sizes[size]} text-ln-ink! hover:bg-ln-subtle! hover:text-ln-ink! ${className}`}>
       {children}
     </BtnLink>
+  );
+}
+
+/**
+ * Число, которое «набегает» до значения при появлении в экране: «86%», «1 248».
+ * Без IntersectionObserver или при «меньше движения» — сразу итоговое значение.
+ */
+export function CountUp({ value, duration = 1200 }: { value: string; duration?: number }) {
+  const match = /^(\D*)([\d\s\u00a0]+)(.*)$/.exec(value);
+  const target = match ? Number(match[2]!.replace(/\D/g, '')) : NaN;
+  const animated =
+    !Number.isNaN(target) &&
+    typeof IntersectionObserver !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ref = useRef<HTMLSpanElement>(null);
+  const [current, setCurrent] = useState(animated ? 0 : target);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!animated || !el) return;
+    let frame = 0;
+    const io = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      io.disconnect();
+      const start = performance.now();
+      const tick = (now: number) => {
+        const k = Math.min(1, (now - start) / duration);
+        setCurrent(Math.round(target * (1 - Math.pow(1 - k, 3))));
+        if (k < 1) frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
+    });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [animated, target, duration]);
+
+  if (!match || Number.isNaN(target)) return <>{value}</>;
+  // Разделитель тысяч — как в исходной строке (обычный или неразрывный пробел)
+  const sep = /\u00a0/.test(match[2]!) ? '\u00a0' : ' ';
+  const formatted = String(current).replace(/\B(?=(\d{3})+(?!\d))/g, sep);
+  return (
+    <span ref={ref}>
+      {/* Скринридер слышит итоговое значение, а не промежуточные кадры */}
+      <span aria-hidden>
+        {match[1]}
+        {formatted}
+        {match[3]}
+      </span>
+      <span className="sr-only">{value}</span>
+    </span>
   );
 }

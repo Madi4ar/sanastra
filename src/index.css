@@ -36,7 +36,7 @@
 }
 
 @theme inline {
-  /* Палитра лендинга Sanastra: значения в .ln-root (светлая/тёмная тема) — только публичная страница.
+  /* Палитра лендинга Zuie: значения в .ln-root (светлая/тёмная тема) — только публичная страница.
    * inline: утилиты ссылаются на var(--ln-*) напрямую, иначе переменная вычислилась бы на :root, где её нет. */
   --color-ln-bg: var(--ln-bg);
   --color-ln-soft: var(--ln-soft);
@@ -310,4 +310,177 @@ body {
 }
 .rich-text p {
   margin: 0 0 0.25rem;
+}
+
+/* ---------- Лендинг: плавающие кнопки «наверх» и WhatsApp ---------- */
+.ln-fab-top {
+  opacity: 0;
+  transform: translateY(8px) scale(0.9);
+  pointer-events: none;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.ln-fab-top[data-visible='true'] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+/* Кнопка чата мягко «плавает» и периодически расходится кругом */
+@keyframes ln-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes ln-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  80%,
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+.ln-fab-chat {
+  animation: ln-float 3.2s ease-in-out infinite;
+}
+.ln-fab-ping {
+  animation: ln-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+/* Флажок со слоганом выезжает слева от кнопки при наведении или фокусе */
+.ln-flag {
+  opacity: 0;
+  transform: translateX(10px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.ln-flag::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border-radius: 2px;
+  transform: translateY(-50%) rotate(45deg);
+}
+.group:hover > .ln-flag,
+.group:focus-within > .ln-flag {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ln-fab-chat,
+  .ln-fab-ping {
+    animation: none;
+  }
+  .ln-fab-top,
+  .ln-flag {
+    transition: opacity 0.2s ease;
+    transform: none;
+  }
+}
+
+/* ---------- Лендинг: эффекты продуктовых экранов и карточек ---------- */
+/* Скриншот «выпрямляется» из наклона по мере прокрутки (--p пишет useScrollProgress) */
+.ln-shot {
+  --p: 1;
+  perspective: 1400px;
+}
+.ln-shot-frame {
+  transform: rotateX(calc((1 - var(--p)) * 14deg)) scale(calc(0.94 + var(--p) * 0.06));
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+/* Видимая область скриншота: desktop-crop, на телефоне — тематический mobile-crop */
+.ln-shot-view {
+  aspect-ratio: var(--ar);
+}
+.ln-shot-img {
+  width: var(--iw);
+  left: var(--il);
+  top: var(--it);
+}
+@media (max-width: 639px) {
+  .ln-shot-view {
+    aspect-ratio: var(--m-ar);
+  }
+  .ln-shot-img {
+    width: var(--m-iw);
+    left: var(--m-il);
+    top: var(--m-it);
+  }
+}
+/* Камера мягко приближается при наведении */
+.ln-shot-img {
+  transition: transform 1.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transform-origin: 30% 20%;
+}
+@media (hover: hover) {
+  .ln-shot:hover .ln-shot-img {
+    transform: scale(1.04);
+  }
+  /* Карточки приподнимаются под курсором */
+  .ln-lift {
+    transition:
+      transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1),
+      box-shadow 0.3s ease;
+  }
+  .ln-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--ln-shadow);
+  }
+  /* Разрозненные карточки «до» разлетаются чуть сильнее */
+  .ln-scatter {
+    transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  figure:hover > ul > .ln-scatter:nth-child(odd) {
+    transform: rotate(-4deg) translateY(-2px);
+  }
+  figure:hover > ul > .ln-scatter:nth-child(even) {
+    transform: rotate(4deg) translateY(14px);
+  }
+}
+/* Шаги появляются по очереди */
+.ln-stagger > * {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: calc(var(--i, 0) * 110ms);
+}
+.is-visible.ln-stagger > * {
+  opacity: 1;
+  transform: none;
+}
+/* Столбики графика растут снизу вверх друг за другом */
+.ln-bar {
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: calc(200ms + var(--i, 0) * 70ms);
+}
+.is-visible .ln-bar {
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ln-shot-frame,
+  .ln-shot-img,
+  .ln-stagger > *,
+  .ln-bar {
+    transform: none !important;
+    transition: opacity 0.2s ease;
+  }
+  .ln-stagger > * {
+    opacity: 1;
+  }
 }

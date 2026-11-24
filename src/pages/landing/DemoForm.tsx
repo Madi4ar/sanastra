@@ -1,7 +1,8 @@
 import { CheckCircle2 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { track } from './analytics';
-import { BRAND, SALES_EMAIL } from './content';
+import { SALES_EMAIL } from './content';
+import { useLandingText, type LandingDictionary } from './i18n';
 
 /** Связь формы со страницей: страница помнит, с какого CTA пришёл посетитель, и отправляет событие открытия один раз. */
 export type DemoChannel = { open: (placement?: string) => void; source: () => string };
@@ -11,36 +12,37 @@ type Errors = Partial<Record<keyof Values, string>>;
 
 const EMPTY: Values = { name: '', organization: '', contact: '', comment: '', consent: false };
 
-function validate(v: Values): Errors {
+function validate(v: Values, t: LandingDictionary['form']): Errors {
   const e: Errors = {};
-  if (!v.name.trim()) e.name = 'Атыңызды жазыңыз';
-  if (!v.organization.trim()) e.organization = 'Ұйым атауын жазыңыз';
+  if (!v.name.trim()) e.name = t.errors.name;
+  if (!v.organization.trim()) e.organization = t.errors.organization;
   const contact = v.contact.trim();
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
   const isPhone = contact.replace(/\D/g, '').length >= 10;
-  if (!contact) e.contact = 'Телефон немесе email жазыңыз';
-  else if (!isEmail && !isPhone) e.contact = 'Телефон нөмірін немесе email-ді дұрыс жазыңыз';
-  if (!v.consent) e.consent = 'Деректерді өңдеуге келісім қажет';
+  if (!contact) e.contact = t.errors.contactRequired;
+  else if (!isEmail && !isPhone) e.contact = t.errors.contactInvalid;
+  if (!v.consent) e.consent = t.errors.consent;
   return e;
 }
 
 /** Письмо в отдел продаж: пока нет API заявок, демо запрашивается через согласованный канал — email. */
-function mailtoFor(v: Values) {
+function mailtoFor(v: Values, t: LandingDictionary['form']) {
   const body = [
-    `Аты: ${v.name.trim()}`,
-    `Ұйым: ${v.organization.trim()}`,
-    `Байланыс: ${v.contact.trim()}`,
-    v.comment.trim() && `Түсініктеме: ${v.comment.trim()}`,
+    `${t.mail.name}: ${v.name.trim()}`,
+    `${t.mail.organization}: ${v.organization.trim()}`,
+    `${t.mail.contact}: ${v.contact.trim()}`,
+    v.comment.trim() && `${t.mail.comment}: ${v.comment.trim()}`,
   ]
     .filter(Boolean)
     .join('\n');
-  return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(`${BRAND} демо сұрау`)}&body=${encodeURIComponent(body)}`;
+  return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(t.mail.subject)}&body=${encodeURIComponent(body)}`;
 }
 
 const input =
   'ln-focus mt-1.5 block w-full rounded-xl border border-ln-border bg-ln-bg px-4 text-[1.0625rem] text-ln-ink placeholder:text-ln-muted aria-[invalid=true]:border-ln-danger';
 
 export function DemoForm({ demo }: { demo: DemoChannel }) {
+  const t = useLandingText().form;
   const [values, setValues] = useState<Values>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
   const [sent, setSent] = useState(false);
@@ -60,7 +62,7 @@ export function DemoForm({ demo }: { demo: DemoChannel }) {
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const next = validate(values);
+    const next = validate(values, t);
     setErrors(next);
     const first = (Object.keys(next) as (keyof Values)[])[0];
     if (first) {
@@ -69,7 +71,7 @@ export function DemoForm({ demo }: { demo: DemoChannel }) {
     }
     // В аналитику — только источник, без данных формы
     track({ event: 'landing_demo_submit', source: demo.source() });
-    window.location.href = mailtoFor(values);
+    window.location.href = mailtoFor(values, t);
     setSent(true);
   };
 
@@ -78,11 +80,11 @@ export function DemoForm({ demo }: { demo: DemoChannel }) {
       <div id="demo" className="scroll-mt-24 rounded-[28px] bg-ln-bg p-7 md:p-9" role="status">
         <CheckCircle2 size={40} strokeWidth={1.75} className="text-ln-success" aria-hidden />
         <h3 ref={successRef} tabIndex={-1} className="m-0 mt-5 text-[1.5rem] leading-8 font-semibold text-ln-ink outline-none">
-          Рақмет! Өтінім дайын
+          {t.successTitle}
         </h3>
         <p className="m-0 mt-3 text-[1.0625rem] leading-[1.75rem] text-ln-ink-2">
-          Пошта бағдарламасында хат ашылды — оны жіберіңіз, біз сізбен хабарласамыз. Хат ашылмаса, бізге тікелей жазыңыз:{' '}
-          <a href={mailtoFor(values)} className="ln-focus rounded font-medium text-ln-accent!">
+          {t.successText}{' '}
+          <a href={mailtoFor(values, t)} className="ln-focus rounded font-medium text-ln-accent!">
             {SALES_EMAIL}
           </a>
         </p>
@@ -126,16 +128,16 @@ export function DemoForm({ demo }: { demo: DemoChannel }) {
       className="scroll-mt-24 rounded-[28px] bg-ln-bg p-6 md:p-8"
     >
       <h3 id="demo-h" className="m-0 text-[1.375rem] leading-7 font-semibold text-ln-ink">
-        Жеке демо сұрау
+        {t.title}
       </h3>
-      <p className="m-0 mt-1.5 text-[0.9375rem] leading-6 text-ln-muted">Платформаны сіздің міндеттеріңізге сай көрсетеміз.</p>
+      <p className="m-0 mt-1.5 text-[0.9375rem] leading-6 text-ln-muted">{t.text}</p>
       <div className="mt-6 grid gap-4">
-        {field('name', 'Атыңыз', 'name')}
-        {field('organization', 'Ұйым', 'organization')}
-        {field('contact', 'Телефон немесе email', 'email', { inputMode: 'text' })}
+        {field('name', t.name, 'name')}
+        {field('organization', t.organization, 'organization')}
+        {field('contact', t.contact, 'email', { inputMode: 'text' })}
         <div>
           <label htmlFor="demo-comment" className="text-[0.9375rem] font-medium text-ln-ink">
-            Түсініктеме <span className="font-normal text-ln-muted">(міндетті емес)</span>
+            {t.comment} <span className="font-normal text-ln-muted">{t.optional}</span>
           </label>
           <textarea
             id="demo-comment"
@@ -157,7 +159,7 @@ export function DemoForm({ demo }: { demo: DemoChannel }) {
               aria-describedby={errors.consent ? 'demo-consent-err' : undefined}
               className="ln-focus mt-0.5 h-5 w-5 shrink-0 accent-[var(--ln-brand)]"
             />
-            <span>Дербес деректерді өңдеу саясатымен келісемін</span>
+            <span>{t.consent}</span>
           </label>
           {errors.consent && (
             <p id="demo-consent-err" className="m-0 mt-1.5 text-[0.875rem] text-ln-danger">
@@ -170,7 +172,7 @@ export function DemoForm({ demo }: { demo: DemoChannel }) {
         type="submit"
         className="ln-focus ln-press mt-6 inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-full border-0 bg-ln-brand px-6 text-[1.0625rem] font-medium text-white hover:bg-ln-brand-hover"
       >
-        Өтінім жіберу
+        {t.submit}
       </button>
     </form>
   );

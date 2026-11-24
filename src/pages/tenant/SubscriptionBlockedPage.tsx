@@ -37,7 +37,7 @@ export function SubscriptionBlockedPage() {
   }
 
   const expired = status === 'EXPIRED';
-  // Истёкшую подписку администратор оплачивает сам; приостановленную возобновляет только Sanastra
+  // Истёкшую подписку администратор оплачивает сам; приостановленную возобновляет только Zuie
   const canPay = expired && user?.role === 'ORGANIZATION_ADMIN';
   const Icon = expired ? Clock3 : ShieldX;
 

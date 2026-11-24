@@ -38,11 +38,11 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
       >
         <Link
           to="/"
-          aria-label="Sanastra — на главную"
+          aria-label="Zuie — на главную"
           className="focus-ring flex items-center gap-3 self-start rounded-lg text-white! no-underline hover:opacity-90"
         >
-          <img src="/brand/sanastra-icon-64.png" width={40} height={40} alt="" className="rounded-lg" />
-          <span className="text-lg font-semibold">Sanastra</span>
+          <img src="/brand/zuie-icon.svg" width={40} height={40} alt="" className="rounded-lg" />
+          <span className="text-lg font-semibold">Zuie</span>
         </Link>
 
         <div className="flex flex-col gap-8">
@@ -53,7 +53,7 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
               для организаций любого масштаба
             </h1>
             <p className="mt-4 mb-0 text-base opacity-80">
-              Единое пространство для администраторов Sanastra, организаций и их пользователей.
+              Единое пространство для администраторов Zuie, организаций и их пользователей.
             </p>
           </div>
           <ul className="m-0 flex list-none flex-col gap-5 p-0">
@@ -71,18 +71,18 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
           </ul>
         </div>
 
-        <div className="text-sm opacity-60">© {new Date().getFullYear()} Sanastra · Саналы білім, тұрақты даму</div>
+        <div className="text-sm opacity-60">© {new Date().getFullYear()} Zuie · Әзірлеген: CPM NIS</div>
       </aside>
 
       <main className="flex flex-1 items-center justify-center p-4 sm:p-6">
         <div className={`w-full ${wide ? 'max-w-[560px]' : 'max-w-[440px]'} py-6`}>
           <Link
             to="/"
-            aria-label="Sanastra — на главную"
+            aria-label="Zuie — на главную"
             className="focus-ring mb-8 inline-flex items-center gap-3 rounded-lg text-text! no-underline hover:opacity-90 lg:hidden"
           >
-            <img src="/brand/sanastra-icon-64.png" width={40} height={40} alt="" className="rounded-lg" />
-            <span className="text-lg font-semibold">Sanastra</span>
+            <img src="/brand/zuie-icon.svg" width={40} height={40} alt="" className="rounded-lg" />
+            <span className="text-lg font-semibold">Zuie</span>
           </Link>
           {children}
         </div>

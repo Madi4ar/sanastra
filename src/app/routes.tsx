@@ -147,6 +147,7 @@ function cabinetRoutes(): RouteObject[] {
 
 export const routes: RouteObject[] = [
   { path: '/', element: <LandingPage /> },
+  { path: '/ru', element: <LandingPage lang="ru" /> },
   { path: '/app', element: <HomeRedirect /> },
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },

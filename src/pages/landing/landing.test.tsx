@@ -25,6 +25,28 @@ describe('Лендинг Zuie', () => {
     expect(screen.queryByText(/Sanastra/)).not.toBeInTheDocument();
   });
 
+  it('русская версия: локализует страницу, SEO и позволяет перейти на казахскую', async () => {
+    const { user, router } = renderApp('/ru');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Управляйте учебным процессом в одной системе');
+    expect(document.documentElement.lang).toBe('ru');
+    expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${window.location.origin}/ru`);
+
+    const nav = screen.getByRole('navigation', { name: 'Основная навигация' });
+    ['Возможности', 'Как это работает', 'Для кого', 'Тарифы', 'Вопросы'].forEach((label) =>
+      expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument(),
+    );
+    screen.getAllByRole('link', { name: /^Начать бесплатно/ }).forEach((link) => expect(link.getAttribute('href')).toMatch(/^\/register/));
+    expect(screen.queryByRole('heading', { name: 'Оқу процесінің бәрі — бір жерде' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Жиі қойылатын сұрақтар' })).not.toBeInTheDocument();
+
+    const kazakhLinks = screen.getAllByRole('link', { name: 'Қаз' });
+    kazakhLinks.forEach((link) => expect(link).toHaveAttribute('href', '/'));
+    await user.click(kazakhLinks[0]!);
+    expect(router.state.location.pathname).toBe('/');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Оқу процесін бір жүйеде басқарыңыз');
+    expect(document.documentElement.lang).toBe('kk');
+  });
+
   it('все секции на месте; 3 тарифа, «Стандарт» рекомендован; неподтверждённые блоки скрыты', async () => {
     renderApp('/');
     await screen.findByRole('heading', { level: 1 });
@@ -115,7 +137,7 @@ describe('Лендинг Zuie', () => {
 describe('Страница входа', () => {
   it('логотип ведёт на главную (лендинг)', async () => {
     const { user, router } = renderApp('/login');
-    const logos = await screen.findAllByRole('link', { name: 'Sanastra — на главную' });
+    const logos = await screen.findAllByRole('link', { name: 'Zuie — на главную' });
     expect(logos[0]).toHaveAttribute('href', '/');
     await user.click(logos[0]!);
     expect(router.state.location.pathname).toBe('/');

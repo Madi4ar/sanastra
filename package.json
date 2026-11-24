@@ -1,7 +1,7 @@
 {
   "name": "superadmin-frontend",
   "version": "1.0.0",
-  "description": "Sanastra lms",
+  "description": "Zuie LMS",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

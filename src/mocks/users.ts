@@ -82,7 +82,7 @@ function seedUsers(): UserRecord[] {
       lastName: 'Касымов',
       firstName: 'Нурлан',
       phone: '7011234567',
-      email: 'superadmin@sanastra.kz',
+      email: 'superadmin@zuie.kz',
       // Роль Superadmin назначена прямой записью в БД при развёртывании; Слушатель — при регистрации
       roles: [{ role: 'SUPERADMIN' }, { role: 'LEARNER' }],
     },

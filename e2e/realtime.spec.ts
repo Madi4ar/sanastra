@@ -49,7 +49,7 @@ test('отключение модуля: пункт меню исчезает, �
   await adminSave(admin, true);
 
   await expect(cabinet).toHaveURL(/\/academy\/admin$/, REALTIME_SLA);
-  await expect(cabinet.getByText('Доступ к модулю отключён администратором Sanastra')).toBeVisible();
+  await expect(cabinet.getByText('Доступ к модулю отключён администратором Zuie')).toBeVisible();
   await expect(cabinet.getByRole('menuitem', { name: 'Вебинары' })).toHaveCount(0);
 });
 

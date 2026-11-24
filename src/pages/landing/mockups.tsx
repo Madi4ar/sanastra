@@ -13,7 +13,8 @@ import {
   Table2,
   Video,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { useLandingText } from './i18n';
 import { BrandMark } from './primitives';
 
 /** Карточка-рамка макета: radius 20, тень из токенов темы. */
@@ -46,34 +47,20 @@ function MockCard({ title, icon, children }: { title: string; icon: ReactNode; c
   );
 }
 
-const NAV = [
-  { icon: LayoutDashboard, label: 'Басты бет', active: true },
-  { icon: BookOpen, label: 'Курстар' },
-  { icon: ClipboardList, label: 'Тапсырмалар' },
-  { icon: BarChart3, label: 'Аналитика' },
-  { icon: CalendarDays, label: 'Күнтізбе' },
-];
-
-const WEEK = [
-  ['Дс', 40],
-  ['Сс', 65],
-  ['Ср', 50],
-  ['Бс', 80],
-  ['Жм', 70],
-  ['Сб', 30],
-  ['Жс', 20],
-] as const;
+const NAV_ICONS = [LayoutDashboard, BookOpen, ClipboardList, BarChart3, CalendarDays];
+const WEEK_VALUES = [40, 65, 50, 80, 70, 30, 20];
 
 /** Большой макет LMS-дашборда для hero. Декоративный: скрыт от скринридеров, описан через aria-label. Данные — демонстрационные. */
 export function DashboardMockup() {
+  const t = useLandingText().mockups.dashboard;
   return (
     <MockFrame>
-      <div role="img" aria-label="Zuie платформасындағы білім алушының басты беті: курстар, тапсырмалар, оқу прогресі және нәтижелер (демонстрациялық деректер)">
+      <div role="img" aria-label={t.aria}>
         <div className="flex items-center gap-2 border-b border-ln-border-soft bg-ln-soft px-4 py-3" aria-hidden>
           <span className="h-3 w-3 rounded-full bg-ln-border" />
           <span className="h-3 w-3 rounded-full bg-ln-border" />
           <span className="h-3 w-3 rounded-full bg-ln-border" />
-          <span className="ml-3 hidden rounded-md bg-ln-bg px-3 py-1 text-xs text-ln-muted sm:inline">Zuie · Білім алушы кабинеті</span>
+          <span className="ml-3 hidden rounded-md bg-ln-bg px-3 py-1 text-xs text-ln-muted sm:inline">{t.cabinet}</span>
         </div>
         <div className="flex text-left" aria-hidden>
           <aside className="hidden w-52 shrink-0 border-r border-ln-border-soft bg-ln-soft p-3 md:block">
@@ -81,7 +68,10 @@ export function DashboardMockup() {
               <BrandMark size={22} />
               <span className="text-sm font-bold text-ln-ink">Zuie</span>
             </div>
-            {NAV.map(({ icon: Icon, label, active }) => (
+            {t.nav.map((label, i) => {
+              const Icon = NAV_ICONS[i]!;
+              const active = i === 0;
+              return (
               <div
                 key={label}
                 className={`mb-0.5 flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.8125rem] tracking-[0.01em] ${
@@ -91,25 +81,24 @@ export function DashboardMockup() {
                 <Icon size={16} />
                 {label}
               </div>
-            ))}
+              );
+            })}
           </aside>
           <div className="min-w-0 flex-1 p-4 sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
-                <p className="m-0 text-lg font-bold text-ln-ink sm:text-xl">Қайырлы күн, Айдана!</p>
-                <p className="m-0 mt-0.5 text-[0.8125rem] tracking-[0.01em] text-ln-muted">Бүгін 2 сабақ және 1 тапсырма бар</p>
+                <p className="m-0 text-lg font-bold text-ln-ink sm:text-xl">{t.greeting}</p>
+                <p className="m-0 mt-0.5 text-[0.8125rem] tracking-[0.01em] text-ln-muted">{t.today}</p>
               </div>
               <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-ln-border-soft text-ln-ink-2">
                 <Bell size={16} />
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <MockCard title="Менің курстарым" icon={<BookOpen size={16} />}>
-                {[
-                  ['Алгебра', 72],
-                  ['Ағылшын тілі B1', 54],
-                  ['Python негіздері', 31],
-                ].map(([name, v]) => (
+              <MockCard title={t.myCourses} icon={<BookOpen size={16} />}>
+                {t.courses.map((name, i) => {
+                  const v = [72, 54, 31][i]!;
+                  return (
                   <div key={name} className="mb-2.5 last:mb-0">
                     <div className="mb-1 flex justify-between text-[0.8125rem] tracking-[0.01em] text-ln-ink-2">
                       <span>{name}</span>
@@ -117,62 +106,64 @@ export function DashboardMockup() {
                     </div>
                     <Bar value={Number(v)} />
                   </div>
-                ))}
+                  );
+                })}
               </MockCard>
-              <MockCard title="Алдағы тапсырмалар" icon={<ClipboardList size={16} />}>
-                {[
-                  ['Квадрат теңдеулер', 'Ертең, 18:00', true],
-                  ['Essay: My city', '3 күн қалды', false],
-                  ['Мини-жоба: калькулятор', '7 күн қалды', false],
-                ].map(([t, d, urgent]) => (
-                  <div key={String(t)} className="mb-2 flex items-center justify-between gap-2 text-[0.8125rem] tracking-[0.01em] last:mb-0">
-                    <span className="truncate text-ln-ink-2">{t}</span>
+              <MockCard title={t.upcoming} icon={<ClipboardList size={16} />}>
+                {t.tasks.map(([title, date], i) => {
+                  const urgent = i === 0;
+                  return (
+                  <div key={title} className="mb-2 flex items-center justify-between gap-2 text-[0.8125rem] tracking-[0.01em] last:mb-0">
+                    <span className="truncate text-ln-ink-2">{title}</span>
                     <span
                       className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
                         urgent ? 'bg-ln-warning-soft text-ln-warning' : 'bg-ln-subtle text-ln-ink-2'
                       }`}
                     >
-                      {d}
+                      {date}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </MockCard>
-              <MockCard title="Оқу прогресі" icon={<BarChart3 size={16} />}>
+              <MockCard title={t.progress} icon={<BarChart3 size={16} />}>
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <p className="tabular m-0 text-3xl font-bold text-ln-ink">68%</p>
-                    <p className="m-0 text-xs text-ln-success">Осы аптада +12%</p>
+                    <p className="m-0 text-xs text-ln-success">{t.weekGain}</p>
                   </div>
                   <div className="flex h-14 items-end gap-1.5">
-                    {WEEK.map(([d, v]) => (
+                    {t.week.map((d, i) => {
+                      const v = WEEK_VALUES[i]!;
+                      return (
                       <div key={d} className="flex flex-col items-center gap-1">
                         <div className="w-3 rounded-sm bg-ln-brand" style={{ height: `${v * 0.45}px`, opacity: 0.35 + v / 160 }} />
                         <span className="text-[0.625rem] text-ln-muted">{d}</span>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </MockCard>
-              <MockCard title="Соңғы нәтижелер" icon={<CheckCircle2 size={16} />}>
-                {[
-                  ['Алгебра: тест', 92],
-                  ['Listening', 85],
-                  ['Python quiz', 78],
-                ].map(([t, s]) => (
-                  <div key={String(t)} className="mb-2 flex items-center justify-between text-[0.8125rem] tracking-[0.01em] last:mb-0">
-                    <span className="text-ln-ink-2">{t}</span>
+              <MockCard title={t.results} icon={<CheckCircle2 size={16} />}>
+                {t.resultItems.map((title, i) => {
+                  const s = [92, 85, 78][i]!;
+                  return (
+                  <div key={title} className="mb-2 flex items-center justify-between text-[0.8125rem] tracking-[0.01em] last:mb-0">
+                    <span className="text-ln-ink-2">{title}</span>
                     <span className="tabular font-semibold text-ln-ink">{s}/100</span>
                   </div>
-                ))}
+                  );
+                })}
               </MockCard>
             </div>
             <div className="mt-3 flex items-center gap-3 rounded-xl border border-ln-border-soft bg-ln-soft p-3 text-[0.8125rem] tracking-[0.01em]">
               <CalendarDays size={16} className="shrink-0 text-ln-accent" />
               <span className="text-ln-ink-2">
-                <b className="font-semibold text-ln-ink">Бүгін, 14:00</b> · Алгебра · онлайн-сабақ
+                <b className="font-semibold text-ln-ink">{t.eventTime}</b> · {t.event}
               </span>
               <span className="ml-auto hidden items-center gap-1 rounded-md bg-ln-brand-soft px-2 py-1 text-xs font-medium text-ln-accent sm:inline-flex">
-                <Video size={12} /> Қосылу
+                <Video size={12} /> {t.join}
               </span>
             </div>
           </div>
@@ -184,25 +175,25 @@ export function DashboardMockup() {
 
 /** Интерфейс преподавателя: проверка работ. */
 export function TeacherMockup() {
-  const rows = [
-    ['Айдана С.', 'Тексерілді', 92],
-    ['Нұрлан Ә.', 'Тексерілді', 85],
-    ['Мадина Қ.', 'Күтуде', null],
-    ['Ерлан Т.', 'Күтуде', null],
-  ] as const;
+  const t = useLandingText().mockups.teacher;
+  const scores = [92, 85, null, null];
   return (
     <MockFrame>
-      <div className="p-5 sm:p-6" role="img" aria-label="Оқытушы интерфейсі: тапсырмаларды тексеру тізімі">
+      <div className="p-5 sm:p-6" role="img" aria-label={t.aria}>
         <div aria-hidden>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p className="m-0 text-xs font-medium text-ln-muted">Алгебра · 9 сынып</p>
-              <p className="m-0 font-semibold text-ln-ink">Тапсырма: Квадрат теңдеулер</p>
+              <p className="m-0 text-xs font-medium text-ln-muted">{t.course}</p>
+              <p className="m-0 font-semibold text-ln-ink">{t.assignment}</p>
             </div>
-            <span className="rounded-md bg-ln-brand-soft px-2 py-1 text-xs font-semibold text-ln-accent">24 / 28 тапсырды</span>
+            <span className="rounded-md bg-ln-brand-soft px-2 py-1 text-xs font-semibold text-ln-accent">{t.submitted}</span>
           </div>
           <div className="divide-y divide-ln-border-soft rounded-xl border border-ln-border-soft">
-            {rows.map(([name, status, score]) => (
+            {t.rows.map((row, i) => {
+              const name = row[0]!;
+              const status = row[1]!;
+              const score = scores[i];
+              return (
               <div key={name} className="flex items-center gap-3 px-4 py-3 text-sm">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ln-subtle text-xs font-semibold text-ln-ink-2">
                   {name.slice(0, 1)}
@@ -217,7 +208,8 @@ export function TeacherMockup() {
                 </span>
                 <span className="tabular w-14 text-right font-semibold text-ln-ink">{score ? `${score}` : '—'}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -227,30 +219,31 @@ export function TeacherMockup() {
 
 /** «Бүгін» — экран обучающегося. */
 export function LearnerMockup() {
+  const t = useLandingText().mockups.learner;
   return (
     <MockFrame>
-      <div className="p-5 sm:p-6" role="img" aria-label="Білім алушының бүгінгі жоспары: сабақ, тапсырма және нәтиже">
+      <div className="p-5 sm:p-6" role="img" aria-label={t.aria}>
         <div aria-hidden>
-          <p className="m-0 mb-4 font-semibold text-ln-ink">Бүгін</p>
+          <p className="m-0 mb-4 font-semibold text-ln-ink">{t.today}</p>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3 rounded-xl border border-ln-border-soft p-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-brand-soft text-ln-accent">
                 <PlayCircle size={20} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="m-0 text-sm font-medium text-ln-ink">Сабақ: Функция графигі</p>
-                <p className="m-0 text-xs text-ln-muted">Алгебра · 14:00–14:45</p>
+                <p className="m-0 text-sm font-medium text-ln-ink">{t.lesson}</p>
+                <p className="m-0 text-xs text-ln-muted">{t.lessonMeta}</p>
               </div>
-              <span className="text-xs font-semibold text-ln-accent">Бастау</span>
+              <span className="text-xs font-semibold text-ln-accent">{t.start}</span>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-ln-border-soft p-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-warning-soft text-ln-warning">
                 <FileText size={20} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="m-0 text-sm font-medium text-ln-ink">Тапсырма: Квадрат теңдеулер</p>
+                <p className="m-0 text-sm font-medium text-ln-ink">{t.task}</p>
                 <p className="m-0 flex items-center gap-1 text-xs text-ln-warning">
-                  <Clock size={12} /> 2 сағат қалды
+                  <Clock size={12} /> {t.taskTime}
                 </p>
               </div>
             </div>
@@ -259,8 +252,8 @@ export function LearnerMockup() {
                 <CheckCircle2 size={20} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="m-0 text-sm font-medium text-ln-ink">Нәтиже: Listening</p>
-                <p className="m-0 text-xs text-ln-muted">Ағылшын тілі B1</p>
+                <p className="m-0 text-sm font-medium text-ln-ink">{t.result}</p>
+                <p className="m-0 text-xs text-ln-muted">{t.resultCourse}</p>
               </div>
               <span className="tabular text-sm font-semibold text-ln-success">85/100</span>
             </div>
@@ -273,124 +266,164 @@ export function LearnerMockup() {
 
 /** Подпись под продуктовыми макетами: цифры на них не являются показателями компании. */
 export function DemoNote({ className = '' }: { className?: string }) {
+  const t = useLandingText();
   return (
     <p className={`m-0 inline-flex items-center gap-1.5 rounded-full bg-ln-subtle px-3 py-1 text-[0.8125rem] tracking-[0.01em] text-ln-ink-2 ${className}`}>
       <span className="h-1.5 w-1.5 rounded-full bg-ln-muted" aria-hidden />
-      Демонстрациялық деректер
+      {t.mockups.demoNote}
     </p>
   );
 }
 
-/** Кабинет администратора организации: подписка, тариф, лимиты и разделы (по реальному экрану продукта). */
-export function AdminMockup() {
-  const sections = ['Курстар', 'Топтар', 'Тренерлер', 'Бөлімдер', 'Рөлдер', 'Есептер'];
-  const usage = [
-    ['Білім алушылар', 64, '64 / 100'],
-    ['Курстар', 36, '18 / 50'],
-    ['Қойма', 22, '22 / 100 ГБ'],
-  ] as const;
+/** Область скриншота 1440×900 в пикселях исходника: показываем тематический кусок, а не весь экран. */
+export type ShotCrop = { x: number; y: number; w: number; h: number };
+
+const SHOT_W = 1440;
+const SHOT_H = 900;
+
+/** Прогресс входа элемента в экран 0→1 — пишется в CSS-переменную --p, без перерисовки React. */
+function useScrollProgress<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof window.matchMedia !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // 0 — верх элемента у нижнего края экрана, 1 — элемент поднялся на треть экрана
+      const p = Math.min(1, Math.max(0, (vh - r.top) / (vh * 0.65)));
+      el.style.setProperty('--p', p.toFixed(3));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+  return ref;
+}
+
+function cropVars(prefix: string, c: ShotCrop) {
+  return {
+    [`--${prefix}ar`]: `${c.w} / ${c.h}`,
+    [`--${prefix}iw`]: `${(SHOT_W / c.w) * 100}%`,
+    [`--${prefix}il`]: `${(-c.x / c.w) * 100}%`,
+    [`--${prefix}it`]: `${(-c.y / c.h) * 100}%`,
+  };
+}
+
+/**
+ * Реальный экран продукта в рамке браузера: при прокрутке «выпрямляется» из наклона,
+ * при наведении камера мягко приближается. crop — тематический кусок исходного скриншота 1440×900.
+ */
+export function ProductShot({
+  src,
+  alt,
+  crop = { x: 0, y: 0, w: SHOT_W, h: SHOT_H },
+  mobileCrop,
+  className = '',
+  eager = false,
+}: {
+  src: string;
+  alt: string;
+  crop?: ShotCrop;
+  /** Тематический кусок для телефона: полный экран там нечитаем. */
+  mobileCrop?: ShotCrop;
+  className?: string;
+  eager?: boolean;
+}) {
+  const t = useLandingText().mockups.shots;
+  const ref = useScrollProgress<HTMLElement>();
   return (
-    <MockFrame>
-      <div className="p-5 sm:p-6" role="img" aria-label="Әкімші кабинеті: жазылым, тариф, лимиттерді пайдалану және ұйым бөлімдері">
-        <div aria-hidden>
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="m-0 text-xs font-medium text-ln-muted">«Білім» оқу орталығы</p>
-              <p className="m-0 font-semibold text-ln-ink">Ұйым кабинеті</p>
-            </div>
-            <span className="rounded-md bg-ln-success-soft px-2 py-1 text-xs font-semibold text-ln-success">Стандарт · белсенді</span>
-          </div>
-          <div className="mb-3 rounded-xl border border-ln-border-soft p-4">
-            <p className="m-0 mb-3 text-sm font-semibold text-ln-ink">Лимиттерді пайдалану</p>
-            {usage.map(([label, v, text]) => (
-              <div key={label} className="mb-2.5 last:mb-0">
-                <div className="mb-1 flex justify-between text-[0.8125rem] tracking-[0.01em] text-ln-ink-2">
-                  <span>{label}</span>
-                  <span className="tabular font-medium text-ln-ink">{text}</span>
-                </div>
-                <Bar value={v} />
-              </div>
-            ))}
-          </div>
-          <p className="m-0 mb-2 text-sm font-semibold text-ln-ink">Жылдам әрекеттер</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {sections.map((t) => (
-              <span key={t} className="rounded-lg bg-ln-soft px-3 py-2 text-[0.8125rem] tracking-[0.01em] text-ln-ink-2">
-                {t}
-              </span>
-            ))}
-          </div>
+    <figure ref={ref} className={`ln-shot m-0 ${className}`}>
+      <div className="ln-shot-frame ln-shadow overflow-hidden rounded-[20px] border border-ln-border-soft bg-ln-bg">
+        <div className="flex items-center gap-2 border-b border-ln-border-soft bg-ln-soft px-4 py-2.5" aria-hidden>
+          <span className="h-2.5 w-2.5 rounded-full bg-ln-border" />
+          <span className="h-2.5 w-2.5 rounded-full bg-ln-border" />
+          <span className="h-2.5 w-2.5 rounded-full bg-ln-border" />
+          <span className="ml-auto min-w-0 truncate rounded-full bg-ln-bg px-2.5 py-0.5 text-[0.75rem] whitespace-nowrap text-ln-muted">{t.badge}</span>
+        </div>
+        {/* Desktop — crop, телефон — mobileCrop: переключение через CSS-переменные без второй картинки */}
+        <div className="ln-shot-view relative overflow-hidden" style={{ ...cropVars('', crop), ...cropVars('m-', mobileCrop ?? crop) } as React.CSSProperties}>
+          <img
+            src={src}
+            alt={alt}
+            width={SHOT_W}
+            height={SHOT_H}
+            loading={eager ? 'eager' : 'lazy'}
+            decoding="async"
+            className="ln-shot-img absolute h-auto max-w-none"
+          />
         </div>
       </div>
-    </MockFrame>
+    </figure>
   );
 }
 
-/** Конструктор курса: структура «модуль → күн → элемент», обязательные элементы и разные типы контента. */
-export function CourseBuilderMockup() {
-  const items = [
-    { icon: Video, label: 'Бейнесабақ', required: true },
-    { icon: FileText, label: 'Конспект (PDF)', required: false },
-    { icon: ClipboardList, label: 'Тест: 10 сұрақ', required: true },
-  ];
-  return (
-    <div className="rounded-2xl bg-ln-bg p-4" aria-hidden>
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-[0.8125rem] tracking-[0.01em]">
-        <span className="rounded-md bg-ln-subtle px-2 py-0.5 font-medium text-ln-ink-2">1-модуль</span>
-        <span className="font-semibold text-ln-ink">Кіріспе</span>
-        <span className="ml-auto text-ln-muted">1-күн / 3</span>
-      </div>
-      <div className="flex flex-col gap-2">
-        {items.map(({ icon: Icon, label, required }) => (
-          <div key={label} className="flex items-center gap-2.5 rounded-xl border border-ln-border-soft px-3 py-2.5 text-[0.8125rem] tracking-[0.01em]">
-            <Icon size={16} className="shrink-0 text-ln-accent" />
-            <span className="min-w-0 flex-1 truncate text-ln-ink">{label}</span>
-            {required && <span className="rounded-md bg-ln-brand-soft px-2 py-0.5 text-xs font-medium text-ln-accent">Міндетті</span>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+/** Скриншоты реальных экранов (демо-данные из локальной версии продукта). */
+export const SHOTS = {
+  admin: {
+    src: '/landing/admin-dashboard.webp',
+    crop: { x: 248, y: 64, w: 1192, h: 836 },
+    mobileCrop: { x: 270, y: 170, w: 580, h: 400 },
+  },
+  builder: {
+    src: '/landing/course-builder.webp',
+    crop: { x: 270, y: 64, w: 1150, h: 760 },
+    mobileCrop: { x: 290, y: 300, w: 620, h: 380 },
+  },
+  programs: {
+    src: '/landing/programs.webp',
+    crop: { x: 270, y: 64, w: 1150, h: 640 },
+    mobileCrop: { x: 290, y: 250, w: 620, h: 360 },
+  },
+} as const;
 
-const SCATTERED = [
-  { icon: FileText, title: 'Материалдар', where: 'Бөлек папкаларда' },
-  { icon: MessageSquare, title: 'Тапсырмалар', where: 'Мессенджерде' },
-  { icon: CalendarDays, title: 'Кесте', where: 'Басқа сервисте' },
-  { icon: Table2, title: 'Есептер', where: 'Excel-де' },
-];
+const SCATTERED_ICONS = [FileText, MessageSquare, CalendarDays, Table2];
 
-const UNIFIED = ['Курстар мен материалдар', 'Топтар мен кесте', 'Тапсырмалар мен бағалар', 'Прогресс пен есептер'];
-
-/** «До / после»: разрозненные инструменты против единого экрана. На мобильном — друг под другом, без анимации. */
+/** «До / после»: разрозненные инструменты против единого экрана. На мобильном — друг под другом. */
 export function BeforeAfter() {
+  const t = useLandingText().mockups;
+  const ba = t.beforeAfter;
   return (
-    <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+    <div className="grid items-start gap-4 md:grid-cols-[0.8fr_1.2fr] md:gap-5">
       <figure className="m-0 rounded-[28px] border border-dashed border-ln-border bg-ln-bg p-6 md:p-8">
-        <figcaption className="mb-5 text-[0.9375rem] font-semibold text-ln-muted">Бұрын — бірнеше жүйе</figcaption>
+        <figcaption className="mb-5 text-[0.9375rem] font-semibold text-ln-muted">{ba.before}</figcaption>
         <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0">
-          {SCATTERED.map(({ icon: Icon, title, where }, i) => (
-            <li key={title} className={`rounded-2xl bg-ln-soft p-4 ${i % 2 ? 'md:translate-y-3 md:rotate-1' : 'md:-rotate-1'}`}>
-              <Icon size={20} strokeWidth={1.75} className="text-ln-muted" aria-hidden />
-              <p className="m-0 mt-3 text-[0.9375rem] font-semibold text-ln-ink">{title}</p>
-              <p className="m-0 mt-0.5 text-[0.8125rem] tracking-[0.01em] text-ln-muted">{where}</p>
+          {ba.scattered.map(({ title, where }, i) => {
+            const Icon = SCATTERED_ICONS[i]!;
+            return (
+              <li key={title} className={`ln-scatter rounded-2xl bg-ln-soft p-4 ${i % 2 ? 'md:translate-y-3 md:rotate-2' : 'md:-rotate-2'}`}>
+                <Icon size={20} strokeWidth={1.75} className="text-ln-muted" aria-hidden />
+                <p className="m-0 mt-3 text-[0.9375rem] font-semibold text-ln-ink">{title}</p>
+                <p className="m-0 mt-0.5 text-[0.8125rem] tracking-[0.01em] text-ln-muted">{where}</p>
+              </li>
+            );
+          })}
+        </ul>
+      </figure>
+      <div>
+        <p className="m-0 mb-4 flex items-center gap-2 text-[0.9375rem] font-semibold text-ln-ink">
+          <BrandMark size={22} /> {ba.after}
+        </p>
+        <ProductShot {...SHOTS.programs} alt={t.shots.programs} />
+        <ul className="m-0 mt-4 flex list-none flex-wrap gap-2 p-0">
+          {ba.unified.map((item) => (
+            <li key={item} className="flex items-center gap-2 rounded-full bg-ln-bg px-3.5 py-1.5 text-[0.9375rem] text-ln-ink">
+              <CheckCircle2 size={16} className="shrink-0 text-ln-success" aria-hidden />
+              {item}
             </li>
           ))}
         </ul>
-      </figure>
-      <figure className="ln-shadow m-0 rounded-[28px] bg-ln-bg p-6 ring-2 ring-ln-brand md:p-8">
-        <figcaption className="mb-5 flex items-center gap-2 text-[0.9375rem] font-semibold text-ln-ink">
-          <BrandMark size={22} /> Қазір — бір платформа
-        </figcaption>
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {UNIFIED.map((t) => (
-            <li key={t} className="flex items-center gap-3 rounded-xl bg-ln-soft px-4 py-3 text-[0.9375rem] text-ln-ink">
-              <CheckCircle2 size={18} className="shrink-0 text-ln-success" aria-hidden />
-              {t}
-            </li>
-          ))}
-        </ul>
-      </figure>
+      </div>
     </div>
   );
 }
