@@ -132,7 +132,7 @@ describe('Кабинет: real-time обновления', () => {
     await connected();
     serverUpdate({ moduleOverrides: { WEBINARS: null } });
     await waitFor(() => expect(router.state.location.pathname).toBe('/academy/admin'));
-    expect(await screen.findByText('Доступ к модулю отключён администратором Zuie')).toBeInTheDocument();
+    expect(await screen.findByText('Доступ к модулю отключён администратором Zhuie')).toBeInTheDocument();
   });
 
   it('смена условий тарифа (лимит) обновляет usage', async () => {

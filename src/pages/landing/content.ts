@@ -1,11 +1,15 @@
 /**
- * Данные лендинга Zuie. Блоки «Доверие в цифрах», «Логотипы клиентов» и «Кейс клиента» показываются,
+ * Данные лендинга Zhuie. Блоки «Доверие в цифрах», «Логотипы клиентов» и «Кейс клиента» показываются,
  * только когда соответствующий массив заполнен подтверждёнными данными владельца продукта (ТЗ, разделы 6.3, 6.4, 6.11, 14).
  */
 
-export const BRAND = 'Zuie';
-export const SALES_EMAIL = 'hello@zuie.kz';
-export const SUPPORT_EMAIL = 'support@zuie.kz';
+export const BRAND = 'Zhuie';
+/** Создатель продукта (endorsement): название пишется только так, ссылка — на официальный сайт. */
+export const ENDORSER = 'Beyim Ustaz';
+export const ENDORSER_URL = 'https://beyim.edu.kz/';
+/** Единый контактный адрес: заявки на демо, продажи и поддержка. */
+export const SUPPORT_EMAIL = 'support@cpm.kz';
+export const SALES_EMAIL = SUPPORT_EMAIL;
 
 /** Подтверждённые показатели платформы. Пусто — вместо чисел показывается нейтральная строка доверия. */
 export const STATS: { value: string; label: string }[] = [];

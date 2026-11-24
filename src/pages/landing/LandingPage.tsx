@@ -1,34 +1,17 @@
 import {
   ArrowRight,
-  Award,
-  BarChart3,
   BookOpen,
   Briefcase,
-  CalendarDays,
   Check,
   ChevronDown,
-  ClipboardCheck,
-  Code2,
-  FileStack,
-  Cloud,
   Headset,
-  History,
-  KeyRound,
   Landmark,
-  LibraryBig,
-  LockKeyhole,
   Menu,
-  MessageSquare,
-  Plus,
   Presentation,
   School,
   ShieldCheck,
-  SquareCheckBig,
   Star,
-  Upload,
-  Users,
   UsersRound,
-  Video,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -36,11 +19,12 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link } from 'react-router';
 import { useCurrentUser, homeFor } from '@/auth/auth';
 import { track, trackScrollDepth } from './analytics';
-import { BRAND, CASES, CLIENT_LOGOS, STATS } from './content';
+import { BRAND, CASES, CLIENT_LOGOS, ENDORSER, ENDORSER_URL, STATS } from './content';
 import { DemoForm, type DemoChannel } from './DemoForm';
 import { LandingLangProvider, useLandingLang, useLandingText, type LandingLang } from './i18n';
-import { BeforeAfter, DashboardMockup, DemoNote, LearnerMockup, ProductShot, SHOTS, TeacherMockup } from './mockups';
-import { BrandLogo, Container, CountUp, GhostButton, PrimaryButton, Reveal, Section, SectionHeading, SecondaryButton } from './primitives';
+import { FeatureTabs } from './FeatureTabs';
+import { BeforeAfter, DashboardMockup, DemoNote } from './mockups';
+import { BrandLockup, BrandLogo, Container, CountUp, Endorsement, GhostButton, PrimaryButton, Reveal, Section, SectionHeading, SecondaryButton } from './primitives';
 import { FloatingActions } from './FloatingActions';
 
 const NAV_IDS = ['features', 'how', 'audience', 'pricing', 'faq'];
@@ -114,9 +98,9 @@ function Header() {
         scrolled || open ? 'border-ln-border-soft' : 'border-transparent'
       }`}
     >
-      <Container className="flex h-16 items-center gap-4">
-        <BrandLogo to={lang === 'ru' ? '/ru' : '/'} ariaLabel={t.nav.home} />
-        <nav aria-label={t.nav.mainLabel} className="ml-2 hidden items-center gap-0.5 lg:flex">
+      <Container className="flex h-16 max-w-[1320px]! items-center gap-3">
+        <BrandLockup to={lang === 'ru' ? '/ru' : '/'} ariaLabel={t.nav.home} />
+        <nav aria-label={t.nav.mainLabel} className="ml-1 hidden items-center gap-0.5 min-[1400px]:flex">
           {t.nav.items.map((n) => {
             const current = active === n.href.slice(1);
             return (
@@ -124,7 +108,7 @@ function Header() {
                 key={n.href}
                 href={n.href}
                 aria-current={current ? 'location' : undefined}
-                className={`ln-focus ln-press rounded-full px-3 py-2 text-[0.9375rem] whitespace-nowrap no-underline hover:text-ln-ink! active:bg-ln-subtle ${
+                className={`ln-focus ln-press rounded-full px-2.5 py-2 text-[0.9375rem] whitespace-nowrap no-underline hover:text-ln-ink! active:bg-ln-subtle ${
                   current ? 'font-medium text-ln-ink!' : 'text-ln-ink-2!'
                 }`}
               >
@@ -142,7 +126,7 @@ function Header() {
               <GhostButton to="/login" cta="header">
                 {t.nav.login}
               </GhostButton>
-              <PrimaryButton to="/register" cta="header">
+              <PrimaryButton href="#demo" cta="header">
                 {t.nav.startFree}
               </PrimaryButton>
             </>
@@ -150,7 +134,7 @@ function Header() {
         </div>
         <button
           type="button"
-          className="ln-focus ln-press ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-ln-ink hover:bg-ln-subtle active:bg-ln-subtle sm:ml-0 lg:hidden"
+          className="ln-focus ln-press ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-ln-ink hover:bg-ln-subtle active:bg-ln-subtle sm:ml-0 min-[1400px]:hidden"
           aria-label={open ? t.nav.closeMenu : t.nav.openMenu}
           aria-expanded={open}
           aria-controls="mobile-nav"
@@ -166,7 +150,7 @@ function Header() {
         aria-hidden={!open}
         inert={!open}
         data-open={open}
-        className="ln-sheet absolute inset-x-0 top-full border-b border-ln-border-soft bg-ln-bg lg:hidden"
+        className="ln-sheet absolute inset-x-0 top-full border-b border-ln-border-soft bg-ln-bg min-[1400px]:hidden"
       >
         <Container className="flex flex-col gap-1 py-4">
           {t.nav.items.map((n) => (
@@ -191,7 +175,7 @@ function Header() {
                 <SecondaryButton to="/login" cta="mobile_menu">
                   {t.nav.login}
                 </SecondaryButton>
-                <PrimaryButton to="/register" cta="mobile_menu">
+                <PrimaryButton href="#demo" cta="mobile_menu" onClick={() => setOpen(false)}>
                   {t.nav.startFree}
                 </PrimaryButton>
               </>
@@ -215,13 +199,26 @@ function Hero() {
         className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[70%]"
         style={{
           background:
-            'radial-gradient(60% 55% at 50% 100%, color-mix(in srgb, var(--ln-brand) 18%, transparent) 0%, transparent 70%), linear-gradient(180deg, var(--ln-bg) 0%, var(--ln-soft) 100%)',
+            'radial-gradient(60% 55% at 50% 100%, color-mix(in srgb, var(--ln-brand) 18%, transparent) 0%, transparent 70%), radial-gradient(28% 30% at 78% 92%, color-mix(in srgb, var(--ln-highlight) 14%, transparent) 0%, transparent 70%)',
         }}
       />
       <Container>
         <Reveal className="mx-auto max-w-4xl text-center">
-          <p className="m-0 mb-6 text-[1.0625rem] leading-6 font-medium text-pretty text-ln-accent md:text-[1.1875rem] md:leading-7">
-            {t.hero.eyebrow}
+          <p className="m-0 mb-6 inline-flex max-w-full rounded-full bg-ln-brand-soft px-4 py-1.5 text-[0.9375rem] leading-6 font-medium text-pretty text-ln-accent md:text-[1.0625rem]">
+            <span>
+              {t.hero.badge.before}
+              <a
+                href={ENDORSER_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t.footer.endorse.link}
+                onClick={() => track({ event: 'beyim_ustaz_click', placement: 'hero' })}
+                className="ln-focus rounded font-semibold text-ln-accent! underline-offset-2 hover:underline"
+              >
+                {ENDORSER}
+              </a>
+              {t.hero.badge.after}
+            </span>
           </p>
           <h1
             id="hero-h"
@@ -233,10 +230,10 @@ function Hero() {
             {t.hero.text}
           </p>
           <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-            <PrimaryButton to="/register" size="lg" cta="hero">
+            <PrimaryButton href="#demo" size="lg" cta="hero">
               {t.nav.startFree} <ArrowRight size={18} aria-hidden />
             </PrimaryButton>
-            <SecondaryButton href="#preview" size="lg" cta="hero">
+            <SecondaryButton href="#demo" size="lg" cta="hero">
               {t.hero.demo}
             </SecondaryButton>
           </div>
@@ -343,35 +340,7 @@ function Problem() {
   );
 }
 
-/* ---------------- Features bento ---------------- */
-
-/** Плитка без рамки: поверхность отделяется только тоном фона и радиусом. */
-function FeatureCard({
-  icon: Icon,
-  title,
-  text,
-  className = '',
-  children,
-  delay = 0,
-}: {
-  icon: LucideIcon;
-  title: string;
-  text: string;
-  className?: string;
-  children?: React.ReactNode;
-  delay?: number;
-}) {
-  return (
-    <Reveal className={className} delay={delay}>
-      <article className="ln-lift flex h-full flex-col rounded-[28px] bg-ln-soft p-7 md:p-9">
-        <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
-        <h3 className="m-0 mt-6 text-[1.375rem] leading-7 font-semibold tracking-[-0.02em] text-ln-ink md:text-[1.625rem] md:leading-8">{title}</h3>
-        <p className="m-0 mt-3 text-[1.0625rem] leading-[1.625rem] text-ln-ink-2">{text}</p>
-        {children && <div className="mt-8 flex-1">{children}</div>}
-      </article>
-    </Reveal>
-  );
-}
+/* ---------------- Chips ---------------- */
 
 /** Мини-превью интерфейса внутри карточки: только сущности и термины реального продукта. */
 function Chips({ items }: { items: readonly string[] }) {
@@ -383,71 +352,6 @@ function Chips({ items }: { items: readonly string[] }) {
         </span>
       ))}
     </div>
-  );
-}
-
-function Features() {
-  const t = useLandingText();
-  const cards = t.features.cards;
-  return (
-    <Section id="features" labelledBy="features-h">
-      <Container>
-        <SectionHeading
-          id="features-h"
-          title={t.features.title}
-          text={t.features.text}
-        />
-        <div className="mt-14 grid gap-4 md:mt-20 md:grid-cols-2 lg:grid-cols-3 lg:gap-5">
-          <FeatureCard
-            className="md:col-span-2"
-            icon={BookOpen}
-            title={cards[0]!.title}
-            text={cards[0]!.text}
-          >
-            <ProductShot {...SHOTS.builder} alt={t.mockups.shots.builder} />
-          </FeatureCard>
-          <FeatureCard
-            icon={CalendarDays}
-            title={cards[1]!.title}
-            text={cards[1]!.text}
-            delay={60}
-          >
-            <Chips items={cards[1]!.chips} />
-          </FeatureCard>
-          <FeatureCard
-            icon={ClipboardCheck}
-            title={cards[2]!.title}
-            text={cards[2]!.text}
-          >
-            <Chips items={cards[2]!.chips} />
-          </FeatureCard>
-          <FeatureCard
-            icon={Award}
-            title={cards[3]!.title}
-            text={cards[3]!.text}
-            delay={60}
-          >
-            <Chips items={cards[3]!.chips} />
-          </FeatureCard>
-          <FeatureCard
-            icon={MessageSquare}
-            title={cards[4]!.title}
-            text={cards[4]!.text}
-            delay={120}
-          >
-            <Chips items={cards[4]!.chips} />
-          </FeatureCard>
-          <FeatureCard
-            className="md:col-span-2 lg:col-span-3"
-            icon={BarChart3}
-            title={cards[5]!.title}
-            text={cards[5]!.text}
-          >
-            <Chips items={cards[5]!.chips} />
-          </FeatureCard>
-        </div>
-      </Container>
-    </Section>
   );
 }
 
@@ -483,161 +387,30 @@ function HowToStart() {
   );
 }
 
-/* ---------------- Learning path ---------------- */
+/* ---------------- Roles ---------------- */
 
-/** Текущий шаг в демонстрации: три пройдены, четвёртый — «сіз осындасыз». */
-const CURRENT_STEP = 3;
+const ROLE_ICONS: LucideIcon[] = [Landmark, Presentation, BookOpen];
 
-/**
- * Фирменный элемент страницы: путь обучения как трек прогресса —
- * то, что слушатель видит в продукте. Цвет бренда здесь — статус, а не декор.
- */
-function LearningPath() {
+/** Роли кратко: подробности — во вкладке «Рөлдер мен басқару», здесь только кому что даёт платформа. */
+function Roles() {
   const t = useLandingText();
-  const steps = t.learning.steps;
+  const roles = [t.roles.admin, t.roles.teacher, t.roles.learner];
   return (
-    <Section id="learning" labelledBy="learning-h">
+    <Section id="roles" labelledBy="roles-h">
       <Container>
-        <SectionHeading id="learning-h" title={t.learning.title} text={t.learning.text} />
-        <Reveal className="mt-14 md:mt-20">
-          <ol className="m-0 grid list-none gap-6 p-0 lg:grid-cols-6 lg:gap-4">
-            {steps.map((s, i) => {
-              const done = i < CURRENT_STEP;
-              const current = i === CURRENT_STEP;
-              return (
-                <li key={s} className="relative flex items-center gap-4 lg:flex-col lg:items-center lg:text-center">
-                  {i < steps.length - 1 && (
-                    <span
-                      className="absolute top-12 left-[23px] h-[calc(100%-24px)] w-[2px] overflow-hidden rounded-full bg-ln-border lg:top-[23px] lg:left-[calc(50%+28px)] lg:h-[2px] lg:w-[calc(100%-40px)]"
-                      aria-hidden
-                    >
-                      {done && <span className="ln-seg-fill absolute inset-0 bg-ln-brand" style={{ transitionDelay: `${200 + i * 140}ms` }} />}
-                    </span>
-                  )}
-                  <span
-                    className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[1.0625rem] font-semibold ${
-                      done
-                        ? 'bg-ln-brand text-white'
-                        : current
-                          ? 'bg-ln-bg text-ln-accent ring-2 ring-ln-brand ring-offset-4 ring-offset-ln-bg'
-                          : 'bg-ln-bg text-ln-muted ring-1 ring-ln-border'
-                    }`}
-                    aria-hidden
-                  >
-                    {done ? <Check size={20} strokeWidth={2.5} /> : i + 1}
-                  </span>
-                  <span className="flex flex-col gap-1 lg:items-center">
-                    <span className={`text-[1.0625rem] leading-6 font-medium ${done || current ? 'text-ln-ink' : 'text-ln-ink-2'}`}>
-                      <span className="sr-only">
-                        {i + 1}-{t.learning.step}{done ? `, ${t.learning.completed}` : current ? `, ${t.learning.current}` : ''}:{' '}
-                      </span>
-                      {s}
-                    </span>
-                    {current && (
-                      <span
-                        className="self-start rounded-full bg-ln-brand-soft px-2.5 py-0.5 text-[0.8125rem] font-medium tracking-[0.01em] text-ln-accent lg:self-center"
-                        aria-hidden
-                      >
-                        {t.learning.here}
-                      </span>
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </Reveal>
-      </Container>
-    </Section>
-  );
-}
-
-/* ---------------- Roles: admin, teacher, learner ---------------- */
-
-const ADMIN_ICONS: LucideIcon[] = [Landmark, Users, KeyRound, FileStack];
-
-function Admin() {
-  const t = useLandingText();
-  return (
-    <Section id="roles" labelledBy="admin-h" className="bg-ln-soft">
-      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
-        <div>
-          <SectionHeading
-            id="admin-h"
-            align="left"
-            eyebrow={t.roles.admin.eyebrow}
-            title={t.roles.admin.title}
-            text={t.roles.admin.text}
-          />
-          <ul className="m-0 mt-10 grid list-none gap-x-8 p-0 sm:grid-cols-2">
-            {t.roles.admin.items.map((label, i) => {
-              const Icon = ADMIN_ICONS[i]!;
-              return (
-              <li key={label} className="flex items-center gap-3 border-b border-ln-border py-4 text-[1.0625rem] text-ln-ink">
-                <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ln-ink-2" aria-hidden />
-                {label}
+        <SectionHeading id="roles-h" title={t.roles.title} />
+        <Reveal as="ul" className="ln-stagger m-0 mt-12 grid list-none gap-4 p-0 md:mt-16 md:grid-cols-3 lg:gap-5">
+          {roles.map((r, i) => {
+            const Icon = ROLE_ICONS[i]!;
+            return (
+              <li key={r.eyebrow} className="ln-lift flex h-full flex-col rounded-[28px] bg-ln-soft p-7" style={{ '--i': i } as React.CSSProperties}>
+                <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
+                <p className="m-0 mt-6 text-[0.9375rem] font-semibold text-ln-muted">{r.eyebrow}</p>
+                <h3 className="m-0 mt-1 text-[1.25rem] leading-[1.625rem] font-semibold tracking-[-0.015em] text-ln-ink">{r.title}</h3>
+                <p className="m-0 mt-2 text-[1.0625rem] leading-[1.625rem] text-ln-ink-2">{r.text}</p>
               </li>
-              );
-            })}
-          </ul>
-        </div>
-        <Reveal variant="scale">
-          <ProductShot {...SHOTS.admin} alt={t.mockups.shots.admin} />
-        </Reveal>
-      </Container>
-    </Section>
-  );
-}
-
-const TEACHER_ICONS: LucideIcon[] = [Plus, Upload, ClipboardCheck, SquareCheckBig, BarChart3, MessageSquare];
-
-function Teacher() {
-  const t = useLandingText();
-  return (
-    <Section labelledBy="teacher-h">
-      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
-        <Reveal variant="scale" className="order-2 lg:order-1">
-          <TeacherMockup />
-        </Reveal>
-        <div className="order-1 lg:order-2">
-          <SectionHeading
-            id="teacher-h"
-            align="left"
-            eyebrow={t.roles.teacher.eyebrow}
-            title={t.roles.teacher.title}
-            text={t.roles.teacher.text}
-          />
-          <ul className="m-0 mt-10 grid list-none gap-x-8 p-0 sm:grid-cols-2">
-            {t.roles.teacher.items.map((label, i) => {
-              const Icon = TEACHER_ICONS[i]!;
-              return (
-              <li key={label} className="flex items-center gap-3 border-b border-ln-border py-4 text-[1.0625rem] text-ln-ink">
-                <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ln-ink-2" aria-hidden />
-                {label}
-              </li>
-              );
-            })}
-          </ul>
-        </div>
-      </Container>
-    </Section>
-  );
-}
-
-function Learner() {
-  const t = useLandingText();
-  return (
-    <Section labelledBy="learner-h" className="bg-ln-soft">
-      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
-        <SectionHeading
-          id="learner-h"
-          align="left"
-          eyebrow={t.roles.learner.eyebrow}
-          title={t.roles.learner.title}
-          text={t.roles.learner.text}
-        />
-        <Reveal variant="scale">
-          <LearnerMockup />
+            );
+          })}
         </Reveal>
       </Container>
     </Section>
@@ -759,85 +532,44 @@ function Cases() {
 
 type IntegrationStatus = 'ready' | 'api' | 'planned';
 
-/** Только честные статусы: запланированное не выдаётся за доступное. */
-const INTEGRATION_ICONS: LucideIcon[] = [LibraryBig, Presentation, Video, Cloud, KeyRound, Code2];
-
-function Integrations() {
+/** Коротко: статусы интеграций (честные) и проверяемые формулировки о доступе — без сертификаций и SLA. */
+function IntegrationsSecurity() {
   const t = useLandingText();
   return (
     <Section id="integrations" labelledBy="integrations-h" className="bg-ln-soft">
-      <Container>
-        <SectionHeading
-          id="integrations-h"
-          title={t.integrations.title}
-          text={t.integrations.text}
-        />
-        <Reveal>
-          <ul className="m-0 mt-14 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 md:mt-20 lg:grid-cols-3 lg:gap-5">
-            {t.integrations.items.map(({ name, text, status }, i) => {
-              const Icon = INTEGRATION_ICONS[i]!;
-              return (
-              <li key={name} className="flex h-full items-center gap-4 rounded-[22px] bg-ln-bg p-5 md:p-6">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-ln-soft text-ln-ink-2">
-                  <Icon size={22} strokeWidth={1.75} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <p className="m-0 text-[1.0625rem] font-semibold text-ln-ink">{name}</p>
-                  <p className="m-0 mt-0.5 text-[0.9375rem] text-ln-muted">{text}</p>
-                  <p
-                    className={`m-0 mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[0.8125rem] font-medium ${
-                      status === 'planned' ? 'bg-ln-subtle text-ln-ink-2' : 'bg-ln-success-soft text-ln-success'
-                    }`}
-                  >
-                    {t.integrations.statuses[status as IntegrationStatus]}
-                  </p>
-                </div>
-              </li>
-              );
-            })}
-          </ul>
-        </Reveal>
-      </Container>
-    </Section>
-  );
-}
-
-/** Проверяемые формулировки: без сертификаций, уровней шифрования, SLA и места хранения без документов. */
-const SECURITY_ICONS: LucideIcon[] = [Users, Landmark, LockKeyhole, History];
-
-function Security() {
-  const t = useLandingText();
-  return (
-    <Section labelledBy="security-h">
-      <Container className="grid items-center gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-16">
+      <Container className="grid items-start gap-12 lg:grid-cols-2 lg:gap-16">
         <div>
-          <Reveal>
-            <ShieldCheck size={44} strokeWidth={1.5} className="text-ln-ink" aria-hidden />
-          </Reveal>
-          <div className="mt-6">
-            <SectionHeading
-              id="security-h"
-              align="left"
-              title={t.security.title}
-              text={t.security.text}
-            />
-          </div>
-        </div>
-        {/* Сгруппированный список: одна поверхность, строки разделены линиями с отступом */}
-        <Reveal>
-          <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-ln-soft p-0">
-            {t.security.items.map((label, i) => {
-              const Icon = SECURITY_ICONS[i]!;
-              return (
-              <li key={label} className="flex items-center gap-4 pl-5 [&:last-child>span]:border-b-0">
-                <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ln-ink-2" aria-hidden />
-                <span className="flex flex-1 items-center gap-4 border-b border-ln-border-soft py-4 pr-5 text-[1.0625rem] text-ln-ink">
-                  <span className="flex-1">{label}</span>
-                  <Check size={20} strokeWidth={2.25} className="shrink-0 text-ln-success" aria-label={t.security.present} />
+          <SectionHeading id="integrations-h" align="left" title={t.integrations.title} text={t.integrations.text} />
+          <ul className="m-0 mt-8 flex list-none flex-wrap gap-2 p-0">
+            {t.integrations.items.map(({ name, status }) => (
+              <li key={name} className="inline-flex items-center gap-2 rounded-full bg-ln-bg py-1.5 pr-1.5 pl-3.5 text-[0.9375rem] text-ln-ink">
+                {name}
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[0.75rem] font-medium ${
+                    status === 'planned' ? 'bg-ln-subtle text-ln-ink-2' : 'bg-ln-success-soft text-ln-success'
+                  }`}
+                >
+                  {t.integrations.statuses[status as IntegrationStatus]}
                 </span>
               </li>
-              );
-            })}
+            ))}
+          </ul>
+        </div>
+        <Reveal>
+          <div className="flex items-center gap-3">
+            <ShieldCheck size={28} strokeWidth={1.75} className="shrink-0 text-ln-ink" aria-hidden />
+            <h3 id="security-h" className="m-0 text-[1.25rem] leading-[1.625rem] font-semibold tracking-[-0.015em] text-ln-ink">
+              {t.security.title}
+            </h3>
+          </div>
+          <p className="m-0 mt-3 text-[1.0625rem] leading-[1.625rem] text-ln-ink-2">{t.security.text}</p>
+          <ul className="m-0 mt-6 list-none overflow-hidden rounded-[22px] bg-ln-bg p-0">
+            {t.security.items.map((label) => (
+              <li key={label} className="flex items-center gap-4 border-b border-ln-border-soft px-5 py-4 text-[1.0625rem] text-ln-ink last:border-b-0">
+                <Check size={20} strokeWidth={2.25} className="shrink-0 text-ln-success" aria-label={t.security.present} />
+                {label}
+              </li>
+            ))}
           </ul>
         </Reveal>
       </Container>
@@ -933,7 +665,7 @@ function Pricing() {
                 aria-label={`${p.name} ${t.pricing.tariff}${p.popular ? `, ${t.pricing.recommendedSuffix}` : ''}`}
               >
                 {p.popular && (
-                  <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-ln-brand px-3 py-1 text-[0.8125rem] leading-5 font-medium tracking-[0.01em] whitespace-nowrap text-white">
+                  <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-ln-highlight px-3 py-1 text-[0.8125rem] leading-5 font-semibold tracking-[0.01em] whitespace-nowrap text-ln-highlight-ink">
                     <Star size={12} fill="currentColor" aria-hidden /> {t.pricing.recommended}
                   </span>
                 )}
@@ -952,7 +684,7 @@ function Pricing() {
                   ))}
                 </ul>
                 {p.popular ? (
-                  <PrimaryButton to={`/register?plan=${p.id}`} size="lg" className="mt-8 w-full" onClick={() => selectPlan(p.id, 'month')}>
+                  <PrimaryButton href="#demo" size="lg" className="mt-8 w-full" cta={`pricing_${p.id}`} onClick={() => selectPlan(p.id, 'month')}>
                     {t.nav.startFree}
                   </PrimaryButton>
                 ) : (
@@ -1086,7 +818,7 @@ function FinalCta({ demo }: { demo: DemoChannel }) {
             {t.finalCta.text}
           </p>
           <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center lg:justify-start">
-            <PrimaryButton to="/register" size="lg" cta="final_cta">
+            <PrimaryButton href="#demo" size="lg" cta="final_cta">
               {t.nav.startFree}
             </PrimaryButton>
             <a
@@ -1162,7 +894,9 @@ function Footer() {
           <p className="m-0">
             © {new Date().getFullYear()} {BRAND}. {t.footer.copyright}
           </p>
-          <p className="m-0">{t.footer.developed}</p>
+          <p className="m-0">
+            {BRAND} · <Endorsement placement="footer" linkClassName="text-ln-ink-2! hover:text-ln-ink!" />
+          </p>
         </div>
       </Container>
     </footer>
@@ -1297,7 +1031,7 @@ function LandingContent() {
   return (
     <div
       id="top"
-      className="ln-root min-h-screen overflow-x-clip antialiased"
+      className="ln-root min-h-screen overflow-x-clip bg-ln-bg text-ln-ink antialiased"
       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, "Segoe UI", sans-serif' }}
       onClick={onClick}
     >
@@ -1313,16 +1047,12 @@ function LandingContent() {
         <Trust />
         <ClientLogos />
         <Problem />
-        <Features />
+        <FeatureTabs />
         <HowToStart />
-        <LearningPath />
-        <Admin />
-        <Teacher />
-        <Learner />
+        <Roles />
         <Analytics />
         <Cases />
-        <Integrations />
-        <Security />
+        <IntegrationsSecurity />
         <Support />
         <Audience />
         <Pricing />

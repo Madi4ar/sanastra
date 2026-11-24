@@ -58,7 +58,7 @@ export function useFeature(code: string): { enabled: boolean; isLoading: boolean
   return { enabled: ctx.availableModules.some((m) => m.code === code), isLoading: ctx.isLoading };
 }
 
-export const MODULE_REVOKED_TEXT = 'Доступ к модулю отключён администратором Zuie';
+export const MODULE_REVOKED_TEXT = 'Доступ к модулю отключён администратором Zhuie';
 
 /** Модуль отключили, пока он был открыт: закрыть окна, отменить его запросы, уведомить и уйти на dashboard. */
 function RevokedRedirect({ code }: { code: string }) {

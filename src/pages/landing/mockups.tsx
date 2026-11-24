@@ -5,11 +5,9 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardList,
-  Clock,
   FileText,
   LayoutDashboard,
   MessageSquare,
-  PlayCircle,
   Table2,
   Video,
 } from 'lucide-react';
@@ -66,7 +64,7 @@ export function DashboardMockup() {
           <aside className="hidden w-52 shrink-0 border-r border-ln-border-soft bg-ln-soft p-3 md:block">
             <div className="mb-4 flex items-center gap-2 px-2 pt-1">
               <BrandMark size={22} />
-              <span className="text-sm font-bold text-ln-ink">Zuie</span>
+              <span className="text-sm font-bold text-ln-ink">Zhuie</span>
             </div>
             {t.nav.map((label, i) => {
               const Icon = NAV_ICONS[i]!;
@@ -217,46 +215,39 @@ export function TeacherMockup() {
   );
 }
 
-/** «Бүгін» — экран обучающегося. */
-export function LearnerMockup() {
-  const t = useLandingText().mockups.learner;
+/** Группа и расписание — визуал вкладки «Топтар мен кесте» (демонстрационные данные). */
+export function GroupMockup() {
+  const t = useLandingText().mockups.group;
   return (
     <MockFrame>
       <div className="p-5 sm:p-6" role="img" aria-label={t.aria}>
         <div aria-hidden>
-          <p className="m-0 mb-4 font-semibold text-ln-ink">{t.today}</p>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 rounded-xl border border-ln-border-soft p-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-brand-soft text-ln-accent">
-                <PlayCircle size={20} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="m-0 text-sm font-medium text-ln-ink">{t.lesson}</p>
-                <p className="m-0 text-xs text-ln-muted">{t.lessonMeta}</p>
-              </div>
-              <span className="text-xs font-semibold text-ln-accent">{t.start}</span>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="m-0 text-xs font-medium text-ln-muted">{t.program}</p>
+              <p className="m-0 font-semibold text-ln-ink">{t.name}</p>
             </div>
-            <div className="flex items-center gap-3 rounded-xl border border-ln-border-soft p-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-warning-soft text-ln-warning">
-                <FileText size={20} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="m-0 text-sm font-medium text-ln-ink">{t.task}</p>
-                <p className="m-0 flex items-center gap-1 text-xs text-ln-warning">
-                  <Clock size={12} /> {t.taskTime}
-                </p>
-              </div>
+            <span className="rounded-md bg-ln-success-soft px-2 py-1 text-xs font-semibold text-ln-success">{t.status}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-xl bg-ln-soft p-3">
+              <p className="m-0 text-xs text-ln-muted">{t.periodLabel}</p>
+              <p className="tabular m-0 mt-1 font-semibold text-ln-ink">{t.period}</p>
             </div>
-            <div className="flex items-center gap-3 rounded-xl border border-ln-border-soft p-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ln-success-soft text-ln-success">
-                <CheckCircle2 size={20} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="m-0 text-sm font-medium text-ln-ink">{t.result}</p>
-                <p className="m-0 text-xs text-ln-muted">{t.resultCourse}</p>
-              </div>
-              <span className="tabular text-sm font-semibold text-ln-success">85/100</span>
+            <div className="rounded-xl bg-ln-soft p-3">
+              <p className="m-0 text-xs text-ln-muted">{t.membersLabel}</p>
+              <p className="tabular m-0 mt-1 font-semibold text-ln-ink">{t.members}</p>
             </div>
+          </div>
+          <p className="m-0 mt-4 mb-2 text-xs font-medium text-ln-muted">{t.scheduleLabel}</p>
+          <div className="divide-y divide-ln-border-soft rounded-xl border border-ln-border-soft">
+            {t.schedule.map(([when, what]) => (
+              <div key={what} className="flex items-center gap-3 px-4 py-3 text-sm">
+                <CalendarDays size={16} className="shrink-0 text-ln-ink-2" />
+                <span className="tabular w-24 shrink-0 text-ln-ink-2">{when}</span>
+                <span className="min-w-0 flex-1 truncate text-ln-ink">{what}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -264,7 +255,41 @@ export function LearnerMockup() {
   );
 }
 
-/** Подпись под продуктовыми макетами: цифры на них не являются показателями компании. */
+/** Отчёт по группам — визуал вкладки «Аналитика»: только метрики, которые есть в продукте. */
+export function ReportMockup() {
+  const t = useLandingText().mockups.report;
+  return (
+    <MockFrame>
+      <div className="p-5 sm:p-6" role="img" aria-label={t.aria}>
+        <div aria-hidden>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <p className="m-0 font-semibold text-ln-ink">{t.title}</p>
+            <span className="rounded-full border border-ln-border-soft px-3 py-1 text-xs text-ln-ink-2">{t.period}</span>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-ln-border-soft text-sm">
+            <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr] gap-2 bg-ln-soft px-4 py-2.5 text-xs font-medium text-ln-muted">
+              {t.cols.map((c) => (
+                <span key={c} className="truncate">{c}</span>
+              ))}
+            </div>
+            {t.rows.map((row) => (
+              <div key={row[0]} className="grid grid-cols-[1.6fr_1fr_1fr_1fr] items-center gap-2 border-t border-ln-border-soft px-4 py-3">
+                <span className="truncate text-ln-ink">{row[0]}</span>
+                <span className="flex flex-col gap-1">
+                  <span className="tabular font-semibold text-ln-ink">{row[1]}</span>
+                  <Bar value={parseInt(row[1]!, 10)} />
+                </span>
+                <span className="tabular text-ln-ink-2">{row[2]}</span>
+                <span className="tabular text-ln-ink-2">{row[3]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </MockFrame>
+  );
+}
+
 export function DemoNote({ className = '' }: { className?: string }) {
   const t = useLandingText();
   return (

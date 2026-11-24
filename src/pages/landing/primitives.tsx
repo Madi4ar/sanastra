@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ElementType, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import { track } from './analytics';
+import { ENDORSER, ENDORSER_URL } from './content';
+import { useLandingText } from './i18n';
 
-/** Знак Zuie: буква в бренд-плашке — используется в шапке, подвале и продуктовых макетах. */
+/** Знак Zhuie: буква в бренд-плашке — используется в шапке, подвале и продуктовых макетах. */
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
     <span
@@ -14,13 +17,57 @@ export function BrandMark({ size = 32 }: { size?: number }) {
   );
 }
 
-/** Логотип Zuie: знак + словесная часть. */
+/** Логотип Zhuie: знак + словесная часть. */
 export function BrandLogo({ inverted = false, to = '/', ariaLabel }: { inverted?: boolean; to?: string; ariaLabel: string }) {
   return (
     <Link to={to} className="ln-focus flex items-center gap-2.5 rounded-md no-underline" aria-label={ariaLabel}>
       <BrandMark />
-      <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Zuie</span>
+      <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Zhuie</span>
     </Link>
+  );
+}
+
+/**
+ * Подпись создателя продукта: «Beyim Ustaz әзірлеген» / «Разработано Beyim Ustaz».
+ * Визуально вторична (11–13 px), Beyim Ustaz — внешняя ссылка; клик учитывается событием beyim_ustaz_click.
+ * Текст, а не логотип: объединять знаки в новый lockup до согласования с владельцем бренда нельзя.
+ */
+export function Endorsement({
+  placement,
+  className = '',
+  linkClassName = 'text-ln-ink-2! hover:text-ln-ink!',
+}: {
+  placement: 'header' | 'hero' | 'footer';
+  className?: string;
+  linkClassName?: string;
+}) {
+  const t = useLandingText().footer.endorse;
+  return (
+    <span className={className}>
+      {t.before}
+      <a
+        href={ENDORSER_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={t.link}
+        onClick={() => track({ event: 'beyim_ustaz_click', placement })}
+        className={`ln-focus rounded font-semibold no-underline hover:underline ${linkClassName}`}
+      >
+        {ENDORSER}
+      </a>
+      {t.after}
+    </span>
+  );
+}
+
+/** Шапка: логотип Zhuie — главный, рядом через разделитель — подпись создателя в две строки, чтобы связка помещалась и на 1024, и на 360 px. */
+export function BrandLockup({ to, ariaLabel }: { to: string; ariaLabel: string }) {
+  return (
+    <div className="flex shrink-0 items-center gap-3">
+      <BrandLogo to={to} ariaLabel={ariaLabel} />
+      <span aria-hidden className="h-7 w-px bg-ln-border" />
+      <Endorsement placement="header" className="block max-w-[6.5rem] text-[0.6875rem] leading-[0.875rem] text-ln-muted sm:text-[0.75rem] sm:leading-4" />
+    </div>
   );
 }
 

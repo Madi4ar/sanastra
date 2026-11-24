@@ -9,7 +9,7 @@ const TEXT: Record<LandingLang, { top: string; chat: string; message: string; sl
   kk: {
     top: 'Жоғарыға оралу',
     chat: 'WhatsApp-та жазу',
-    message: 'Сәлеметсіз бе! Zuie платформасы туралы білгім келеді.',
+    message: 'Сәлеметсіз бе! Zhuie платформасы туралы білгім келеді.',
     slogans: [
       'Сұрағыңыз бар ма? WhatsApp-та жауап береміз',
       'Тегін бастаңыз — банк картасы қажет емес',
@@ -21,7 +21,7 @@ const TEXT: Record<LandingLang, { top: string; chat: string; message: string; sl
   ru: {
     top: 'Наверх',
     chat: 'Написать в WhatsApp',
-    message: 'Здравствуйте! Хочу узнать о платформе Zuie.',
+    message: 'Здравствуйте! Хочу узнать о платформе Zhuie.',
     slogans: [
       'Есть вопросы? Ответим в WhatsApp',
       'Начните бесплатно — карта не нужна',

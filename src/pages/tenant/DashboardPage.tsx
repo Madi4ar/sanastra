@@ -24,7 +24,7 @@ export function ExpiringAlert({ daysLeft, endDate }: { daysLeft: number; endDate
       showIcon
       data-testid="expiring-alert"
       title="Подписка скоро истекает"
-      description={`Осталось ${daysLeft} дн. — до ${formatDate(endDate)} включительно. Обратитесь к администратору Zuie для продления.`}
+      description={`Осталось ${daysLeft} дн. — до ${formatDate(endDate)} включительно. Обратитесь к администратору Zhuie для продления.`}
     />
   );
 }
@@ -101,7 +101,7 @@ function OrganizationDashboard() {
           <StatCard
             label="Тариф"
             value={<Highlight value={access.tariff.name}>{access.tariff.name}</Highlight>}
-            hint="Настраивает администратор Zuie"
+            hint="Настраивает администратор Zhuie"
             icon={<CreditCard size={20} />}
           />
           <StatCard

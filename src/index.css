@@ -36,7 +36,7 @@
 }
 
 @theme inline {
-  /* Палитра лендинга Zuie: значения в .ln-root (светлая/тёмная тема) — только публичная страница.
+  /* Палитра лендинга Zhuie: значения в .ln-root (светлая/тёмная тема) — только публичная страница.
    * inline: утилиты ссылаются на var(--ln-*) напрямую, иначе переменная вычислилась бы на :root, где её нет. */
   --color-ln-bg: var(--ln-bg);
   --color-ln-soft: var(--ln-soft);
@@ -50,6 +50,8 @@
   --color-ln-brand-hover: var(--ln-brand-hover);
   --color-ln-brand-soft: var(--ln-brand-soft);
   --color-ln-accent: var(--ln-accent);
+  --color-ln-highlight: var(--ln-highlight);
+  --color-ln-highlight-ink: var(--ln-highlight-ink);
   --color-ln-success: var(--ln-success);
   --color-ln-success-soft: var(--ln-success-soft);
   --color-ln-warning: var(--ln-warning);
@@ -125,58 +127,63 @@ body {
 }
 
 /* ---------- Лендинг: токены светлой и тёмной темы ----------
- * Контраст (WCAG): ink 17.7:1, ink-2 8.9:1, muted 4.6:1 на soft; белый на brand 5.2:1;
- * тёмная тема: muted 6.9:1 на soft, accent 7.3:1, белый на brand 4.8:1.
- * brand — заливка основных кнопок, accent — цвет текста и иконок (в тёмной теме светлее). */
+ * Палитра — из цифровой экосистемы Beyim Ustaz (beyim.edu.kz): бирюзовый primary #18999d / primary-dark #045d60,
+ * коралловый accent #fb8f67, тёмно-синий текст #0f2540. Логотип Beyim Ustaz не используется.
+ * #18999d с белым текстом даёт 3.45:1 — для заливки кнопок взят более глубокий оттенок той же гаммы.
+ * Контраст (WCAG AA): ink 15.5:1, ink-2 9.1:1, muted 5.4:1 на bg и 5.0:1 на soft; белый на brand 5.0:1;
+ * accent на brand-soft 5.2:1; ink на highlight 6.8:1. Тёмная тема: accent 9.4:1, белый на brand 5.0:1.
+ * brand — заливка основных кнопок, accent — цвет текста и иконок, highlight — коралловые метки (только с тёмным текстом). */
 .ln-root {
   color-scheme: light;
   --ln-bg: #ffffff;
-  --ln-soft: #f4f6f9;
-  --ln-subtle: #e9edf2;
-  --ln-ink: #121826;
-  --ln-ink-2: #3d4556;
-  --ln-muted: #697080;
-  --ln-border: #d5dae1;
-  --ln-border-soft: #e6eaf0;
-  --ln-brand: #1868db;
-  --ln-brand-hover: #0f5bc7;
-  --ln-brand-soft: #eaf2fd;
-  --ln-accent: #1868db;
+  --ln-soft: #f3f7f8;
+  --ln-subtle: #e6eef0;
+  --ln-ink: #0f2540;
+  --ln-ink-2: #3a4a5e;
+  --ln-muted: #5f6c7b;
+  --ln-border: #d3dde2;
+  --ln-border-soft: #e3ebee;
+  --ln-brand: #0e7c80;
+  --ln-brand-hover: #045d60;
+  --ln-brand-soft: #e6f7f5;
+  --ln-accent: #0b7275;
+  --ln-highlight: #fb8f67;
+  --ln-highlight-ink: #0f2540;
   --ln-success: #1f7a4d;
   --ln-success-soft: #e3f5ea;
   --ln-warning: #a35200;
   --ln-warning-soft: #fdf0e3;
   --ln-danger: #c2362b;
-  --ln-inverse: #121826;
-  --ln-bezel: #121826;
+  --ln-inverse: #0f2540;
+  --ln-bezel: #0f2540;
   --ln-glass: rgba(255, 255, 255, 0.72);
-  --ln-shadow: 0 24px 60px -24px rgba(18, 24, 38, 0.22), 0 2px 6px rgba(18, 24, 38, 0.04);
-  background: var(--ln-bg);
-  color: var(--ln-ink);
+  --ln-shadow: 0 24px 60px -24px rgba(15, 37, 64, 0.22), 0 2px 6px rgba(15, 37, 64, 0.05);
 }
 @media (prefers-color-scheme: dark) {
   .ln-root {
     color-scheme: dark;
-    --ln-bg: #0b0f17;
-    --ln-soft: #131925;
-    --ln-subtle: #1c2433;
-    --ln-ink: #f2f4f8;
-    --ln-ink-2: #c3c9d4;
-    --ln-muted: #9aa3b2;
-    --ln-border: #2a3344;
-    --ln-border-soft: #212937;
-    --ln-brand: #1f6fe0;
-    --ln-brand-hover: #3480ec;
-    --ln-brand-soft: #13233f;
-    --ln-accent: #6ea8ff;
+    --ln-bg: #0b1218;
+    --ln-soft: #121c23;
+    --ln-subtle: #1a2730;
+    --ln-ink: #eef4f6;
+    --ln-ink-2: #c0ccd3;
+    --ln-muted: #95a3ad;
+    --ln-border: #29373f;
+    --ln-border-soft: #1f2c34;
+    --ln-brand: #0e7c80;
+    --ln-brand-hover: #0b7275;
+    --ln-brand-soft: #0f2a2b;
+    --ln-accent: #5fd6cb;
+    --ln-highlight: #fb8f67;
+    --ln-highlight-ink: #0f2540;
     --ln-success: #4cc38a;
     --ln-success-soft: #10291d;
     --ln-warning: #f5a25d;
     --ln-warning-soft: #2e1e0e;
     --ln-danger: #ff8a80;
-    --ln-inverse: #1c2433;
-    --ln-bezel: #2a3344;
-    --ln-glass: rgba(11, 15, 23, 0.72);
+    --ln-inverse: #14212b;
+    --ln-bezel: #29373f;
+    --ln-glass: rgba(11, 18, 24, 0.72);
     --ln-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
   }
 }
@@ -482,5 +489,69 @@ body {
   }
   .ln-stagger > * {
     opacity: 1;
+  }
+}
+
+/* ---------- Лендинг: блок возможностей — вкладки (desktop) и слайдер (mobile) ---------- */
+.ln-tablist {
+  scrollbar-width: none;
+}
+.ln-tablist::-webkit-scrollbar {
+  display: none;
+}
+/* Mobile: одна панель на экран с видимым краем следующей; нативный свайп, вертикальная прокрутка не блокируется */
+.ln-ft-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+  margin-inline: -20px;
+  padding-inline: 20px;
+  scroll-padding-inline: 20px;
+}
+.ln-ft-track::-webkit-scrollbar {
+  display: none;
+}
+.ln-ft-panel {
+  flex: 0 0 88%;
+  min-width: 0;
+  scroll-snap-align: start;
+  transition: opacity 0.18s ease;
+}
+.ln-ft-panel[data-active='false'] {
+  opacity: 0.55;
+}
+@media (min-width: 768px) {
+  .ln-ft-track {
+    margin-inline: -24px;
+    padding-inline: 24px;
+    scroll-padding-inline: 24px;
+  }
+}
+/* Desktop: панели лежат в одной ячейке и сменяются через opacity — интерфейс не прыгает */
+@media (min-width: 1024px) {
+  .ln-ft-track {
+    display: grid;
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+  .ln-ft-panel {
+    grid-area: 1 / 1;
+  }
+  .ln-ft-panel[data-active='false'] {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.18s ease,
+      visibility 0s linear 0.18s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ln-ft-panel {
+    transition: none !important;
   }
 }

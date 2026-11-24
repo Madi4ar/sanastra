@@ -1,7 +1,7 @@
 {
   "name": "superadmin-frontend",
   "version": "1.0.0",
-  "description": "Zuie LMS",
+  "description": "Zhuie LMS",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

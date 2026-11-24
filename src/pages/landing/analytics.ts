@@ -6,7 +6,10 @@ export type LandingEvent =
   | { event: 'landing_pricing_select'; plan: string; billing_period: string }
   | { event: 'landing_faq_open'; question_id: string }
   | { event: 'landing_case_open'; case_id: string }
-  | { event: 'landing_scroll_depth'; depth: 25 | 50 | 75 | 100 };
+  | { event: 'landing_scroll_depth'; depth: 25 | 50 | 75 | 100 }
+  | { event: 'features_tab_view'; tab_id: string; input: 'click' | 'keyboard' | 'swipe' }
+  | { event: 'features_next_click'; from: string; to: string }
+  | { event: 'beyim_ustaz_click'; placement: 'header' | 'hero' | 'footer' };
 
 declare global {
   interface Window {
