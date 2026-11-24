@@ -646,6 +646,31 @@ function selectPlan(plan: string, billing_period: string) {
   track({ event: 'landing_pricing_select', plan, billing_period });
 }
 
+/** Строка сравнения тарифов: ✓ и — озвучиваются как «есть» / «нет», остальное — значением. */
+function CompareRow({ label, values }: { label: string; values: readonly string[] }) {
+  const t = useLandingText();
+  return (
+    <tr>
+      <th scope="row" className="border-b border-ln-border-soft py-3 pr-4 font-normal text-ln-ink-2">
+        {label}
+      </th>
+      {values.map((v, i) => (
+        <td key={i} className="tabular border-b border-ln-border-soft px-3 py-3 text-ln-ink">
+          {v === '✓' ? (
+            <Check size={18} strokeWidth={2.25} className="text-ln-success" aria-label={t.pricing.yes} />
+          ) : v === '—' ? (
+            <span className="text-ln-muted" aria-label={t.pricing.no}>
+              —
+            </span>
+          ) : (
+            v
+          )}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
 function Pricing() {
   const t = useLandingText();
   const plans = t.pricing.plans;
@@ -671,7 +696,10 @@ function Pricing() {
                   <span className="tabular text-[2.25rem] leading-[2.75rem] font-semibold tracking-[-0.03em] text-ln-ink">{p.price}</span>
                   <span className="pb-1 text-[1.0625rem] text-ln-muted">{p.period}</span>
                 </p>
-                <ul className="m-0 mt-6 flex flex-1 list-none flex-col gap-3 border-t border-ln-border-soft p-0 pt-6">
+                <p className="m-0 mt-3 inline-flex self-start rounded-full bg-ln-brand-soft px-3 py-1 text-[0.8125rem] font-medium text-ln-accent">{p.limits}</p>
+                {/* Каждый следующий тариф наследует предыдущий: показываем только то, что добавляется */}
+                {p.inherits && <p className="m-0 mt-6 border-t border-ln-border-soft pt-6 text-[0.9375rem] leading-6 font-semibold text-ln-ink">{p.inherits}</p>}
+                <ul className={`m-0 flex flex-1 list-none flex-col gap-3 p-0 ${p.inherits ? 'mt-3' : 'mt-6 border-t border-ln-border-soft pt-6'}`}>
                   {p.features.map((f) => (
                     <li key={f} className="flex items-start gap-2.5 text-[0.9375rem] leading-6 text-ln-ink-2">
                       <Check size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-ln-ink-2" aria-hidden />
@@ -728,19 +756,23 @@ function Pricing() {
                 </tr>
               </thead>
               <tbody>
-                {t.pricing.comparison.map((row) => (
-                  <tr key={row.label}>
-                    <th scope="row" className="border-b border-ln-border-soft py-3 pr-4 font-normal text-ln-ink-2">
-                      {row.label}
-                    </th>
-                    {row.values.map((v, i) => (
-                      <td key={i} className="tabular border-b border-ln-border-soft px-3 py-3 text-ln-ink">
-                        {v === '✓' ? <Check size={18} strokeWidth={2.25} className="text-ln-success" aria-label={t.pricing.yes} /> : v === '—' ? <span aria-label={t.pricing.no}>—</span> : v}
-                      </td>
-                    ))}
-                  </tr>
+                {t.pricing.comparison.limits.map((row) => (
+                  <CompareRow key={row.label} label={row.label} values={row.values} />
                 ))}
               </tbody>
+              {/* Группы не смешивают «есть» и «нет»: везде → со «Стандарта» → только в «Бизнесе» */}
+              {t.pricing.comparison.groups.map((g) => (
+                <tbody key={g.title}>
+                  <tr>
+                    <th scope="colgroup" colSpan={plans.length + 1} className="border-b border-ln-border bg-ln-soft px-3 pt-5 pb-2 text-[0.8125rem] font-semibold tracking-[0.01em] text-ln-ink">
+                      {g.title}
+                    </th>
+                  </tr>
+                  {g.rows.map((row) => (
+                    <CompareRow key={row.label} label={row.label} values={row.values} />
+                  ))}
+                </tbody>
+              ))}
             </table>
           </div>
         </details>
