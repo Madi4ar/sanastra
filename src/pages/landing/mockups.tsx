@@ -290,16 +290,6 @@ export function ReportMockup() {
   );
 }
 
-export function DemoNote({ className = '' }: { className?: string }) {
-  const t = useLandingText();
-  return (
-    <p className={`m-0 inline-flex items-center gap-1.5 rounded-full bg-ln-subtle px-3 py-1 text-[0.8125rem] tracking-[0.01em] text-ln-ink-2 ${className}`}>
-      <span className="h-1.5 w-1.5 rounded-full bg-ln-muted" aria-hidden />
-      {t.mockups.demoNote}
-    </p>
-  );
-}
-
 /** Область скриншота 1440×900 в пикселях исходника: показываем тематический кусок, а не весь экран. */
 export type ShotCrop = { x: number; y: number; w: number; h: number };
 
@@ -365,7 +355,6 @@ export function ProductShot({
   className?: string;
   eager?: boolean;
 }) {
-  const t = useLandingText().mockups.shots;
   const ref = useScrollProgress<HTMLElement>();
   return (
     <figure ref={ref} className={`ln-shot m-0 ${className}`}>
@@ -374,7 +363,6 @@ export function ProductShot({
           <span className="h-2.5 w-2.5 rounded-full bg-ln-border" />
           <span className="h-2.5 w-2.5 rounded-full bg-ln-border" />
           <span className="h-2.5 w-2.5 rounded-full bg-ln-border" />
-          <span className="ml-auto min-w-0 truncate rounded-full bg-ln-bg px-2.5 py-0.5 text-[0.75rem] whitespace-nowrap text-ln-muted">{t.badge}</span>
         </div>
         {/* Desktop — crop, телефон — mobileCrop: переключение через CSS-переменные без второй картинки */}
         <div className="ln-shot-view relative overflow-hidden" style={{ ...cropVars('', crop), ...cropVars('m-', mobileCrop ?? crop) } as React.CSSProperties}>

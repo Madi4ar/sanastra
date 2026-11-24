@@ -23,7 +23,7 @@ import { BRAND, CASES, CLIENT_LOGOS, ENDORSER, ENDORSER_URL, STATS } from './con
 import { DemoForm, type DemoChannel } from './DemoForm';
 import { LandingLangProvider, useLandingLang, useLandingText, type LandingLang } from './i18n';
 import { FeatureTabs } from './FeatureTabs';
-import { BeforeAfter, DashboardMockup, DemoNote } from './mockups';
+import { BeforeAfter, DashboardMockup } from './mockups';
 import { BrandLockup, BrandLogo, Container, CountUp, Endorsement, GhostButton, PrimaryButton, Reveal, Section, SectionHeading, SecondaryButton } from './primitives';
 import { FloatingActions } from './FloatingActions';
 
@@ -242,9 +242,6 @@ function Hero() {
         <Reveal variant="scale" className="mx-auto mt-14 max-w-[1080px] md:mt-20" delay={150}>
           <div id="preview" className="scroll-mt-24">
             <DashboardMockup />
-            <div className="mt-4 text-center">
-              <DemoNote />
-            </div>
           </div>
         </Reveal>
       </Container>
@@ -470,7 +467,6 @@ function Analytics() {
                 ))}
               </div>
             </div>
-            <DemoNote className="mt-4" />
           </div>
         </Reveal>
       </Container>

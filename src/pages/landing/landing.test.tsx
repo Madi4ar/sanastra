@@ -23,7 +23,7 @@ describe('Лендинг Zhuie', () => {
     screen.getAllByRole('link', { name: /^Тегін бастау/ }).forEach((l) => expect(l).toHaveAttribute('href', '#demo'));
     screen.getAllByRole('link', { name: /^Демо көру/ }).forEach((l) => expect(l).toHaveAttribute('href', '#demo'));
     screen.getAllByRole('link', { name: 'Жүйеге кіру' }).forEach((l) => expect(l).toHaveAttribute('href', '/login'));
-    expect(screen.getAllByText('Демонстрациялық деректер').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(/емонстрациялық деректер/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Sanastra/)).not.toBeInTheDocument();
   });
 

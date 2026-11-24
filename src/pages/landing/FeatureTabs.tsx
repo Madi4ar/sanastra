@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight, Check, Code2, KeyRound, LibraryBig, Presentation
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { track } from './analytics';
 import { useLandingText } from './i18n';
-import { DemoNote, GroupMockup, ProductShot, ReportMockup, SHOTS, TeacherMockup } from './mockups';
+import { GroupMockup, ProductShot, ReportMockup, SHOTS, TeacherMockup } from './mockups';
 import { Container, Section, SectionHeading, SecondaryButton } from './primitives';
 
 type Input = 'click' | 'keyboard' | 'swipe';
@@ -34,35 +34,20 @@ function IntegrationStatuses() {
   );
 }
 
-/** Основной визуал панели: реальный экран продукта, а где экрана нет — макет на демонстрационных данных. */
+/** Основной визуал панели: реальный экран продукта, а где экрана нет — макет. */
 function Visual({ id }: { id: string }): ReactNode {
   const t = useLandingText().mockups;
   switch (id) {
     case 'courses':
       return <ProductShot {...SHOTS.builder} alt={t.shots.builder} />;
     case 'groups':
-      return (
-        <>
-          <GroupMockup />
-          <DemoNote className="mt-3" />
-        </>
-      );
+      return <GroupMockup />;
     case 'assignments':
-      return (
-        <>
-          <TeacherMockup />
-          <DemoNote className="mt-3" />
-        </>
-      );
+      return <TeacherMockup />;
     case 'roles':
       return <ProductShot {...SHOTS.admin} alt={t.shots.admin} />;
     case 'analytics':
-      return (
-        <>
-          <ReportMockup />
-          <DemoNote className="mt-3" />
-        </>
-      );
+      return <ReportMockup />;
     default:
       return <IntegrationStatuses />;
   }
