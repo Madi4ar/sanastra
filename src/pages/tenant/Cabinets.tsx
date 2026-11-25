@@ -46,9 +46,9 @@ function PersonalCabinet({ base }: { base: string }) {
   return (
     <div className="min-h-screen bg-page">
       <header className="flex h-16 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
-        <Link to="/" aria-label="Zhuie — на главную" className="focus-ring flex items-center gap-2 rounded-md text-text! no-underline">
-          <img src="/brand/zhuie-icon.svg" width={32} height={32} alt="" className="rounded-lg" />
-          <span className="text-lg font-semibold">Zhuie</span>
+        <Link to="/" aria-label="Zhue — на главную" className="focus-ring flex items-center gap-2 rounded-md text-text! no-underline">
+          <img src="/brand/zhue-icon.svg" width={32} height={32} alt="" className="rounded-lg" />
+          <span className="text-lg font-semibold">Zhue</span>
         </Link>
         <div className="ml-auto flex items-center gap-2">
           <RoleSwitcher />

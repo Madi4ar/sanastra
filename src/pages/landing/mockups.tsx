@@ -64,7 +64,7 @@ export function DashboardMockup() {
           <aside className="hidden w-52 shrink-0 border-r border-ln-border-soft bg-ln-soft p-3 md:block">
             <div className="mb-4 flex items-center gap-2 px-2 pt-1">
               <BrandMark size={22} />
-              <span className="text-sm font-bold text-ln-ink">Zhuie</span>
+              <span className="text-sm font-bold text-ln-ink">Zhue</span>
             </div>
             {t.nav.map((label, i) => {
               const Icon = NAV_ICONS[i]!;

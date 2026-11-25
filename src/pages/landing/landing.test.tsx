@@ -8,12 +8,12 @@ afterEach(() => {
 
 const events = () => (window.dataLayer ?? []).map((e) => e.event);
 
-describe('Лендинг Zhuie', () => {
+describe('Лендинг Zhue', () => {
   it('первый экран: ценность, навигация; «Тегін бастау» и «Демо көру» — к форме демо, «Жүйеге кіру» — вход', async () => {
     renderApp('/');
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhuie — оқу процесін бір жүйеде басқарыңыз');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhue — оқу процесін бір жүйеде басқарыңыз');
     expect(document.documentElement.lang).toBe('kk');
-    expect(document.title).toBe('Zhuie — оқу процесін басқаруға арналған платформа');
+    expect(document.title).toBe('Zhue — оқу процесін басқаруға арналған платформа');
     expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${window.location.origin}/`);
     const nav = screen.getByRole('navigation', { name: 'Негізгі навигация' });
     ['Мүмкіндіктер', 'Қалай жұмыс істейді', 'Кімге арналған', 'Тарифтер', 'Сұрақтар'].forEach((l) =>
@@ -29,7 +29,7 @@ describe('Лендинг Zhuie', () => {
 
   it('русская версия: локализует страницу, SEO и позволяет перейти на казахскую', async () => {
     const { user, router } = renderApp('/ru');
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhuie — управляйте учебным процессом в одной системе');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhue — управляйте учебным процессом в одной системе');
     expect(document.documentElement.lang).toBe('ru');
     expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${window.location.origin}/ru`);
 
@@ -45,7 +45,7 @@ describe('Лендинг Zhuie', () => {
     kazakhLinks.forEach((link) => expect(link).toHaveAttribute('href', '/'));
     await user.click(kazakhLinks[0]!);
     expect(router.state.location.pathname).toBe('/');
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhuie — оқу процесін бір жүйеде басқарыңыз');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhue — оқу процесін бір жүйеде басқарыңыз');
     expect(document.documentElement.lang).toBe('kk');
   });
 
@@ -55,7 +55,7 @@ describe('Лендинг Zhuie', () => {
     [
       'Бірнеше жүйенің орнына — бір платформа',
       'Оқу процесінің бәрі — бір платформада',
-      'Zhuie-мен жұмысты бастау оңай',
+      'Zhue-мен жұмысты бастау оңай',
       'Әр рөлге — өз жұмыс орны',
       'Дерекке сүйеніп шешім қабылдаңыз',
       'Қолданыстағы жүйелермен бірге жұмыс істейді',
@@ -66,7 +66,7 @@ describe('Лендинг Zhuie', () => {
       'Оқу процесін бір жүйеге біріктіруге дайынсыз ба?',
     ].forEach((h) => expect(screen.getByRole('heading', { level: 2, name: h })).toBeInTheDocument());
     // Без подтверждённых данных: нет цифр, логотипов и кейсов — только нейтральная строка доверия
-    ['Zhuie нақты сандармен', 'Zhuie-ді таңдаған ұйымдар', 'Zhuie ұйымдарға қандай нәтиже береді'].forEach((h) =>
+    ['Zhue нақты сандармен', 'Zhue-ні таңдаған ұйымдар', 'Zhue ұйымдарға қандай нәтиже береді'].forEach((h) =>
       expect(screen.queryByRole('heading', { name: h })).not.toBeInTheDocument(),
     );
     expect(screen.getByText('Оқу орталықтары, мектептер және компаниялар үшін жасалған')).toBeInTheDocument();
@@ -75,9 +75,9 @@ describe('Лендинг Zhuie', () => {
     expect(popular).toHaveTextContent('200 000 ₸');
     ['Базалық', 'Бизнес', 'Ұйым'].forEach((n) => expect(screen.getByRole('article', { name: `${n} тарифі` })).toBeInTheDocument());
     expect(screen.getAllByText('Жоспарда').length).toBeGreaterThan(0);
-    expect(screen.getByText(`© ${new Date().getFullYear()} Zhuie. Барлық құқықтар қорғалған.`)).toBeInTheDocument();
-    // Подвал: «Zhuie · Beyim Ustaz әзірлеген», Beyim Ustaz — внешняя ссылка
-    expect(screen.getByRole('contentinfo')).toHaveTextContent('Zhuie · Beyim Ustaz әзірлеген');
+    expect(screen.getByText(`© ${new Date().getFullYear()} Zhue. Барлық құқықтар қорғалған.`)).toBeInTheDocument();
+    // Подвал: «Zhue · Beyim Ustaz әзірлеген», Beyim Ustaz — внешняя ссылка
+    expect(screen.getByRole('contentinfo')).toHaveTextContent('Zhue · Beyim Ustaz әзірлеген');
     screen.getAllByRole('link', { name: 'Телефон: +7 (7172) 69-74-14' }).forEach((l) => expect(l).toHaveAttribute('href', 'tel:+77172697414'));
   });
 
@@ -188,10 +188,10 @@ describe('Лендинг Zhuie', () => {
 describe('Страница входа', () => {
   it('логотип ведёт на главную (лендинг)', async () => {
     const { user, router } = renderApp('/login');
-    const logos = await screen.findAllByRole('link', { name: 'Zhuie — на главную' });
+    const logos = await screen.findAllByRole('link', { name: 'Zhue — на главную' });
     expect(logos[0]).toHaveAttribute('href', '/');
     await user.click(logos[0]!);
     expect(router.state.location.pathname).toBe('/');
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhuie — оқу процесін бір жүйеде басқарыңыз');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Zhue — оқу процесін бір жүйеде басқарыңыз');
   });
 });

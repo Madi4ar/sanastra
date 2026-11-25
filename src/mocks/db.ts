@@ -365,7 +365,7 @@ export function toDetail(o: OrgRecord): OrganizationDetail {
         overrideEnabled,
         effectiveEnabled: overrideEnabled ?? tariffEnabled,
         canOverride: !m.system,
-        lockReason: m.system ? 'Системный модуль обязателен для работы Zhuie' : undefined,
+        lockReason: m.system ? 'Системный модуль обязателен для работы Zhue' : undefined,
       };
     }),
     limits: LIMITS.map((l) => ({ ...l, value: o.limits[l.code] ?? l.min })),
@@ -421,7 +421,7 @@ export function toTariffDetail(t: TariffRecord): TariffPlanDetail {
       icon: m.icon,
       enabled: t.modules[m.code] ?? false,
       canOverride: !m.system,
-      lockReason: m.system ? 'Системный модуль обязателен для работы Zhuie' : undefined,
+      lockReason: m.system ? 'Системный модуль обязателен для работы Zhue' : undefined,
     })),
     limits: LIMITS.map((l) => ({ ...l, value: t.limits[l.code] ?? l.min })),
   };

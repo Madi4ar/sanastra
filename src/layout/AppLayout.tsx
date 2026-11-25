@@ -60,8 +60,8 @@ export function AppLayout() {
         style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'auto' }}
       >
         <div className="flex h-14 items-center gap-2 px-5 text-white">
-          <img src="/brand/zhuie-icon.svg" width={32} height={32} alt="" className="shrink-0 rounded-lg" />
-          {!collapsed && <span className="truncate font-semibold">Zhuie · Админ</span>}
+          <img src="/brand/zhue-icon.svg" width={32} height={32} alt="" className="shrink-0 rounded-lg" />
+          {!collapsed && <span className="truncate font-semibold">Zhue · Админ</span>}
         </div>
         <Menu
           theme="dark"

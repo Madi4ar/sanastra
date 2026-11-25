@@ -98,7 +98,7 @@ export function OnboardingProfile({ user }: { user: CurrentUser }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-page p-4">
       <Card className="w-full max-w-xl" data-testid="onboarding">
-        <h1 className="m-0 text-2xl font-bold text-text">Добро пожаловать в Zhuie!</h1>
+        <h1 className="m-0 text-2xl font-bold text-text">Добро пожаловать в Zhue!</h1>
         <p className="mt-1 mb-6 text-muted">Это ваш первый вход. Проверьте данные профиля и при необходимости исправьте их.</p>
         <form
           noValidate

@@ -4,7 +4,7 @@ import { track } from './analytics';
 import { ENDORSER, ENDORSER_URL } from './content';
 import { useLandingText } from './i18n';
 
-/** Знак Zhuie: буква в бренд-плашке — используется в шапке, подвале и продуктовых макетах. */
+/** Знак Zhue: буква в бренд-плашке — используется в шапке, подвале и продуктовых макетах. */
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
     <span
@@ -17,12 +17,12 @@ export function BrandMark({ size = 32 }: { size?: number }) {
   );
 }
 
-/** Логотип Zhuie: знак + словесная часть. */
+/** Логотип Zhue: знак + словесная часть. */
 export function BrandLogo({ inverted = false, to = '/', ariaLabel }: { inverted?: boolean; to?: string; ariaLabel: string }) {
   return (
     <Link to={to} className="ln-focus flex items-center gap-2.5 rounded-md no-underline" aria-label={ariaLabel}>
       <BrandMark />
-      <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Zhuie</span>
+      <span className={`text-xl font-semibold tracking-[-0.02em] ${inverted ? 'text-white' : 'text-ln-ink'}`}>Zhue</span>
     </Link>
   );
 }
@@ -60,7 +60,7 @@ export function Endorsement({
   );
 }
 
-/** Шапка: логотип Zhuie — главный, рядом через разделитель — подпись создателя в две строки, чтобы связка помещалась и на 1024, и на 360 px. */
+/** Шапка: логотип Zhue — главный, рядом через разделитель — подпись создателя в две строки, чтобы связка помещалась и на 1024, и на 360 px. */
 export function BrandLockup({ to, ariaLabel }: { to: string; ariaLabel: string }) {
   return (
     <div className="flex shrink-0 items-center gap-3">
