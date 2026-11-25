@@ -10,6 +10,8 @@ export const ENDORSER_URL = 'https://beyim.edu.kz/';
 /** Единый контактный адрес: заявки на демо, продажи и поддержка. */
 export const SUPPORT_EMAIL = 'support@cpm.kz';
 export const SALES_EMAIL = SUPPORT_EMAIL;
+/** Телефон для связи: подпись — как пишется, href — в международном формате без пробелов. */
+export const PHONE = { label: '+7 (7172) 69-74-14', href: 'tel:+77172697414' };
 
 /** Подтверждённые показатели платформы. Пусто — вместо чисел показывается нейтральная строка доверия. */
 export const STATS: { value: string; label: string }[] = [];

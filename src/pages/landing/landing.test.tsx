@@ -78,6 +78,7 @@ describe('Лендинг Zhuie', () => {
     expect(screen.getByText(`© ${new Date().getFullYear()} Zhuie. Барлық құқықтар қорғалған.`)).toBeInTheDocument();
     // Подвал: «Zhuie · Beyim Ustaz әзірлеген», Beyim Ustaz — внешняя ссылка
     expect(screen.getByRole('contentinfo')).toHaveTextContent('Zhuie · Beyim Ustaz әзірлеген');
+    screen.getAllByRole('link', { name: 'Телефон: +7 (7172) 69-74-14' }).forEach((l) => expect(l).toHaveAttribute('href', 'tel:+77172697414'));
   });
 
   it('подпись Beyim Ustaz: в шапке, на первом экране и в подвале ведёт на beyim.edu.kz и считается в аналитике', async () => {
