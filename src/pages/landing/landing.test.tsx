@@ -16,7 +16,7 @@ describe('Лендинг Zhue', () => {
     expect(document.title).toBe('Zhue — оқу процесін басқаруға арналған платформа');
     expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${window.location.origin}/`);
     const nav = screen.getByRole('navigation', { name: 'Негізгі навигация' });
-    ['Мүмкіндіктер', 'Қалай жұмыс істейді', 'Кімге арналған', 'Тарифтер', 'Сұрақтар'].forEach((l) =>
+    ['Мүмкіндіктер', 'Қалай жұмыс істейді', 'Тарифтер', 'Сұрақтар'].forEach((l) =>
       expect(within(nav).getByRole('link', { name: l })).toBeInTheDocument(),
     );
     // «Тегін бастау» и «Демо көру» ведут вниз, к форме заявки
@@ -34,7 +34,7 @@ describe('Лендинг Zhue', () => {
     expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${window.location.origin}/ru`);
 
     const nav = screen.getByRole('navigation', { name: 'Основная навигация' });
-    ['Возможности', 'Как это работает', 'Для кого', 'Тарифы', 'Вопросы'].forEach((label) =>
+    ['Возможности', 'Как это работает', 'Тарифы', 'Вопросы'].forEach((label) =>
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument(),
     );
     screen.getAllByRole('link', { name: /^Начать бесплатно/ }).forEach((link) => expect(link).toHaveAttribute('href', '#demo'));
@@ -56,20 +56,22 @@ describe('Лендинг Zhue', () => {
       'Бірнеше жүйенің орнына — бір платформа',
       'Оқу процесінің бәрі — бір платформада',
       'Zhue-мен жұмысты бастау оңай',
-      'Әр рөлге — өз жұмыс орны',
-      'Дерекке сүйеніп шешім қабылдаңыз',
       'Қолданыстағы жүйелермен бірге жұмыс істейді',
       'Іске қосу кезінде жалғыз қалмайсыз',
-      'Бір курсқа да, үлкен ұйымға да',
       'Сізге сай жоспарды таңдаңыз',
       'Жиі қойылатын сұрақтар',
       'Оқу процесін бір жүйеге біріктіруге дайынсыз ба?',
     ].forEach((h) => expect(screen.getByRole('heading', { level: 2, name: h })).toBeInTheDocument());
-    // Без подтверждённых данных: нет цифр, логотипов и кейсов — только нейтральная строка доверия
+    // Без подтверждённых данных: нет цифр, логотипов и кейсов
     ['Zhue нақты сандармен', 'Zhue-ні таңдаған ұйымдар', 'Zhue ұйымдарға қандай нәтиже береді'].forEach((h) =>
       expect(screen.queryByRole('heading', { name: h })).not.toBeInTheDocument(),
     );
-    expect(screen.getByText('Оқу орталықтары, мектептер және компаниялар үшін жасалған')).toBeInTheDocument();
+    // Удалённые блоки: «для кого», роли, аналитика, аудитории
+    ['Әр рөлге — өз жұмыс орны', 'Дерекке сүйеніп шешім қабылдаңыз', 'Бір курсқа да, үлкен ұйымға да'].forEach((h) =>
+      expect(screen.queryByRole('heading', { name: h })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText('Оқу орталықтары, мектептер және компаниялар үшін жасалған')).not.toBeInTheDocument();
+    ['roles', 'analytics', 'audience'].forEach((id) => expect(document.getElementById(id)).toBeNull());
 
     const popular = screen.getByRole('article', { name: 'Стандарт тарифі, ұсынылады' });
     expect(popular).toHaveTextContent('200 000 ₸');

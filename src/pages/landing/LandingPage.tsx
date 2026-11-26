@@ -1,19 +1,12 @@
 import {
   ArrowRight,
-  BookOpen,
-  Briefcase,
   Check,
   ChevronDown,
   Headset,
-  Landmark,
   Menu,
-  Presentation,
-  School,
   ShieldCheck,
   Star,
-  UsersRound,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link } from 'react-router';
@@ -24,10 +17,10 @@ import { DemoForm, type DemoChannel } from './DemoForm';
 import { LandingLangProvider, useLandingLang, useLandingText, type LandingLang } from './i18n';
 import { FeatureTabs } from './FeatureTabs';
 import { BeforeAfter, DashboardMockup } from './mockups';
-import { BrandLockup, BrandLogo, Container, CountUp, Endorsement, GhostButton, PrimaryButton, Reveal, Section, SectionHeading, SecondaryButton } from './primitives';
+import { BrandLockup, BrandLogo, Container, Endorsement, GhostButton, PrimaryButton, Reveal, Section, SectionHeading, SecondaryButton } from './primitives';
 import { FloatingActions } from './FloatingActions';
 
-const NAV_IDS = ['features', 'how', 'audience', 'pricing', 'faq'];
+const NAV_IDS = ['features', 'how', 'pricing', 'faq'];
 
 /* ---------------- Header ---------------- */
 
@@ -231,11 +224,8 @@ function Hero() {
           </p>
           <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <PrimaryButton href="#demo" size="lg" cta="hero">
-              {t.nav.startFree} <ArrowRight size={18} aria-hidden />
+              {t.hero.demo} <ArrowRight size={18} aria-hidden />
             </PrimaryButton>
-            <SecondaryButton href="#demo" size="lg" cta="hero">
-              {t.hero.demo}
-            </SecondaryButton>
           </div>
           <p className="m-0 mt-5 text-[0.9375rem] leading-6 text-ln-muted">{t.hero.note}</p>
         </Reveal>
@@ -251,7 +241,7 @@ function Hero() {
 
 /* ---------------- Trust: numbers & logos ---------------- */
 
-/** Подтверждённые цифры — если владелец продукта их предоставил; иначе нейтральная строка доверия без чисел. */
+/** Подтверждённые цифры — только если владелец продукта их предоставил; иначе блок не показывается. */
 function Trust() {
   const t = useLandingText();
   if (STATS.length) {
@@ -271,20 +261,7 @@ function Trust() {
       </Section>
     );
   }
-  return (
-    <div className="border-y border-ln-border-soft py-8">
-      <Container className="flex flex-col items-center gap-4 text-center md:flex-row md:justify-between md:text-left">
-        <p className="m-0 text-[1.0625rem] font-medium text-ln-ink">{t.trust.fallback}</p>
-        <ul className="m-0 flex list-none flex-wrap justify-center gap-2 p-0" aria-label={t.trust.audienceLabel}>
-          {t.trust.audiences.map((item) => (
-            <li key={item} className="rounded-full bg-ln-soft px-3.5 py-1.5 text-[0.9375rem] text-ln-ink-2">
-              {item}
-            </li>
-          ))}
-        </ul>
-      </Container>
-    </div>
-  );
+  return null;
 }
 
 /** Логотипы клиентов: публикуются только с письменного разрешения; на мобильном — горизонтальная прокрутка. */
@@ -379,96 +356,6 @@ function HowToStart() {
             {t.start.cta} <ArrowRight size={18} aria-hidden />
           </PrimaryButton>
         </div>
-      </Container>
-    </Section>
-  );
-}
-
-/* ---------------- Roles ---------------- */
-
-const ROLE_ICONS: LucideIcon[] = [Landmark, Presentation, BookOpen];
-
-/** Роли кратко: подробности — во вкладке «Рөлдер мен басқару», здесь только кому что даёт платформа. */
-function Roles() {
-  const t = useLandingText();
-  const roles = [t.roles.admin, t.roles.teacher, t.roles.learner];
-  return (
-    <Section id="roles" labelledBy="roles-h">
-      <Container>
-        <SectionHeading id="roles-h" title={t.roles.title} />
-        <Reveal as="ul" className="ln-stagger m-0 mt-12 grid list-none gap-4 p-0 md:mt-16 md:grid-cols-3 lg:gap-5">
-          {roles.map((r, i) => {
-            const Icon = ROLE_ICONS[i]!;
-            return (
-              <li key={r.eyebrow} className="ln-lift flex h-full flex-col rounded-[28px] bg-ln-soft p-7" style={{ '--i': i } as React.CSSProperties}>
-                <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
-                <p className="m-0 mt-6 text-[0.9375rem] font-semibold text-ln-muted">{r.eyebrow}</p>
-                <h3 className="m-0 mt-1 text-[1.25rem] leading-[1.625rem] font-semibold tracking-[-0.015em] text-ln-ink">{r.title}</h3>
-                <p className="m-0 mt-2 text-[1.0625rem] leading-[1.625rem] text-ln-ink-2">{r.text}</p>
-              </li>
-            );
-          })}
-        </Reveal>
-      </Container>
-    </Section>
-  );
-}
-
-/* ---------------- Analytics ---------------- */
-
-function Analytics() {
-  const t = useLandingText();
-  const bars = [52, 61, 58, 70, 74, 69, 81, 86];
-  return (
-    <Section id="analytics" labelledBy="analytics-h">
-      <Container className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
-        <div>
-          <SectionHeading
-            id="analytics-h"
-            align="left"
-            title={t.analytics.title}
-            text={t.analytics.text}
-          />
-          <div className="mt-8">
-            <SecondaryButton to="/login" cta="analytics">
-              {t.analytics.cta} <ArrowRight size={16} aria-hidden />
-            </SecondaryButton>
-          </div>
-        </div>
-        <Reveal variant="scale">
-          <div className="ln-shadow rounded-[28px] border border-ln-border-soft bg-ln-bg p-5 md:p-7">
-            {/* Фильтры — часть макета, не элементы управления */}
-            <div className="mb-3 flex flex-wrap gap-2" aria-hidden>
-              {t.analytics.filters.map((f) => (
-                <span key={f} className="inline-flex items-center gap-1 rounded-full border border-ln-border-soft px-3 py-1 text-[0.8125rem] text-ln-ink-2">
-                  {f} <ChevronDown size={14} />
-                </span>
-              ))}
-            </div>
-            <dl className="m-0 grid grid-cols-2 gap-3">
-              {t.analytics.metrics.map((m) => (
-                <div key={m.label} className="rounded-2xl bg-ln-soft p-4 md:p-5">
-                  <dt className="text-[0.8125rem] leading-[1.125rem] tracking-[0.01em] text-ln-muted">{m.label}</dt>
-                  <dd className="tabular m-0 mt-2 text-[1.75rem] leading-8 font-semibold tracking-[-0.02em] text-ln-ink md:text-[2.125rem] md:leading-10">
-                    <CountUp value={m.value} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <div
-              className="mt-3 rounded-2xl bg-ln-soft p-4 md:p-5"
-              role="img"
-              aria-label={t.analytics.chartLabel}
-            >
-              <p className="m-0 mb-4 text-[0.9375rem] font-medium text-ln-ink">{t.analytics.chartTitle}</p>
-              <div className="flex h-28 items-end gap-2" aria-hidden>
-                {bars.map((b, i) => (
-                  <div key={i} className="ln-bar flex-1 rounded-md bg-ln-brand" style={{ height: `${b}%`, opacity: 0.35 + (i / bars.length) * 0.65, '--i': i } as React.CSSProperties} />
-                ))}
-              </div>
-            </div>
-          </div>
-        </Reveal>
       </Container>
     </Section>
   );
@@ -607,33 +494,6 @@ function Support() {
               </li>
             ))}
           </ul>
-        </Reveal>
-      </Container>
-    </Section>
-  );
-}
-
-/* ---------------- Audience ---------------- */
-
-const AUDIENCE_ICONS: LucideIcon[] = [BookOpen, School, Briefcase, Landmark, UsersRound];
-
-function Audience() {
-  const t = useLandingText();
-  return (
-    <Section id="audience" labelledBy="audience-h">
-      <Container>
-        <SectionHeading id="audience-h" title={t.audience.title} text={t.audience.text} />
-        <Reveal className="mt-14 grid gap-4 sm:grid-cols-2 md:mt-20 lg:grid-cols-6 lg:gap-5">
-          {t.audience.items.map(({ title, text }, i) => {
-            const Icon = AUDIENCE_ICONS[i]!;
-            return (
-            <article key={title} className={`flex h-full flex-col rounded-[28px] bg-ln-soft p-7 lg:col-span-2 ${i >= 3 ? 'lg:col-span-3' : ''}`}>
-              <Icon size={28} strokeWidth={1.75} className="text-ln-ink-2" aria-hidden />
-              <h3 className="m-0 mt-6 text-[1.25rem] leading-[1.625rem] font-semibold tracking-[-0.015em] text-ln-ink">{title}</h3>
-              <p className="m-0 mt-2 text-[1.0625rem] leading-[1.625rem] text-ln-ink-2">{text}</p>
-            </article>
-            );
-          })}
         </Reveal>
       </Container>
     </Section>
@@ -1077,12 +937,9 @@ function LandingContent() {
         <Problem />
         <FeatureTabs />
         <HowToStart />
-        <Roles />
-        <Analytics />
         <Cases />
         <IntegrationsSecurity />
         <Support />
-        <Audience />
         <Pricing />
         <Faq />
         <FinalCta demo={demo} />

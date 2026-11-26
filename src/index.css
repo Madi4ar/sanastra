@@ -469,21 +469,10 @@ body {
   opacity: 1;
   transform: none;
 }
-/* Столбики графика растут снизу вверх друг за другом */
-.ln-bar {
-  transform: scaleY(0);
-  transform-origin: 50% 100%;
-  transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
-  transition-delay: calc(200ms + var(--i, 0) * 70ms);
-}
-.is-visible .ln-bar {
-  transform: none;
-}
 @media (prefers-reduced-motion: reduce) {
   .ln-shot-frame,
   .ln-shot-img,
-  .ln-stagger > *,
-  .ln-bar {
+  .ln-stagger > * {
     transform: none !important;
     transition: opacity 0.2s ease;
   }
